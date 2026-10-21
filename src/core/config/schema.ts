@@ -102,25 +102,33 @@ export function createConfigSchema(configDir: string) {
           dashboardUrl: nonEmpty.default('http://127.0.0.1:4317'),
         })
         .optional(),
-    })
-    .superRefine((config, ctx) => {
-      for (const [name, repo] of Object.entries(config.repositories)) {
-        if (!Object.hasOwn(config.gitlab, repo.gitlab)) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['repositories', name, 'gitlab'],
-            message: `Unknown gitlab connection "${repo.gitlab}"`,
-          });
-        }
-        if (repo.jira !== undefined && !Object.hasOwn(config.jira.connections, repo.jira)) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['repositories', name, 'jira'],
-            message: `Unknown jira connection "${repo.jira}"`,
-          });
-        }
-      }
     });
+}
+
+export type ReferenceIssue = { path: string[]; message: string };
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+// Runs on the raw input so reference errors are reported even when other fields fail validation.
+// Malformed parts are skipped here; the schema reports them.
+export function findReferenceIssues(raw: unknown): ReferenceIssue[] {
+  if (!isRecord(raw) || !isRecord(raw.repositories)) return [];
+  const gitlab = isRecord(raw.gitlab) ? raw.gitlab : undefined;
+  const jira: Record<string, unknown> | undefined = raw.jira === undefined ? {} : isRecord(raw.jira) ? raw.jira : undefined;
+  const connections = jira?.connections ?? {};
+  const jiraConnections = jira && isRecord(connections) ? connections : undefined;
+
+  const issues: ReferenceIssue[] = [];
+  for (const [name, repo] of Object.entries(raw.repositories)) {
+    if (!isRecord(repo)) continue;
+    if (gitlab && typeof repo.gitlab === 'string' && repo.gitlab !== '' && !Object.hasOwn(gitlab, repo.gitlab)) {
+      issues.push({ path: ['repositories', name, 'gitlab'], message: `Unknown gitlab connection "${repo.gitlab}"` });
+    }
+    if (jiraConnections && typeof repo.jira === 'string' && repo.jira !== '' && !Object.hasOwn(jiraConnections, repo.jira)) {
+      issues.push({ path: ['repositories', name, 'jira'], message: `Unknown jira connection "${repo.jira}"` });
+    }
+  }
+  return issues;
 }
 
 export type Config = z.output<ReturnType<typeof createConfigSchema>> & { configDir: string };

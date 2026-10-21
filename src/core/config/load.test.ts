@@ -110,6 +110,27 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ path: file, env: {} })).toThrow('repositories.pages.jira');
   });
 
+  test('reports unknown connection references together with other issues', () => {
+    const { file } = writeConfig({
+      ...fullConfig,
+      copilotBin: 42,
+      repositories: { pages: { folder: '/x', gitlab: 'nope', jira: 'missing', validate: [] } },
+    });
+    const error = captureError(() => loadConfig({ path: file, env: {} }));
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(error.message).toContain('copilotBin');
+    expect(error.message).toContain('repositories.pages.gitlab');
+    expect(error.message).toContain('repositories.pages.jira');
+  });
+
+  test('reference check tolerates malformed repositories and connections', () => {
+    const { file } = writeConfig({ repositories: { a: 'oops', b: { gitlab: 7 } }, gitlab: 'nope', jira: 5 });
+    const error = captureError(() => loadConfig({ path: file, env: {} }));
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(error.message).toContain('repositories.a');
+    expect(error.message).toContain('gitlab');
+  });
+
   test('reports all issues at once', () => {
     const { file } = writeConfig({
       repositories: {},

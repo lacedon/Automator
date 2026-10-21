@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
-import { createConfigSchema, type Config } from './schema';
+import { createConfigSchema, findReferenceIssues, type Config } from './schema';
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -29,8 +29,9 @@ export function loadConfig(opts: { path?: string; env?: NodeJS.ProcessEnv } = {}
   }
 
   const parsed = createConfigSchema(configDir).safeParse(raw);
-  if (!parsed.success) {
-    const lines = parsed.error.issues.map((issue) => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`);
+  const issues = [...(parsed.success ? [] : parsed.error.issues), ...findReferenceIssues(raw)];
+  if (!parsed.success || issues.length > 0) {
+    const lines = issues.map((issue) => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`);
     throw new ConfigError(`Invalid config ${file}:\n${lines.join('\n')}`);
   }
   return { ...parsed.data, configDir };
