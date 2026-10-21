@@ -65,14 +65,14 @@ describe('worker lock', () => {
     expect(lockRow(db)).toBeUndefined();
   });
 
-  test('heartbeat updates only the owning pid', () => {
+  test('heartbeat updates only the owning pid and reports a lost lock', () => {
     const { db, clock } = setup();
     acquireWorkerLock(db, clock, 100, alive);
     const startedAt = clock.now();
     clock.advance(3_000);
-    heartbeat(db, clock, 200);
+    expect(heartbeat(db, clock, 200)).toBe(false);
     expect(lockRow(db)?.heartbeat_at).toBe(startedAt);
-    heartbeat(db, clock, 100);
+    expect(heartbeat(db, clock, 100)).toBe(true);
     expect(lockRow(db)).toEqual({ pid: 100, started_at: startedAt, heartbeat_at: clock.now() });
   });
 });

@@ -1,6 +1,7 @@
 import {
   acquireWorkerLock,
   bootstrap,
+  heartbeat,
   isProcessAlive,
   recoverInterruptedRuns,
   releaseWorkerLock,
@@ -9,8 +10,17 @@ import {
 import { WorkerLoop } from './loop';
 
 const ts = () => new Date().toISOString();
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-async function main(): Promise<void> {
+function attempt(step: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (e) {
+    console.error(`${ts()} ${step} failed: ${message(e)}`);
+  }
+}
+
+function main(): void {
   const core = bootstrap();
   const { pid } = process;
   const lock = acquireWorkerLock(core.db, core.deps.clock, pid, isProcessAlive);
@@ -20,8 +30,40 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const loop = new WorkerLoop(core);
   let shuttingDown = false;
+  // Another worker owns the lock now; its restart recovery handles any Run left behind.
+  const lockLost = () => {
+    shuttingDown = true;
+    attempt('close', () => core.close());
+    process.exit(1);
+  };
+  const loop = new WorkerLoop(core, { onLockLost: lockLost });
+
+  // Keeps the lock fresh while startup steps (recovery, Jira lookups) may take minutes.
+  const startupHeartbeat = setInterval(() => {
+    let held = true;
+    attempt('heartbeat', () => {
+      held = heartbeat(core.db, core.deps.clock, pid);
+    });
+    if (!held && !shuttingDown) {
+      console.error(`${ts()} lost worker lock; exiting`);
+      lockLost();
+    }
+  }, 1000);
+
+  const startup = (async () => {
+    try {
+      const recovered = await recoverInterruptedRuns(core.executorDeps);
+      if (recovered > 0) console.log(`${ts()} recovered ${recovered} interrupted run(s)`);
+      if (core.config.jira.enabled && !shuttingDown) await resolveJiraDoneNames(core);
+    } finally {
+      clearInterval(startupHeartbeat);
+    }
+    if (shuttingDown) return;
+    loop.start();
+    console.log(`${ts()} worker started (pid ${pid})`);
+  })();
+
   const shutdown = (signal: NodeJS.Signals) => {
     if (shuttingDown) {
       console.log(`${ts()} ${signal} again, exiting immediately`);
@@ -29,12 +71,13 @@ async function main(): Promise<void> {
     }
     shuttingDown = true;
     console.log(`${ts()} ${signal} received, waiting for the active run to finish`);
-    void loop
-      .stop()
-      .catch((e: unknown) => console.error(`${ts()} shutdown failed: ${e instanceof Error ? e.message : String(e)}`))
+    void startup
+      .catch(() => {})
+      .then(() => loop.stop())
+      .catch((e: unknown) => console.error(`${ts()} shutdown failed: ${message(e)}`))
       .finally(() => {
-        releaseWorkerLock(core.db, pid);
-        core.close();
+        attempt('lock release', () => releaseWorkerLock(core.db, pid));
+        attempt('close', () => core.close());
         console.log(`${ts()} worker stopped`);
         process.exit(0);
       });
@@ -42,15 +85,18 @@ async function main(): Promise<void> {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  const recovered = await recoverInterruptedRuns(core.executorDeps);
-  if (recovered > 0) console.log(`${ts()} recovered ${recovered} interrupted run(s)`);
-  if (core.config.jira.enabled) await resolveJiraDoneNames(core);
-
-  if (!shuttingDown) loop.start();
-  console.log(`${ts()} worker started (pid ${pid})`);
+  startup.catch((e: unknown) => {
+    if (shuttingDown) return;
+    console.error(`${ts()} worker failed: ${message(e)}`);
+    attempt('lock release', () => releaseWorkerLock(core.db, pid));
+    attempt('close', () => core.close());
+    process.exit(1);
+  });
 }
 
-main().catch((e: unknown) => {
-  console.error(`${ts()} worker failed: ${e instanceof Error ? e.message : String(e)}`);
+try {
+  main();
+} catch (e) {
+  console.error(`${ts()} worker failed: ${message(e)}`);
   process.exit(1);
-});
+}

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../test/helpers/clock';
 import { testConfig } from '../../test/helpers/config';
-import { createCore, type CopilotExit, type CopilotLauncher, type NeedsYouEvent, type Outcome, type RunStatus } from '@core/index';
+import { acquireWorkerLock, createCore, type CopilotExit, type CopilotLauncher, type NeedsYouEvent, type Outcome, type RunStatus } from '@core/index';
 import { WorkerLoop } from './loop';
 
 const DAY = 86_400_000;
@@ -37,7 +37,7 @@ function fakeCopilot() {
   return { launcher, procs };
 }
 
-function setup() {
+function setup(opts: { onLockLost?: () => void } = {}) {
   const config = testConfig({ prompts: { dir: path.resolve('prompts') } });
   const clock = fakeClock();
   const copilot = fakeCopilot();
@@ -51,7 +51,8 @@ function setup() {
       },
     },
   });
-  const loop = new WorkerLoop(core);
+  acquireWorkerLock(core.db, clock, process.pid, () => false);
+  const loop = new WorkerLoop(core, opts);
   cleanups.push(() => {
     core.close();
     fs.rmSync(config.configDir, { recursive: true, force: true });
@@ -153,6 +154,7 @@ describe('WorkerLoop', () => {
     vi.spyOn(core.scheduler, 'tick').mockRejectedValue(new Error('boom'));
 
     await loop.iterate();
+    await waitFor(() => errors.mock.calls.length > 0);
     expect(errors).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z .*boom/));
     const a = adhoc();
     clock.advance(30_000);
@@ -174,5 +176,35 @@ describe('WorkerLoop', () => {
     procs[0]!.finish('needs-you');
     await loop.stop();
     expect(notified.map((e) => e.watchId)).toEqual([watch.value.id]);
+  });
+
+  test('a hanging scheduler tick does not stall heartbeat or watchdog', async () => {
+    const { core, clock, loop } = setup();
+    const tick = vi.spyOn(core.scheduler, 'tick').mockReturnValue(new Promise(() => {}));
+    const watchdog = vi.spyOn(core.executor, 'watchdog');
+    const heartbeatAt = () => (core.db.prepare('SELECT heartbeat_at FROM worker_lock').get() as { heartbeat_at: number }).heartbeat_at;
+
+    await loop.iterate();
+    for (let i = 0; i < 3; i++) {
+      clock.advance(60_000);
+      await loop.iterate();
+      expect(heartbeatAt()).toBe(clock.now());
+    }
+    expect(watchdog).toHaveBeenCalledTimes(4);
+    expect(tick).toHaveBeenCalledTimes(1);
+  });
+
+  test('a lost lock stops claiming and reports it', async () => {
+    const onLockLost = vi.fn();
+    const { core, loop, status, adhoc } = setup({ onLockLost });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    core.db.prepare('UPDATE worker_lock SET pid = ?').run(process.pid + 1);
+    const a = adhoc();
+
+    await loop.iterate();
+    await loop.iterate();
+    expect(onLockLost).toHaveBeenCalledOnce();
+    expect(errors).toHaveBeenCalledWith(expect.stringMatching(/Z lost worker lock; exiting$/));
+    expect(status(a)).toBe('queued');
   });
 });

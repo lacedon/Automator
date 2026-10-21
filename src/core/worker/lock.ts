@@ -39,8 +39,9 @@ export function acquireWorkerLock(
     .immediate();
 }
 
-export function heartbeat(db: Database, clock: Clock, pid: number): void {
-  db.prepare('UPDATE worker_lock SET heartbeat_at = ? WHERE id = 1 AND pid = ?').run(clock.now(), pid);
+// Returns false when the lock is no longer held by this pid.
+export function heartbeat(db: Database, clock: Clock, pid: number): boolean {
+  return db.prepare('UPDATE worker_lock SET heartbeat_at = ? WHERE id = 1 AND pid = ?').run(clock.now(), pid).changes > 0;
 }
 
 export function releaseWorkerLock(db: Database, pid: number): void {
