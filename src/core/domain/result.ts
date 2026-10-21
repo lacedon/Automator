@@ -1,5 +1,4 @@
-// Task 3 moves WatchState to domain/types.ts; import it from there then.
-type WatchState = 'active' | 'paused' | 'needs_you' | 'closed';
+import type { WatchState } from './types';
 
 export type AppError =
   | { code: 'UNKNOWN_REPOSITORY'; name: string; known: string[]; attemptFile: string | null; attemptFileError?: string }
