@@ -37,7 +37,7 @@ describe('fetchWithRetry', () => {
     expect(res.status).toBe(200);
     expect(sleeps).toEqual([1000, 4000]);
     expect(spy).toHaveBeenCalledTimes(3);
-    expect(spy).toHaveBeenCalledWith('https://x.test/a', { headers: { a: 'b' } });
+    expect(spy).toHaveBeenCalledWith('https://x.test/a', expect.objectContaining({ headers: { a: 'b' }, signal: expect.any(AbortSignal) }));
   });
 
   test('does not retry 401 and marks auth', async () => {
@@ -101,5 +101,34 @@ describe('fetchWithRetry', () => {
     const { sleeps, sleep } = recordingSleep();
     await caught(fetchWithRetry('https://x.test/a', {}, { attempts: 4, sleep }));
     expect(sleeps).toEqual([1000, 4000, 10000]);
+  });
+
+  test('times out a stalled request and retries', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    spy.mockImplementationOnce(
+      (_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
+    );
+    spy.mockResolvedValueOnce(new Response('ok', { status: 200 }));
+    const { sleeps, sleep } = recordingSleep();
+    const res = await fetchWithRetry('https://x.test/a', {}, { sleep, timeoutMs: 20 });
+    expect(res.status).toBe(200);
+    expect(sleeps).toEqual([1000]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  test('reports a timeout as a network error after all attempts', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
+    );
+    const e = await caught(fetchWithRetry('https://x.test/a', {}, { ...recordingSleep(), timeoutMs: 10 }));
+    expect(e).toMatchObject({ status: null, auth: false });
+  });
+
+  test('does not retry when the caller aborts', async () => {
+    const spy = stubFetch(new DOMException('aborted', 'AbortError'));
+    const controller = new AbortController();
+    controller.abort();
+    await expect(fetchWithRetry('https://x.test/a', { signal: controller.signal }, recordingSleep())).rejects.toThrow();
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
