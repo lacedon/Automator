@@ -1,0 +1,37 @@
+{
+  "dataDir": "~/.automator",
+  "copilotBin": "copilot",
+  "repositories": {
+    "pages": {
+      "folder": "~/work/pages",
+      "gitlab": "corp",
+      "jira": "corp",
+      "validate": ["npm run lint", "npm test"]
+    }
+  },
+  "gitlab": { "corp": { "host": "https://gitlab.example.com", "tokenEnv": "GITLAB_TOKEN" } },
+  "jira": {
+    "enabled": false,
+    "connections": {
+      "corp": { "baseUrl": "https://jira.example.com", "emailEnv": "JIRA_EMAIL", "tokenEnv": "JIRA_TOKEN", "doneStatusIds": ["10001"] }
+    }
+  },
+  "schedule": {
+    "intervals": { "mr": "15m", "default": "2h" },
+    "workingHours": { "days": [1, 2, 3, 4, 5], "start": "08:00", "end": "19:00" }
+  },
+  "runs": {
+    "timeoutMinutes": 30,
+    "defaultModel": "claude-sonnet-4.5",
+    "models": ["claude-sonnet-4.5", "gpt-5"],
+    "initialReview": "baseline-only",
+    "denyTools": []
+  },
+  "prompts": { "dir": "./prompts" },
+  "cleanup": { "enabled": true, "everyDays": 7, "retainClosedDays": 30 },
+  "teams": {
+    "chatId": "19:abc@thread.v2",
+    "tool": "teams-global(send_chat_message)",
+    "dashboardUrl": "http://127.0.0.1:4317"
+  }
+}
