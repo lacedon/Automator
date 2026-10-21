@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>01-home-palette</title>
+<style>body{background:#0d1117;color:#e6edf3;font-family:-apple-system,system-ui,sans-serif;padding:24px;max-width:1100px;margin:auto}.subtitle{color:#8d96a0}.options{display:grid;gap:20px}.letter{display:none}</style></head><body>
+<h2>Layout A in a dark theme: which palette?</h2>
+<p class="subtitle">Same Home page in both, with the sidebar, Needs you cards, the current Run and recent Runs. Only the colors change.</p>
+
+<style>
+  .m { font: 12px/1.45 -apple-system, system-ui, sans-serif; border-radius:8px; overflow:hidden; }
+  .m .bar { display:flex; gap:10px; align-items:center; padding:9px 14px; font-weight:600; }
+  .m .sp { flex:1 }
+  .m .btn { border-radius:5px; padding:3px 9px; font-weight:600; font-size:11px; }
+  .m .side { width:140px; padding:10px 0; }
+  .m .side div { padding:6px 14px; display:flex; justify-content:space-between; }
+  .m .main { flex:1; padding:12px 14px; }
+  .m .h { font-weight:700; font-size:11px; letter-spacing:.04em; text-transform:uppercase; margin:10px 0 6px; display:flex; gap:6px; align-items:center; }
+  .m .row { display:flex; gap:8px; align-items:center; padding:6px 8px; border-radius:5px; }
+  .m .pill { font-size:10px; padding:1px 7px; border-radius:10px; font-weight:600; white-space:nowrap; }
+  .m .t { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .m .card { border-radius:6px; padding:8px 10px; margin-bottom:6px; }
+  .m code { font-size:11px; padding:0 4px; border-radius:3px; }
+
+  /* Palette 1: neutral graphite (GitHub-dark-like) */
+  .p1 { background:#0d1117; color:#e6edf3; border:1px solid #30363d; }
+  .p1 .bar { background:#010409; border-bottom:1px solid #30363d; }
+  .p1 .side { background:#010409; border-right:1px solid #30363d; color:#8d96a0; }
+  .p1 .side .on { background:#1f2937; color:#e6edf3; box-shadow: inset 3px 0 #2f81f7; }
+  .p1 .mut { color:#8d96a0; font-size:11px; }
+  .p1 .btn { background:#238636; color:#fff; } .p1 .btn.g { background:#21262d; color:#e6edf3; border:1px solid #30363d; }
+  .p1 .card.needs { background:#2d1517; border:1px solid #6e2a2e; }
+  .p1 .row { background:#161b22; margin-bottom:4px; }
+  .p1 .pill.needs { background:#5a1e22; color:#ff9492; } .p1 .pill.act { background:#12361f; color:#56d364; }
+  .p1 .pill.no { background:#262c36; color:#8d96a0; } .p1 .pill.run { background:#3b2e0a; color:#e3b341; }
+  .p1 code { background:#262c36; }
+
+  /* Palette 2: deep slate with violet accent */
+  .p2 { background:#0f1220; color:#e4e7f5; border:1px solid #262b45; }
+  .p2 .bar { background:#0a0c17; border-bottom:1px solid #262b45; }
+  .p2 .side { background:#0a0c17; border-right:1px solid #262b45; color:#8a90b2; }
+  .p2 .side .on { background:#1c2140; color:#fff; box-shadow: inset 3px 0 #8b7cf6; }
+  .p2 .mut { color:#8a90b2; font-size:11px; }
+  .p2 .btn { background:#7c6cf2; color:#fff; } .p2 .btn.g { background:#181c33; color:#e4e7f5; border:1px solid #2e3456; }
+  .p2 .card.needs { background:#2a1424; border:1px solid #7a2c55; }
+  .p2 .row { background:#151a2e; margin-bottom:4px; }
+  .p2 .pill.needs { background:#5b1d3d; color:#ff8fc3; } .p2 .pill.act { background:#0f3a33; color:#4fe0b6; }
+  .p2 .pill.no { background:#22284a; color:#8a90b2; } .p2 .pill.run { background:#3a2f12; color:#f5c451; }
+  .p2 code { background:#22284a; }
+</style>
+
+<div class="options">
+
+  <div class="option" data-choice="graphite" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>Neutral graphite</h3>
+      <p>Close to GitHub dark. Low contrast, calm and familiar, with green for actions and red for Needs you.</p>
+      <div class="m p1">
+        <div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
+        <div style="display:flex; min-height:250px">
+          <div class="side"><div class="on">Home</div><div>Watches <span>12</span></div><div>Queue <span>3</span></div><div>Runs</div><div>Ad-hoc</div></div>
+          <div class="main">
+            <div class="h">Needs you <span class="pill needs">2</span></div>
+            <div class="card needs"><b>!42 Add retry to export job</b> <span class="mut">· inspire-web</span><br><span class="mut">Validation failed: <code>npm test</code></span><div style="margin-top:5px"><span class="btn g">Resume</span> <span class="btn">Resume &amp; run now</span></div></div>
+            <div class="card needs"><b>PROJ-1931 Clarify SSO timeout</b> <span class="mut">· mbdp-pages</span><br><span class="mut">Design disagreement in reviewer comment</span></div>
+            <div class="h">Now running</div>
+            <div class="row"><span class="pill run">● 04:12</span><span class="t">!57 Bump eslint config · inspire-web</span><span class="btn g">Cancel</span></div>
+            <div class="h">Recent runs</div>
+            <div class="row"><span class="pill act">acted</span><span class="t">!51 Replied to 2 comments, pushed fix</span><span class="mut">12m</span></div>
+            <div class="row"><span class="pill no">nothing</span><span class="t">PROJ-1880 No new activity</span><span class="mut">1h</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="slate-violet" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>Deep slate with a violet accent</h3>
+      <p>A cooler blue-black background with a violet primary color. It feels more like its own tool and less like a GitHub clone, while the state colors stay easy to tell apart.</p>
+      <div class="m p2">
+        <div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
+        <div style="display:flex; min-height:250px">
+          <div class="side"><div class="on">Home</div><div>Watches <span>12</span></div><div>Queue <span>3</span></div><div>Runs</div><div>Ad-hoc</div></div>
+          <div class="main">
+            <div class="h">Needs you <span class="pill needs">2</span></div>
+            <div class="card needs"><b>!42 Add retry to export job</b> <span class="mut">· inspire-web</span><br><span class="mut">Validation failed: <code>npm test</code></span><div style="margin-top:5px"><span class="btn g">Resume</span> <span class="btn">Resume &amp; run now</span></div></div>
+            <div class="card needs"><b>PROJ-1931 Clarify SSO timeout</b> <span class="mut">· mbdp-pages</span><br><span class="mut">Design disagreement in reviewer comment</span></div>
+            <div class="h">Now running</div>
+            <div class="row"><span class="pill run">● 04:12</span><span class="t">!57 Bump eslint config · inspire-web</span><span class="btn g">Cancel</span></div>
+            <div class="h">Recent runs</div>
+            <div class="row"><span class="pill act">acted</span><span class="t">!51 Replied to 2 comments, pushed fix</span><span class="mut">12m</span></div>
+            <div class="row"><span class="pill no">nothing</span><span class="t">PROJ-1880 No new activity</span><span class="mut">1h</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body></html>
