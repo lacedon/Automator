@@ -69,4 +69,13 @@ describe('createCore', () => {
     await second.scheduler.tick();
     expect(gitlab.me).toHaveBeenCalledOnce();
   });
+
+  test('exposes read models over the core database and clock', () => {
+    const { core, clock } = setup();
+    const id = insertWatch(core.db, { kind: 'mr' });
+    core.db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(clock.now() + 9 * 60_000, id);
+
+    expect(core.read.watchList({}).rows[0]!.nextCheck).toEqual({ kind: 'in', text: 'in 9m' });
+    expect(core.read.navCounts()).toEqual({ watches: 1, queued: 0 });
+  });
 });

@@ -12,6 +12,7 @@ import type { GitLabPrecheckDeps } from './prechecks/gitlab';
 import { createPrechecks } from './prechecks/index';
 import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
 import { QueueService } from './queue/queueService';
+import { createReadModels, type ReadModels } from './read-models/index';
 import { createCopilotLauncher, type CopilotLauncher } from './runs/copilotLauncher';
 import { RunExecutor, type RunExecutorDeps } from './runs/runExecutor';
 import { Scheduler } from './scheduler/scheduler';
@@ -35,6 +36,7 @@ export { QueueService, type EnqueueAdhocInput, type EnqueueWatchInput } from './
 export type { CopilotExit, CopilotLauncher, RunningProcess } from './runs/copilotLauncher';
 export type { RunFinal } from './runs/outcomeApplier';
 export { recoverInterruptedRuns } from './runs/recovery';
+export type * from './read-models/index';
 export { RunExecutor, type ResultFileV1, type RunExecutorDeps } from './runs/runExecutor';
 export { Scheduler } from './scheduler/scheduler';
 export {
@@ -54,10 +56,6 @@ export interface Deps {
   copilot: CopilotLauncher;
   notifier: Notifier;
 }
-
-// Filled by the read-models task.
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type ReadModels = {};
 
 export interface Core {
   config: Config;
@@ -139,7 +137,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, dataDir }),
     notifier,
-    read: {},
+    read: createReadModels({ db, config, clock, dataDir }),
     close() {
       if (db.open) db.close();
     },
