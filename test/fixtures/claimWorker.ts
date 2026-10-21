@@ -3,10 +3,11 @@ import { openDb } from '../../src/core/db/open';
 import { systemClock } from '../../src/core/domain/types';
 import { DataDir } from '../../src/core/files/dataDir';
 import { QueueService } from '../../src/core/queue/queueService';
+import { testConfig } from '../helpers/config';
 
 const { file, root, barrier } = workerData as { file: string; root: string; barrier: SharedArrayBuffer };
 const db = openDb(file);
-const queue = new QueueService(db, systemClock, new DataDir(root));
+const queue = new QueueService(db, systemClock, new DataDir(root), testConfig());
 
 const gate = new Int32Array(barrier);
 Atomics.add(gate, 0, 1);

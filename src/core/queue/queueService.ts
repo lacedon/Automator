@@ -1,7 +1,9 @@
+import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
 import type { Clock, Run, RunStatus, WatchState } from '../domain/types';
+import { unknownRepositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 
 export interface EnqueueWatchInput {
@@ -38,6 +40,7 @@ export class QueueService {
     private readonly db: Database,
     private readonly clock: Clock,
     private readonly dataDir: DataDir,
+    private readonly config: Config,
   ) {}
 
   enqueueWatch(input: EnqueueWatchInput): Run {
@@ -82,6 +85,12 @@ export class QueueService {
       )
       .get(input.repository, input.prompt, input.model, this.clock.now());
     return toRun(row);
+  }
+
+  enqueueAdhocChecked(input: { repository: string; prompt: string; model?: string }): Result<Run> {
+    const unknown = unknownRepositoryError(this.config, this.dataDir, input.repository, this.clock.now());
+    if (unknown) return err(unknown);
+    return ok(this.enqueueAdhoc({ ...input, model: input.model ?? this.config.runs.defaultModel }));
   }
 
   claimNext(): Run | null {

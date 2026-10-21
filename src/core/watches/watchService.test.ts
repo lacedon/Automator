@@ -26,7 +26,7 @@ function setup(opts: { config?: Config; preview?: WatchServiceDeps['preview'] } 
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
   const config = opts.config ?? testConfig();
-  const queue = new QueueService(t.db, clock, dataDir);
+  const queue = new QueueService(t.db, clock, dataDir, config);
   const service = new WatchService({ db: t.db, clock, config, queue, dataDir, preview: opts.preview });
   return { db: t.db, clock, dataDir, config, queue, service };
 }
@@ -168,6 +168,18 @@ describe('WatchService.create', () => {
       error: { code: 'DUPLICATE_WATCH', existing: { id: existing, state: 'active', intervalMs: config.schedule.intervals.mr } },
     });
     expect(count(db, 'watches')).toBe(1);
+  });
+});
+
+describe('WatchService.list', () => {
+  test('list filters by state and repository', () => {
+    const { db, service } = setup();
+    const a = insertWatch(db, { state: 'active', repository: 'pages' });
+    const b = insertWatch(db, { state: 'paused', repository: 'pages' });
+    const c = insertWatch(db, { state: 'active', repository: 'api' });
+    expect(service.list().map((w) => w.id)).toEqual([a, b, c]);
+    expect(service.list({ state: 'active' }).map((w) => w.id)).toEqual([a, c]);
+    expect(service.list({ state: 'active', repository: 'api' }).map((w) => w.id)).toEqual([c]);
   });
 });
 

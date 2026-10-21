@@ -14,7 +14,7 @@
     "dev": "concurrently \"next dev -H 127.0.0.1\" \"tsx watch src/worker/main.ts\"",
     "build": "next build",
     "start": "concurrently -k \"next start -H 127.0.0.1 -p 4317\" \"tsx src/worker/main.ts\"",
-    "automator": "tsx src/cli/main.ts",
+    "automator": "node bin/automator.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
     "check": "tsc --noEmit && eslint . && depcruise src && vitest run"

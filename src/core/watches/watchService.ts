@@ -4,9 +4,9 @@ import { toWatch } from '../db/rows';
 import { err, ok, type AppError, type Result } from '../domain/result';
 import { intervalFor } from '../domain/schedule';
 import { parseTarget, type ParsedTarget } from '../domain/targets';
-import type { Clock, InitialReview, Run, Watch, WatchKind } from '../domain/types';
+import type { Clock, InitialReview, Run, Watch, WatchKind, WatchState } from '../domain/types';
 import { nextState, type WatchAction } from '../domain/watchState';
-import { writeAttemptError } from '../files/attempts';
+import { unknownRepositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 import type { QueueService } from '../queue/queueService';
 import { closeWatch } from './needsYou';
@@ -68,19 +68,21 @@ export class WatchService {
     return row ? toWatch(row) : null;
   }
 
+  list(filter: { state?: WatchState; repository?: string } = {}): Watch[] {
+    return this.deps.db
+      .prepare(
+        `SELECT * FROM watches
+         WHERE (@state IS NULL OR state = @state) AND (@repository IS NULL OR repository = @repository)
+         ORDER BY id`,
+      )
+      .all({ state: filter.state ?? null, repository: filter.repository ?? null })
+      .map(toWatch);
+  }
+
   create(input: CreateWatchInput): Result<Watch> {
     const { config, clock, dataDir } = this.deps;
-    if (!Object.hasOwn(config.repositories, input.repository)) {
-      const known = Object.keys(config.repositories).sort();
-      const attempt = writeAttemptError(dataDir, { code: 'UNKNOWN_REPOSITORY', name: input.repository, known }, clock.now());
-      return err({
-        code: 'UNKNOWN_REPOSITORY',
-        name: input.repository,
-        known,
-        attemptFile: attempt.path,
-        ...(attempt.writeError === undefined ? {} : { attemptFileError: attempt.writeError }),
-      });
-    }
+    const unknown = unknownRepositoryError(config, dataDir, input.repository, clock.now());
+    if (unknown) return err(unknown);
 
     const parsed = parseTarget(input.target, config, input.repository);
     if (!parsed.ok) return parsed;

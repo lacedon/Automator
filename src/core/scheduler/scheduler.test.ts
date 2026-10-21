@@ -42,7 +42,7 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const config = testConfig(opts.configOverrides);
-  const queue = new QueueService(t.db, clock, new DataDir(path.dirname(t.file)));
+  const queue = new QueueService(t.db, clock, new DataDir(path.dirname(t.file)), config);
   const script = opts.script ?? (() => ({ kind: 'unchanged' }));
   const mr = stubPrecheck(script);
   const jira = stubPrecheck(script);

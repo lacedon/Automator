@@ -23,6 +23,7 @@ export type { Database } from './db/open';
 export * from './domain/types';
 export { err, ok, type AppError, type Result } from './domain/result';
 export { formatDuration, parseDuration } from './domain/duration';
+export { intervalFor } from './domain/schedule';
 export { allowedActions, nextState, type WatchAction } from './domain/watchState';
 export { parseTarget, type ParsedTarget } from './domain/targets';
 export { DataDir } from './files/dataDir';
@@ -123,7 +124,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     jiraClientFor: deps.jira,
     gitlabMeCache: metaMeCache(db, deps.gitlab),
   });
-  const queue = new QueueService(db, clock, dataDir);
+  const queue = new QueueService(db, clock, dataDir, config);
   const executorDeps: RunExecutorDeps = { db, clock, config, dataDir, launcher: copilot, prechecks, onNeedsYou };
 
   return {

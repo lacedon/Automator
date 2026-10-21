@@ -3,6 +3,7 @@ import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
+import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
 import type { Database } from '../db/open';
 import { DataDir } from '../files/dataDir';
@@ -19,7 +20,8 @@ function setup() {
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
-  return { db: t.db, file: t.file, clock, dataDir, queue: new QueueService(t.db, clock, dataDir) };
+  const config = testConfig({ runs: { defaultModel: 'default-model' } });
+  return { db: t.db, file: t.file, clock, dataDir, config, queue: new QueueService(t.db, clock, dataDir, config) };
 }
 
 function statuses(db: Database): { id: number; status: string }[] {
@@ -202,5 +204,29 @@ describe('QueueService', () => {
     const keep = queue.enqueueWatch({ ...base, watchId: w2, trigger: 'manual', reason: 'x' });
     queue.removeQueuedForWatch(w1);
     expect(statuses(db)).toEqual([{ id: keep.id, status: 'queued' }]);
+  });
+
+  test('unknown repository writes attempt file and queues nothing', () => {
+    const { db, clock, queue } = setup();
+    const r = queue.enqueueAdhocChecked({ repository: 'nope', prompt: 'p' });
+    if (r.ok || r.error.code !== 'UNKNOWN_REPOSITORY') throw new Error('expected UNKNOWN_REPOSITORY');
+    expect(r.error).toMatchObject({ name: 'nope', known: ['api', 'pages'] });
+    expect(r.error.attemptFileError).toBeUndefined();
+    expect(JSON.parse(fs.readFileSync(r.error.attemptFile as string, 'utf8'))).toMatchObject({
+      schemaVersion: 1,
+      at: new Date(clock.now()).toISOString(),
+      status: 'error',
+      error: { code: 'UNKNOWN_REPOSITORY', name: 'nope', known: ['api', 'pages'] },
+    });
+    expect(statuses(db)).toEqual([]);
+  });
+
+  test('checked adhoc enqueue uses default model', () => {
+    const { queue } = setup();
+    const r = queue.enqueueAdhocChecked({ repository: 'pages', prompt: 'p' });
+    if (!r.ok) throw new Error('expected ok');
+    expect(r.value).toMatchObject({ repository: 'pages', adhocPrompt: 'p', model: 'default-model', status: 'queued' });
+    const explicit = queue.enqueueAdhocChecked({ repository: 'pages', prompt: 'p', model: 'm2' });
+    expect(explicit.ok && explicit.value.model).toBe('m2');
   });
 });
