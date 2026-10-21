@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import type { Secrets } from '../config/load';
+import type { Env, Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 
 export type CopilotExit = { code: number | null; signal: string | null; spawnError?: string };
@@ -18,13 +18,13 @@ export interface CopilotLauncher {
     model: string;
     transcriptPath: string;
     logPath: string;
-    env: NodeJS.ProcessEnv;
+    env: Env;
     extraArgs?: string[];
   }): RunningProcess;
 }
 
-export function childEnv(env: NodeJS.ProcessEnv, secrets: Secrets): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { ...env };
+export function childEnv(env: Env, secrets: Secrets): Env {
+  const out: Env = { ...env };
   for (const name of secrets.envNames) delete out[name];
   return out;
 }
@@ -51,7 +51,7 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         child = spawn(config.copilotBin, args, {
           cwd: opts.cwd,
           detached: true,
-          env: childEnv(opts.env, secrets),
+          env: childEnv(opts.env, secrets) as NodeJS.ProcessEnv,
           stdio: ['ignore', log, log],
         });
       } finally {

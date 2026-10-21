@@ -53,7 +53,7 @@ app/                         Next.js App Router (routes from the UI spec)
   components/                pills, tables, dialogs, AutoRefresh
 src/core/
   config/                    zod schema, loader, secrets, duration parsing
-  db/                        open(), migrations/*.sql, migrate()
+  db/                        open(), migrations/index.ts (SQL per version), migrate()
   domain/                    targets, watch state machine, schedule math, Result/AppError
   watches/                   WatchService
   queue/                     QueueService

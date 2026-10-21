@@ -17,7 +17,7 @@
     "automator": "node bin/automator.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
-    "check": "tsc --noEmit && eslint . && depcruise src && vitest run"
+    "check": "tsc --noEmit && eslint . && depcruise src app && vitest run"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

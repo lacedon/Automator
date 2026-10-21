@@ -10,13 +10,16 @@ export class ConfigError extends Error {
   }
 }
 
+// Plain record instead of NodeJS.ProcessEnv: Next's global types make NODE_ENV a required ProcessEnv key.
+export type Env = Record<string, string | undefined>;
+
 export type Secrets = {
   gitlab: Record<string, string | undefined>;
   jira: Record<string, { email?: string; token?: string }>;
   envNames: string[];
 };
 
-export function loadConfig(opts: { path?: string; env?: NodeJS.ProcessEnv } = {}): Config {
+export function loadConfig(opts: { path?: string; env?: Env } = {}): Config {
   const env = opts.env ?? process.env;
   const file = path.resolve(opts.path ?? env.AUTOMATOR_CONFIG ?? path.join(process.cwd(), 'automator.config.json'));
   const configDir = path.dirname(file);
@@ -37,7 +40,7 @@ export function loadConfig(opts: { path?: string; env?: NodeJS.ProcessEnv } = {}
   return { ...parsed.data, configDir };
 }
 
-export function resolveSecrets(config: Config, env: NodeJS.ProcessEnv): Secrets {
+export function resolveSecrets(config: Config, env: Env): Secrets {
   const envNames = new Set<string>();
   const gitlab: Secrets['gitlab'] = {};
   for (const [name, conn] of Object.entries(config.gitlab)) {

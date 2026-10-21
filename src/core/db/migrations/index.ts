@@ -1,4 +1,8 @@
-CREATE TABLE watches (
+// SQL lives in a TS module (not .sql files) so the Next.js server bundle carries it; versions apply in order.
+export const migrations: { version: number; sql: string }[] = [
+  {
+    version: 1,
+    sql: `CREATE TABLE watches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL CHECK (kind IN ('mr', 'jira', 'free')),
   target_url TEXT NOT NULL,
@@ -83,3 +87,6 @@ CREATE TABLE worker_lock (
   started_at INTEGER NOT NULL,
   heartbeat_at INTEGER NOT NULL
 );
+`,
+  },
+];

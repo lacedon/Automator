@@ -1,0 +1,100 @@
+// Seeds a data dir for eyeballing the dashboard: `npx tsx test/helpers/seed.ts <dataDir>`.
+// Writes <dataDir>/automator.config.json; start the web app with AUTOMATOR_CONFIG pointing at it.
+import fs from 'node:fs';
+import path from 'node:path';
+import { migrate } from '../../src/core/db/migrate';
+import { openDb } from '../../src/core/db/open';
+import { DataDir } from '../../src/core/files/dataDir';
+
+const target = process.argv[2];
+if (target === undefined) {
+  console.error('Usage: npx tsx test/helpers/seed.ts <dataDir>');
+  process.exit(2);
+}
+
+const dataDir = new DataDir(target);
+const repoFolder = path.join(dataDir.root, 'repos', 'pages');
+fs.mkdirSync(repoFolder, { recursive: true });
+const configPath = path.join(dataDir.root, 'automator.config.json');
+fs.writeFileSync(
+  configPath,
+  `${JSON.stringify(
+    {
+      dataDir: '.',
+      repositories: { pages: { folder: './repos/pages', gitlab: 'corp' } },
+      gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
+      runs: { defaultModel: 'claude-sonnet-4.5', models: ['claude-sonnet-4.5'] },
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+const db = openDb(dataDir.db);
+migrate(db);
+const now = Date.now();
+const MIN = 60_000;
+
+function insertWatch(n: number, title: string, state: 'active' | 'needs_you'): number {
+  const info = db
+    .prepare(
+      `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, next_check_at, created_at, updated_at)
+       VALUES ('mr', ?, ?, 'pages', ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      `https://gitlab.example.com/web/pages/-/merge_requests/${n}`,
+      `gitlab:gitlab.example.com/web/pages!${n}`,
+      title,
+      state,
+      now + 15 * MIN,
+      now - 3 * 24 * 60 * MIN,
+      now,
+    );
+  return Number(info.lastInsertRowid);
+}
+
+function insertFinishedRun(
+  watchId: number,
+  minutesAgo: number,
+  outcome: 'acted' | 'nothing' | 'needs-you',
+  summary: string,
+): number {
+  const ended = now - minutesAgo * MIN;
+  const info = db
+    .prepare(
+      `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, model, queued_at, started_at, ended_at,
+         pid, exit_code, result_status, outcome, summary)
+       VALUES (?, 'pages', 'finished', 'schedule', 1, 'new comment by @anna', 'claude-sonnet-4.5', ?, ?, ?, 4242, 0, 'success', ?, ?)`,
+    )
+    .run(watchId, ended - 6 * MIN, ended - 5 * MIN, ended, outcome, summary);
+  const id = Number(info.lastInsertRowid);
+  dataDir.ensureRunDir(id);
+  fs.writeFileSync(dataDir.promptPath(id), `# Prompt for Run #${id}\n`);
+  fs.writeFileSync(dataDir.transcriptPath(id), `# Transcript of Run #${id}\n\n${summary}\n`);
+  fs.writeFileSync(dataDir.resultPath(id), `${JSON.stringify({ schemaVersion: 1, outcome, summary }, null, 2)}\n`);
+  db.prepare('UPDATE runs SET prompt_path = ?, transcript_path = ?, result_path = ? WHERE id = ?').run(
+    dataDir.promptPath(id),
+    dataDir.transcriptPath(id),
+    dataDir.resultPath(id),
+    id,
+  );
+  return id;
+}
+
+const needsYou = insertWatch(42, '!42 Add retry to export job', 'needs_you');
+const active = insertWatch(51, '!51 Bump eslint config', 'active');
+
+insertFinishedRun(active, 120, 'nothing', 'No new activity');
+insertFinishedRun(active, 12, 'acted', 'Replied to 2 comments, pushed fix');
+const failed = insertFinishedRun(needsYou, 3, 'needs-you', 'Validation failed: npm test');
+db.prepare(
+  `UPDATE watches SET needs_you_reason = 'Validation failed: npm test', needs_you_since = ?, needs_you_run_id = ? WHERE id = ?`,
+).run(now - 3 * MIN, failed, needsYou);
+
+db.prepare(
+  `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at, pid)
+   VALUES ('pages', 'running', 'adhoc', 0, 'ad-hoc', 'Summarize open TODOs in src/', 'claude-sonnet-4.5', ?, ?, 4243)`,
+).run(now - 5 * MIN, now - 4 * MIN);
+
+db.close();
+console.log(`Seeded ${dataDir.root}\nAUTOMATOR_CONFIG=${configPath}`);

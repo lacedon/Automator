@@ -16,7 +16,7 @@ import {
   type JiraFixture,
 } from '../../../test/fixtures/msw/jira';
 import type { Config } from '../config/schema';
-import { resolveSecrets } from '../config/load';
+import { resolveSecrets, type Env } from '../config/load';
 import type { JiraCursor, Watch } from '../domain/types';
 import { fetchWithRetry, HttpError } from '../http/fetchWithRetry';
 import { FreeformPrecheck } from './freeform';
@@ -76,7 +76,7 @@ function jiraConfig(doneStatusIds?: string[]): Config {
   return config;
 }
 
-function setup(fixture: JiraFixture = {}, opts: { config?: Config; env?: NodeJS.ProcessEnv } = {}) {
+function setup(fixture: JiraFixture = {}, opts: { config?: Config; env?: Env } = {}) {
   const calls: string[] = [];
   server.use(...jiraHandlers(fixture, calls));
   const config = opts.config ?? jiraConfig();

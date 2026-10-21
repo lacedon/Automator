@@ -1,25 +1,14 @@
-import fs from 'node:fs';
 import type { Database } from './open';
-
-const migrationsDir = new URL('./migrations/', import.meta.url);
-
-function listMigrations(): { version: number; file: URL }[] {
-  return fs
-    .readdirSync(migrationsDir)
-    .map((name) => ({ name, match: /^(\d+)_.+\.sql$/.exec(name) }))
-    .filter((m): m is { name: string; match: RegExpExecArray } => m.match !== null)
-    .map(({ name, match }) => ({ version: Number(match[1]), file: new URL(name, migrationsDir) }))
-    .sort((a, b) => a.version - b.version);
-}
+import { migrations } from './migrations/index';
 
 export function migrate(db: Database): void {
-  const migrations = listMigrations();
+  const ordered = [...migrations].sort((a, b) => a.version - b.version);
   db.exec('BEGIN IMMEDIATE');
   try {
     const current = db.pragma('user_version', { simple: true }) as number;
-    for (const { version, file } of migrations) {
+    for (const { version, sql } of ordered) {
       if (version <= current) continue;
-      db.exec(fs.readFileSync(file, 'utf8'));
+      db.exec(sql);
       db.pragma(`user_version = ${version}`);
     }
     db.exec('COMMIT');
