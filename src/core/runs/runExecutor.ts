@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import { z } from 'zod';
-import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
@@ -21,7 +20,10 @@ const RECENT_RUNS = 3;
 
 export const copilotResultSchema = z.looseObject({
   outcome: z.enum(['nothing', 'acted', 'needs-you']),
-  summary: z.string().transform((s) => s.slice(0, MAX_SUMMARY)),
+  summary: z
+    .string()
+    .optional()
+    .transform((s) => (s ?? '').slice(0, MAX_SUMMARY)),
 });
 
 export type ResultFileV1 = {
@@ -44,7 +46,6 @@ export interface RunExecutorDeps {
   db: Database;
   clock: Clock;
   config: Config;
-  secrets: Secrets;
   dataDir: DataDir;
   launcher: CopilotLauncher;
   prechecks: Prechecks;
@@ -161,7 +162,14 @@ export class RunExecutor {
     };
     this.active = active;
     try {
-      return await finalizeRun(this.deps, run, await this.conclude(active));
+      let conclusion: RunConclusion;
+      try {
+        conclusion = await this.conclude(active);
+      } catch (e) {
+        if (active.proc !== null && !active.exited) active.proc.kill('SIGKILL');
+        conclusion = failure('INTERNAL_ERROR', `Internal error: ${errorMessage(e)}`);
+      }
+      return await finalizeRun(this.deps, run, conclusion);
     } finally {
       this.active = null;
     }
@@ -243,9 +251,9 @@ export class RunExecutor {
     writeTextAtomic(promptPath, prompt);
     db.prepare('UPDATE runs SET prompt_path = ? WHERE id = ?').run(promptPath, run.id);
 
-    let exit: CopilotExit;
+    let started: RunningProcess | { spawnError: string };
     try {
-      const proc = launcher.start({
+      started = launcher.start({
         cwd: repo.folder,
         prompt,
         model: run.model,
@@ -253,12 +261,17 @@ export class RunExecutor {
         logPath: dataDir.cliLogPath(run.id),
         env: process.env,
       });
-      if (proc.pid > 0) db.prepare('UPDATE runs SET pid = ? WHERE id = ?').run(proc.pid, run.id);
-      active.proc = proc;
-      exit = await proc.exited;
     } catch (e) {
-      exit = { code: null, signal: null, spawnError: errorMessage(e) };
-    } finally {
+      started = { spawnError: errorMessage(e) };
+    }
+
+    let exit: CopilotExit;
+    if ('spawnError' in started) {
+      exit = { code: null, signal: null, spawnError: started.spawnError };
+    } else {
+      active.proc = started;
+      if (started.pid > 0) db.prepare('UPDATE runs SET pid = ? WHERE id = ?').run(started.pid, run.id);
+      exit = await started.exited;
       active.exited = true;
     }
 
@@ -272,7 +285,7 @@ export class RunExecutor {
       const message =
         active.interrupted === 'cancelled'
           ? 'Run cancelled'
-          : `Run timed out after ${this.deps.config.runs.timeoutMs / 60_000} min`;
+          : `Run timed out after ${Math.round((this.deps.config.runs.timeoutMs / 60_000) * 10) / 10} min`;
       return failure('INTERRUPTED', message, { exitCode, interrupted: active.interrupted });
     }
     if (exit.spawnError !== undefined) return failure('SPAWN_FAILED', exit.spawnError);

@@ -5,7 +5,6 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
-import { resolveSecrets } from '../config/load';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
 import type { NeedsYouEvent } from '../domain/types';
@@ -44,7 +43,6 @@ function setup() {
     db: t.db,
     clock,
     config,
-    secrets: resolveSecrets(config, {}),
     dataDir,
     launcher,
     prechecks,

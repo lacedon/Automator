@@ -75,7 +75,6 @@ function setup(opts: SetupOpts = {}) {
     db: t.db,
     clock,
     config,
-    secrets,
     dataDir,
     launcher,
     prechecks,
@@ -224,6 +223,43 @@ describe('RunExecutor', () => {
     expect(watchOf(s.db, watchId).cursor).toEqual(candidate);
   });
 
+  test('accepts a result without summary as empty summary', async () => {
+    const s = setup({ mode: 'no-summary' });
+    const watchId = addWatch(s.db);
+    const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
+    expect(final).toMatchObject({ resultStatus: 'success', outcome: 'acted', summary: '' });
+    expect(watchOf(s.db, watchId).cursor).toEqual(candidate);
+  });
+
+  test('internal error after the run finalizes as INTERNAL_ERROR and moves watch to needs_you', async () => {
+    const s = setup({ mode: 'acted' });
+    s.currentBranch.mockRejectedValueOnce(new Error('git exploded'));
+    const watchId = addWatch(s.db);
+    const run = claim(s.db, s.clock.now(), watchId);
+    const final = await s.executor.execute(run);
+    expect(final).toMatchObject({
+      resultStatus: 'error',
+      error: { code: 'INTERNAL_ERROR', message: 'Internal error: git exploded' },
+    });
+    expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', error: final.error });
+    expect(readResult(final.resultPath).error).toEqual(final.error);
+    expect(watchOf(s.db, watchId).state).toBe('needs_you');
+    expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
+    expect(s.executor.isBusy()).toBe(false);
+  });
+
+  test('db failure storing pid kills the started process and is INTERNAL_ERROR, not SPAWN_FAILED', async () => {
+    const kills: string[] = [];
+    const proc: RunningProcess = { pid: 4321, exited: new Promise(() => {}), kill: (sig) => kills.push(sig) };
+    const s = setup({ launcher: { start: () => proc } });
+    s.db.exec("CREATE TRIGGER no_pid BEFORE UPDATE OF pid ON runs BEGIN SELECT RAISE(ABORT, 'pid write failed'); END");
+    const watchId = addWatch(s.db);
+    const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
+    expect(final.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Internal error: pid write failed' });
+    expect(kills).toEqual(['SIGKILL']);
+    expect(runOf(s.db, final.runId).status).toBe('finished');
+  });
+
   test('timeout kills process and records interrupted timeout', async () => {
     const s = setup({ mode: 'hang' });
     const watchId = addWatch(s.db);
@@ -242,7 +278,7 @@ describe('RunExecutor', () => {
     expect(final).toMatchObject({
       resultStatus: 'error',
       interrupted: 'timeout',
-      error: { code: 'INTERRUPTED', message: 'Run timed out after 0.025 min' },
+      error: { code: 'INTERRUPTED', message: 'Run timed out after 0 min' },
     });
     expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', interrupted: 'timeout' });
     expect(watchOf(s.db, watchId).state).toBe('needs_you');

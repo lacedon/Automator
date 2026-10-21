@@ -40,6 +40,9 @@ if (mode === 'hang') {
     case 'invalid-json':
       writeResult('not json');
       break;
+    case 'no-summary':
+      writeResult(JSON.stringify({ outcome: 'acted' }));
+      break;
     case 'long-summary':
       writeResult(JSON.stringify({ outcome: 'acted', summary: 'x'.repeat(800), extra: true }));
       break;
