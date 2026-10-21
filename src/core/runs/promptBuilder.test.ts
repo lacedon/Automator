@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
@@ -106,9 +107,8 @@ function watchPrompt(partial: Partial<WatchInput> = {}): string {
 }
 
 function eventsSection(prompt: string): string {
-  const start = prompt.indexOf('### Events\n') + '### Events\n'.length;
-  const end = prompt.indexOf('\n#', start);
-  return prompt.slice(start, end === -1 ? undefined : end);
+  const start = prompt.indexOf('### Events\n\n') + '### Events\n\n'.length;
+  return prompt.slice(start, prompt.indexOf('\n\n## ', start));
 }
 
 describe('buildWatchPrompt', () => {
@@ -145,6 +145,7 @@ describe('buildWatchPrompt', () => {
     expect(rules).toContain('Re-read the current state of the MR');
     expect(rules).toContain('Confirm that you are on the MR source branch `feature/new-name`');
     expect(rules).toContain('Run the validation commands');
+    expect(rules).toContain('Commit and push only to the MR source branch `feature/new-name`');
   });
 
   test('free-form has no default instructions section', () => {
@@ -165,6 +166,21 @@ describe('buildWatchPrompt', () => {
     expect(without).toContain('Do not change code unless the Watch instructions');
     const withToken = watchPrompt({ watch: jira, snapshot: jiraSnapshot, hasJiraToken: true });
     expect(withToken).not.toContain('through MCP');
+  });
+
+  test('jira reply-only default is code-owned, independent of jira.md', () => {
+    const dir = path.resolve('test-results', 'tmp', 'empty-prompts');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'jira.md'), '');
+    const prompt = watchPrompt({
+      watch: watch({ kind: 'jira', targetUrl: 'https://jira.example.com/browse/ABC-1', mrSourceBranch: null }),
+      snapshot: snapshot({ events: [], cursorCandidate: { lastChangelogId: null, lastCommentId: null }, sourceBranch: undefined }),
+      config: testConfig({ prompts: { dir } }),
+    });
+    const watchPart = prompt.slice(prompt.indexOf('## Watch'), prompt.indexOf('## This Run'));
+    expect(watchPart).toContain(
+      'By default only read the ticket and reply; change code only if the Watch instructions below explicitly allow it.',
+    );
   });
 
   test('includes resolution note and last 3 run summaries only', () => {
@@ -219,6 +235,19 @@ describe('buildWatchPrompt', () => {
     expect(section).not.toContain('event-0000');
     expect(section).toMatch(/^\(\d+ older events omitted\)$/m);
     expect(section.indexOf('event-4998')).toBeLessThan(section.indexOf('event-4999'));
+  });
+
+  test('truncates the newest event when it alone exceeds the cap', () => {
+    const events: EventSummary[] = [
+      { at: 1, author: 'anna', text: 'older' },
+      { at: 2, author: 'bob', text: `newest-start ${'y'.repeat(MAX_EVENTS_CHARS * 2)}` },
+    ];
+    const section = eventsSection(watchPrompt({ snapshot: snapshot({ events }) }));
+    expect(section.length).toBeLessThanOrEqual(MAX_EVENTS_CHARS);
+    expect(section).toMatch(/^\(1 older events omitted\)$/m);
+    expect(section).toContain('- 1970-01-01T00:00:00.002Z bob: newest-start');
+    expect(section).toContain('(truncated)');
+    expect(section).not.toContain('older\n');
   });
 
   test('renders each event as one list item with time, author, text and url', () => {

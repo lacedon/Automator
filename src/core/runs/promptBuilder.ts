@@ -72,7 +72,9 @@ ${FIXED_RULES}
 ### Before you change, commit or push anything on the MR
 1. Re-read the current state of the MR, its branch and its discussions.
 2. Confirm that you are on the MR source branch \`${branch}\`.
-3. Run the validation commands listed below.`;
+3. Run the validation commands listed below.
+
+Commit and push only to the MR source branch \`${branch}\`.`;
 }
 
 function readDefaultPrompt(config: Config, kind: 'mr' | 'jira'): string {
@@ -94,7 +96,7 @@ function watchSection(watch: Watch): string {
     `- Kind: ${watch.kind}`,
   ];
   if (watch.kind === 'jira') {
-    lines.push('', 'Whether you may change code for this ticket is decided entirely by the Watch instructions below.');
+    lines.push('', 'By default only read the ticket and reply; change code only if the Watch instructions below explicitly allow it.');
   }
   lines.push('', '### Watch instructions', '', watch.instructions?.trim() || '(none)');
   return lines.join('\n');
@@ -127,11 +129,17 @@ function renderEvents(events: EventSummary[]): string {
   if (lines.join('\n').length <= MAX_EVENTS_CHARS) return lines.join('\n');
 
   // Reserve room for the omission line using the largest possible count.
-  let budget = MAX_EVENTS_CHARS - `(${lines.length} older events omitted)\n`.length;
+  const budget = MAX_EVENTS_CHARS - `(${lines.length} older events omitted)\n`.length;
+  const newest = lines[lines.length - 1];
+  if (newest.length >= budget) {
+    const marker = ' …(truncated)';
+    return [`(${lines.length - 1} older events omitted)`, newest.slice(0, budget - marker.length) + marker].join('\n');
+  }
+  let remaining = budget;
   let first = lines.length;
-  while (first > 0 && lines[first - 1].length + 1 <= budget) {
+  while (first > 0 && lines[first - 1].length + 1 <= remaining) {
     first -= 1;
-    budget -= lines[first].length + 1;
+    remaining -= lines[first].length + 1;
   }
   return [`(${first} older events omitted)`, ...lines.slice(first)].join('\n');
 }
