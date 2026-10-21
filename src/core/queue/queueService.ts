@@ -54,7 +54,8 @@ export class QueueService {
              trigger = CASE WHEN excluded.trigger = 'manual' THEN 'manual' ELSE trigger END,
              reason = reason || '; ' || excluded.reason,
              extra_instructions = excluded.extra_instructions,
-             review_unresolved = max(review_unresolved, excluded.review_unresolved)
+             review_unresolved = max(review_unresolved, excluded.review_unresolved),
+             model = excluded.model
            RETURNING *`,
         )
         .get({
@@ -69,7 +70,7 @@ export class QueueService {
           now: this.clock.now(),
         });
       return toRun(row);
-    })();
+    }).immediate();
   }
 
   enqueueAdhoc(input: EnqueueAdhocInput): Run {
@@ -111,32 +112,37 @@ export class QueueService {
   }
 
   cancel(runId: number): Result<'deleted' | 'cancel-requested'> {
-    const status = this.status(runId);
-    if (!status) return err({ code: 'NOT_FOUND' });
-    if (status === 'queued') {
-      this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-      return ok('deleted');
-    }
-    if (status === 'running') {
-      this.db
-        .prepare('UPDATE runs SET cancel_requested_at = coalesce(cancel_requested_at, ?) WHERE id = ?')
-        .run(this.clock.now(), runId);
-      return ok('cancel-requested');
-    }
-    return err({ code: 'INVALID_STATE', state: status, action: 'cancel' });
+    return this.db.transaction((): Result<'deleted' | 'cancel-requested'> => {
+      const status = this.status(runId);
+      if (!status) return err({ code: 'NOT_FOUND' });
+      if (status === 'queued') {
+        this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+        return ok('deleted');
+      }
+      if (status === 'running') {
+        this.db
+          .prepare('UPDATE runs SET cancel_requested_at = coalesce(cancel_requested_at, ?) WHERE id = ?')
+          .run(this.clock.now(), runId);
+        return ok('cancel-requested');
+      }
+      return err({ code: 'INVALID_STATE', state: status, action: 'cancel' });
+    }).immediate();
   }
 
   deleteAdhoc(runId: number): Result<void> {
-    const row = this.db.prepare('SELECT watch_id, status FROM runs WHERE id = ?').get(runId) as
-      | { watch_id: number | null; status: RunStatus }
-      | undefined;
-    if (!row) return err({ code: 'NOT_FOUND' });
-    if (row.watch_id !== null || row.status !== 'finished') {
-      return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
-    }
-    this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-    this.dataDir.removeRunDir(runId);
-    return ok(undefined);
+    const result = this.db.transaction((): Result<void> => {
+      const row = this.db.prepare('SELECT watch_id, status FROM runs WHERE id = ?').get(runId) as
+        | { watch_id: number | null; status: RunStatus }
+        | undefined;
+      if (!row) return err({ code: 'NOT_FOUND' });
+      if (row.watch_id !== null || row.status !== 'finished') {
+        return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
+      }
+      this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+      return ok(undefined);
+    }).immediate();
+    if (result.ok) this.dataDir.removeRunDir(runId);
+    return result;
   }
 
   removeQueuedForWatch(watchId: number): void {

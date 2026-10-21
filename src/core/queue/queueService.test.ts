@@ -68,7 +68,14 @@ describe('QueueService', () => {
     clock.advance(1000);
     queue.enqueueWatch({ ...base, watchId: w, trigger: 'manual', reason: 'r2', extraInstructions: 'A', reviewUnresolved: true });
     clock.advance(1000);
-    const merged = queue.enqueueWatch({ ...base, watchId: w, trigger: 'manual', reason: 'r3', extraInstructions: 'A\n\nB' });
+    const merged = queue.enqueueWatch({
+      ...base,
+      watchId: w,
+      trigger: 'manual',
+      reason: 'r3',
+      extraInstructions: 'A\n\nB',
+      model: 'newer-model',
+    });
 
     expect(statuses(db)).toHaveLength(1);
     expect(merged).toMatchObject({
@@ -79,6 +86,8 @@ describe('QueueService', () => {
       reviewUnresolved: true,
       reason: 'r1; r2; r3',
       queuedAt: first.queuedAt,
+      model: 'newer-model',
+      repository: 'pages',
     });
   });
 
@@ -127,6 +136,7 @@ describe('QueueService', () => {
         });
         worker.once('message', resolve);
         worker.once('error', reject);
+        worker.once('exit', (code) => reject(new Error(`claim worker exited with code ${code} before replying`)));
       });
 
     const results = await Promise.all([claim(), claim()]);
