@@ -28,7 +28,7 @@ export function applyOutcome(db: Database, config: Config, final: RunFinal): { n
         .prepare(
           `UPDATE runs SET status = 'finished', ended_at = ?, exit_code = ?, result_status = ?, outcome = ?, summary = ?,
                   error_json = ?, interrupted = ?, branch = ?, prompt_path = ?, transcript_path = ?, result_path = ?
-           WHERE id = ? RETURNING watch_id, cursor_candidate_json`,
+           WHERE id = ? AND status = 'running' RETURNING watch_id, cursor_candidate_json`,
         )
         .get(
           now,
@@ -44,13 +44,19 @@ export function applyOutcome(db: Database, config: Config, final: RunFinal): { n
           final.resultPath,
           final.runId,
         ) as { watch_id: number | null; cursor_candidate_json: string | null } | undefined;
-      if (run?.watch_id == null) return { needsYou: null };
+      if (run === undefined) {
+        if (db.prepare('SELECT 1 FROM runs WHERE id = ?').get(final.runId) === undefined) {
+          throw new Error(`Run #${final.runId} not found`);
+        }
+        return { needsYou: null };
+      }
+      if (run.watch_id === null) return { needsYou: null };
 
       const row = db.prepare('SELECT * FROM watches WHERE id = ?').get(run.watch_id);
       if (row === undefined) return { needsYou: null };
       const watch = toWatch(row);
 
-      const succeeded = final.resultStatus === 'success' && final.outcome !== 'needs-you';
+      const succeeded = final.resultStatus === 'success' && (final.outcome === 'nothing' || final.outcome === 'acted');
       if (!succeeded) {
         const reason =
           final.resultStatus === 'error'

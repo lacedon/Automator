@@ -210,6 +210,37 @@ describe('applyOutcome', () => {
     expect(eventCount(db)).toBe(0);
   });
 
+  test('second finalize of the same run changes nothing', () => {
+    const db = setup();
+    const watchId = prepareWatch(db, 'active');
+    const runId = insertRunningRun(db, watchId);
+    const config = testConfig({ teams: { chatId: 'c' } });
+    expect(applyOutcome(db, config, final(runId, resultOverrides('error'))).needsYou).not.toBeNull();
+    const runBefore = run(db, runId);
+    const watchBefore = watch(db, watchId);
+
+    const out = applyOutcome(db, config, final(runId, { ...resultOverrides('needs-you'), endedAt: endedAt + 1 }));
+
+    expect(out).toEqual({ needsYou: null });
+    expect(run(db, runId)).toEqual(runBefore);
+    expect(watch(db, watchId)).toEqual(watchBefore);
+    expect(eventCount(db)).toBe(1);
+  });
+
+  test('throws for an unknown run id', () => {
+    const db = setup();
+    expect(() => applyOutcome(db, testConfig(), final(404))).toThrow('Run #404 not found');
+  });
+
+  test('success without an outcome is not treated as success', () => {
+    const db = setup();
+    const watchId = prepareWatch(db, 'active');
+    const runId = insertRunningRun(db, watchId);
+    const out = applyOutcome(db, testConfig(), final(runId, { outcome: null, summary: null }));
+    expect(out.needsYou).not.toBeNull();
+    expect(watch(db, watchId)).toMatchObject({ state: 'needs_you', cursor: oldCursor });
+  });
+
   test('run row finalized with all fields', () => {
     const db = setup();
     const watchId = prepareWatch(db, 'active');
