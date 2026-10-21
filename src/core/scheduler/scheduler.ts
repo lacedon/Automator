@@ -27,11 +27,32 @@ export class Scheduler {
     const totals = { checked: 0, enqueued: 0 };
     if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) return totals;
     for (const watch of this.dueWatches(clock.now())) {
-      const result = await this.check(watch);
-      totals.checked += 1;
-      if (this.apply(watch.id, result)) totals.enqueued += 1;
+      try {
+        const result = await this.check(watch);
+        const enqueued = this.apply(watch.id, result);
+        totals.checked += 1;
+        if (enqueued) totals.enqueued += 1;
+      } catch (e) {
+        console.error(`${new Date().toISOString()} scheduler: Watch #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`);
+        this.postpone(watch);
+      }
     }
     return totals;
+  }
+
+  // A failing Watch still moves on by its interval so it cannot block the others.
+  private postpone(watch: Watch): void {
+    const { db, clock, config } = this.deps;
+    try {
+      const now = clock.now();
+      db.prepare("UPDATE watches SET next_check_at = ?, updated_at = ? WHERE id = ? AND state = 'active'").run(
+        now + intervalFor(watch, config),
+        now,
+        watch.id,
+      );
+    } catch (e) {
+      console.error(`${new Date().toISOString()} scheduler: cannot postpone Watch #${watch.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   private dueWatches(now: number): Watch[] {

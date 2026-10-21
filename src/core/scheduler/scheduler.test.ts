@@ -273,4 +273,31 @@ describe('Scheduler.tick', () => {
     expect(watch(db, id).state).toBe('needs_you');
     expect(onNeedsYou).toHaveBeenCalledOnce();
   });
+
+  test('continues with other watches when one apply throws', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ids: { applyThrows?: number; checkThrows?: number } = {};
+    const good = { lastNoteId: 5, handledPipelineId: null, handledConflictSha: null };
+    const { db, clock, config, scheduler } = setup({
+      script: (w) => {
+        if (w.id === ids.checkThrows) throw new Error('check exploded');
+        // A BigInt in the cursor makes JSON.stringify throw inside apply.
+        if (w.id === ids.applyThrows) return { kind: 'unchanged', cursor: { lastNoteId: 1n } as unknown as typeof good };
+        return { kind: 'unchanged', cursor: good };
+      },
+    });
+    const interval = config.schedule.intervals.mr;
+    ids.applyThrows = dueWatch(db, clock.now() - 3 * MIN);
+    ids.checkThrows = dueWatch(db, clock.now() - 2 * MIN);
+    const ok = dueWatch(db, clock.now() - MIN);
+
+    expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
+    expect(watch(db, ok).cursor).toEqual(good);
+    for (const id of [ids.applyThrows, ids.checkThrows]) {
+      expect(watch(db, id)).toMatchObject({ state: 'active', nextCheckAt: clock.now() + interval, cursor: null });
+    }
+    expect(errors).toHaveBeenCalledTimes(2);
+    expect(errors).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^\\S+Z .*Watch #${ids.checkThrows}.*check exploded`)));
+    errors.mockRestore();
+  });
 });
