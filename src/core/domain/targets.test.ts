@@ -58,6 +58,14 @@ test('unknown host URL is free-form', () => {
   });
 });
 
+test('free-form strips trailing slash on path only', () => {
+  expect(parsed('https://x.org/a/?q=1').normalizedTarget).toBe('https://x.org/a?q=1');
+  expect(parsed('https://x.org/a?next=/b/').normalizedTarget).toBe('https://x.org/a?next=/b/');
+  expect(parsed('https://X.org/').normalizedTarget).toBe('https://x.org');
+  expect(parsed('https://x.org/?q=1').normalizedTarget).toBe('https://x.org/?q=1');
+  expect(parsed('https://x.org/?#f').normalizedTarget).toBe('https://x.org');
+});
+
 test('MR URL on unconfigured GitLab host is free-form', () => {
   const t = parsed('https://gitlab.other.com/team/app/-/merge_requests/42');
   expect(t.kind).toBe('free');

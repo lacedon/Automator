@@ -78,6 +78,9 @@ export function parseTarget(input: string, config: Config, repository?: string):
   }
 
   url.hash = '';
-  const normalized = url.href.replace(/\/+$/, '');
+  if (url.search === '') url.search = ''; // drops a bare "?"
+  url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+  // URL always serializes an empty path as "/"; drop it only when nothing follows.
+  const normalized = url.pathname === '/' && url.search === '' ? url.href.slice(0, -1) : url.href;
   return ok({ kind: 'free', normalizedTarget: normalized, displayUrl: normalized });
 }
