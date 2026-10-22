@@ -1,6 +1,15 @@
 import fs from 'node:fs';
 import { Command, CommanderError, InvalidArgumentError, Option } from 'commander';
-import { bootstrap, formatDuration, intervalFor, parseDuration, type AppError, type Core, type Run, type WatchState } from '@core/index';
+import {
+  bootstrap,
+  formatDuration,
+  intervalFor,
+  parseDuration,
+  type AppError,
+  type Core,
+  type Run,
+  type WatchState,
+} from '@core/index';
 
 export interface CliIo {
   out(s: string): void;
@@ -39,7 +48,9 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
   switch (error.code) {
     case 'UNKNOWN_REPOSITORY': {
       const file =
-        error.attemptFile === null ? `Result file could not be written: ${error.attemptFileError}` : `Result file: ${error.attemptFile}`;
+        error.attemptFile === null
+          ? `Result file could not be written: ${error.attemptFileError}`
+          : `Result file: ${error.attemptFile}`;
       return `Unknown Repository "${error.name}". ${ctx.unknownRepoOutcome} Known: ${error.known.join(', ')}. ${file}`;
     }
     case 'DUPLICATE_WATCH':
@@ -62,7 +73,12 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
 
 function table(rows: string[][]): string[] {
   const widths = rows[0]!.map((_, i) => Math.max(...rows.map((r) => r[i]!.length)));
-  return rows.map((r) => r.map((cell, i) => cell.padEnd(widths[i]!)).join('  ').trimEnd());
+  return rows.map((r) =>
+    r
+      .map((cell, i) => cell.padEnd(widths[i]!))
+      .join('  ')
+      .trimEnd(),
+  );
 }
 
 export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<number> {
@@ -89,19 +105,35 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
     .option('--interval <duration>', 'check interval, e.g. 30m', durationArg)
     .option('--model <model>', 'Copilot model')
     .option('--instructions <text|@file>', 'instructions (required for free-form Watches)', textOrFileArg)
-    .addOption(new Option('--initial-review <mode>', 'how existing comments are handled').choices(['baseline-only', 'unresolved']))
-    .action((target: string, opts: { repo: string; interval?: number; model?: string; instructions?: string; initialReview?: 'baseline-only' | 'unresolved' }) => {
-      const r = getCore().watches.create({
-        target,
-        repository: opts.repo,
-        intervalMs: opts.interval,
-        model: opts.model,
-        instructions: opts.instructions,
-        initialReview: opts.initialReview,
-      });
-      if (!r.ok) return fail(r.error, { unknownRepoOutcome: 'No Watch was created.' });
-      io.out(`Watch #${r.value.id} created (${r.value.kind}, ${r.value.repository})`);
-    });
+    .addOption(
+      new Option('--initial-review <mode>', 'how existing comments are handled').choices([
+        'baseline-only',
+        'unresolved',
+      ]),
+    )
+    .action(
+      (
+        target: string,
+        opts: {
+          repo: string;
+          interval?: number;
+          model?: string;
+          instructions?: string;
+          initialReview?: 'baseline-only' | 'unresolved';
+        },
+      ) => {
+        const r = getCore().watches.create({
+          target,
+          repository: opts.repo,
+          intervalMs: opts.interval,
+          model: opts.model,
+          instructions: opts.instructions,
+          initialReview: opts.initialReview,
+        });
+        if (!r.ok) return fail(r.error, { unknownRepoOutcome: 'No Watch was created.' });
+        io.out(`Watch #${r.value.id} created (${r.value.kind}, ${r.value.repository})`);
+      },
+    );
 
   watch
     .command('list')
@@ -145,7 +177,10 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
     .option('--instructions <text>', 'extra instructions for this Run')
     .option('--review-unresolved', 'also review existing unresolved discussions')
     .action((id: number, opts: { instructions?: string; reviewUnresolved?: boolean }) => {
-      const r = getCore().watches.runNow(id, { extraInstructions: opts.instructions, reviewUnresolved: opts.reviewUnresolved });
+      const r = getCore().watches.runNow(id, {
+        extraInstructions: opts.instructions,
+        reviewUnresolved: opts.reviewUnresolved,
+      });
       if (!r.ok) return fail(r.error, { watchId: id });
       queued(r.value);
     });

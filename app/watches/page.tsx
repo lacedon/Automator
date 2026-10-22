@@ -31,7 +31,11 @@ function WatchTableRow({ row, jiraEnabled }: { row: WatchRow; jiraEnabled: boole
       </td>
       <td>{KIND_LABEL[row.kind]}</td>
       <td className="cell-text">
-        <Link href={`/watches/${row.id}`} className={needsYou ? 'plain-link strong' : closed ? 'plain-link muted' : 'plain-link'} title={row.targetUrl}>
+        <Link
+          href={`/watches/${row.id}`}
+          className={needsYou ? 'plain-link strong' : closed ? 'plain-link muted' : 'plain-link'}
+          title={row.targetUrl}
+        >
           {row.title}
         </Link>
       </td>
@@ -52,7 +56,11 @@ function WatchTableRow({ row, jiraEnabled }: { row: WatchRow; jiraEnabled: boole
       </td>
       <td className="row-actions">
         {needsYou && <ResumeButton watchId={row.id} />}
-        <WatchRowMenu watch={{ id: row.id, kind: row.kind, state: row.state, running: row.running }} actions={row.actions} jiraEnabled={jiraEnabled} />
+        <WatchRowMenu
+          watch={{ id: row.id, kind: row.kind, state: row.state, running: row.running }}
+          actions={row.actions}
+          jiraEnabled={jiraEnabled}
+        />
       </td>
     </tr>
   );
@@ -74,14 +82,16 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
     q: filter.q,
   });
   const { repositories, jiraEnabled } = core.read.formOptions();
-  const filtered = filter.state !== undefined || filter.kind !== undefined || filter.repo !== undefined || filter.q !== undefined;
+  const filtered =
+    filter.state !== undefined || filter.kind !== undefined || filter.repo !== undefined || filter.q !== undefined;
 
   return (
     <ActionErrorProvider>
       <WatchFilters filter={filter} counts={counts} repositories={repositories.map((r) => r.name)} />
       {jiraNotice && (
         <div className="notice">
-          Jira checking is off (<code>jira.enabled</code> is false). Jira Watches are kept but don&apos;t run on schedule or via Run now.
+          Jira checking is off (<code>jira.enabled</code> is false). Jira Watches are kept but don&apos;t run on
+          schedule or via Run now.
         </div>
       )}
       {rows.length === 0 ? (

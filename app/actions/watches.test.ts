@@ -16,9 +16,8 @@ vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
 vi.mock('next/cache', () => ({ revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect }));
 
-const { pauseWatch, closeWatch, reopenWatch, deleteWatch, runWatchNow, createWatch, updateWatch, previewTarget } = await import(
-  './watches'
-);
+const { pauseWatch, closeWatch, reopenWatch, deleteWatch, runWatchNow, createWatch, updateWatch, previewTarget } =
+  await import('./watches');
 
 const MR_URL = 'https://gitlab.example.com/team/app/-/merge_requests/42';
 const mrLookup = vi.fn<GitLabClient['mr']>();
@@ -67,7 +66,10 @@ test('pauseWatch pauses an active Watch and revalidates the layout', async () =>
 
 test('pauseWatch returns domain errors instead of throwing', async () => {
   const closed = insertWatch(core.db, { state: 'closed' });
-  expect(await pauseWatch(closed)).toEqual({ ok: false, error: { code: 'INVALID_STATE', state: 'closed', action: 'pause' } });
+  expect(await pauseWatch(closed)).toEqual({
+    ok: false,
+    error: { code: 'INVALID_STATE', state: 'closed', action: 'pause' },
+  });
   expect(await pauseWatch(99_999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
   expect(await pauseWatch(-1)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
 });
@@ -106,7 +108,10 @@ test('deleteWatch refuses while a Run is in progress', async () => {
 
 test('runWatchNow queues a manual Run with extra instructions and the review flag', async () => {
   const id = insertWatch(core.db);
-  const result = await runWatchNow(null, form({ id: String(id), extraInstructions: 'Be brief', reviewUnresolved: 'on' }));
+  const result = await runWatchNow(
+    null,
+    form({ id: String(id), extraInstructions: 'Be brief', reviewUnresolved: 'on' }),
+  );
   expect(result).toMatchObject({ ok: true });
   const [run] = queued();
   expect(run).toMatchObject({ watchId: id, trigger: 'manual', extraInstructions: 'Be brief', reviewUnresolved: 1 });
@@ -125,12 +130,25 @@ test('runWatchNow returns JIRA_DISABLED for Jira Watches when Jira is off', asyn
   expect(queued()).toEqual([]);
 });
 
-const watchFields = { target: MR_URL, repository: 'pages', instructions: 'Keep it short', interval: '30m', model: '', initialReview: '' };
+const watchFields = {
+  target: MR_URL,
+  repository: 'pages',
+  instructions: 'Keep it short',
+  interval: '30m',
+  model: '',
+  initialReview: '',
+};
 
 test('createWatch creates the Watch, revalidates and redirects to it', async () => {
   await expect(createWatch(null, form(watchFields))).rejects.toThrow(/NEXT_REDIRECT \/watches\/\d+/);
   const [watch] = core.watches.list();
-  expect(watch).toMatchObject({ kind: 'mr', repository: 'pages', instructions: 'Keep it short', intervalMs: 30 * 60_000, model: null });
+  expect(watch).toMatchObject({
+    kind: 'mr',
+    repository: 'pages',
+    instructions: 'Keep it short',
+    intervalMs: 30 * 60_000,
+    model: null,
+  });
   expect(watch!.initialReview).toBeNull();
   expect(redirect).toHaveBeenCalledWith(`/watches/${watch!.id}`);
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
@@ -140,7 +158,9 @@ test('createWatch keeps the default interval when the field is missing or blank 
   const withoutInterval = form({ ...watchFields, model: 'gpt-5', initialReview: 'unresolved' });
   withoutInterval.delete('interval');
   await expect(createWatch(null, withoutInterval)).rejects.toThrow('NEXT_REDIRECT');
-  await expect(createWatch(null, form({ ...watchFields, target: 'PROJ-1', interval: ' ' }))).rejects.toThrow('NEXT_REDIRECT');
+  await expect(createWatch(null, form({ ...watchFields, target: 'PROJ-1', interval: ' ' }))).rejects.toThrow(
+    'NEXT_REDIRECT',
+  );
   const [mr, jira] = core.watches.list();
   expect(mr).toMatchObject({ intervalMs: null, model: 'gpt-5', initialReview: 'unresolved' });
   expect(jira).toMatchObject({ kind: 'jira', intervalMs: null });
@@ -172,7 +192,11 @@ test('createWatch reports a duplicate open Watch', async () => {
 
 test('createWatch requires instructions for a free-form target', async () => {
   const fields = { ...watchFields, target: 'https://example.com/some/page', instructions: '  ' };
-  expect(await createWatch(null, form(fields))).toEqual({ ok: false, error: { code: 'MISSING_INSTRUCTIONS' }, values: fields });
+  expect(await createWatch(null, form(fields))).toEqual({
+    ok: false,
+    error: { code: 'MISSING_INSTRUCTIONS' },
+    values: fields,
+  });
 });
 
 test('createWatch rejects an interval that is not a positive duration', async () => {
@@ -196,38 +220,62 @@ test('createWatch rejects an unknown initial review mode', async () => {
 
 test('updateWatch saves the editable fields and redirects to the Watch', async () => {
   const id = insertWatch(core.db);
-  const fields = { id: String(id), instructions: 'New text', interval: '2h', model: 'gpt-5', initialReview: 'unresolved' };
+  const fields = {
+    id: String(id),
+    instructions: 'New text',
+    interval: '2h',
+    model: 'gpt-5',
+    initialReview: 'unresolved',
+  };
   await expect(updateWatch(null, form(fields))).rejects.toThrow(`NEXT_REDIRECT /watches/${id}`);
-  expect(core.watches.get(id)).toMatchObject({ instructions: 'New text', intervalMs: 2 * 3_600_000, model: 'gpt-5', initialReview: 'unresolved' });
+  expect(core.watches.get(id)).toMatchObject({
+    instructions: 'New text',
+    intervalMs: 2 * 3_600_000,
+    model: 'gpt-5',
+    initialReview: 'unresolved',
+  });
 });
 
 test('updateWatch resets interval, model and initial review to the defaults when blank', async () => {
   const id = insertWatch(core.db);
   core.watches.update(id, { intervalMs: 60_000, model: 'gpt-5', initialReview: 'unresolved', instructions: 'x' });
-  await expect(updateWatch(null, form({ id: String(id), instructions: '', interval: '', model: '', initialReview: '' }))).rejects.toThrow(
-    'NEXT_REDIRECT',
-  );
-  expect(core.watches.get(id)).toMatchObject({ instructions: null, intervalMs: null, model: null, initialReview: null });
+  await expect(
+    updateWatch(null, form({ id: String(id), instructions: '', interval: '', model: '', initialReview: '' })),
+  ).rejects.toThrow('NEXT_REDIRECT');
+  expect(core.watches.get(id)).toMatchObject({
+    instructions: null,
+    intervalMs: null,
+    model: null,
+    initialReview: null,
+  });
 });
 
 test('updateWatch leaves the interval and initial review unchanged when the fields are missing', async () => {
   const id = insertWatch(core.db);
   core.watches.update(id, { intervalMs: 60_000, initialReview: 'unresolved' });
-  await expect(updateWatch(null, form({ id: String(id), instructions: '', model: '' }))).rejects.toThrow('NEXT_REDIRECT');
+  await expect(updateWatch(null, form({ id: String(id), instructions: '', model: '' }))).rejects.toThrow(
+    'NEXT_REDIRECT',
+  );
   expect(core.watches.get(id)).toMatchObject({ intervalMs: 60_000, initialReview: 'unresolved' });
 });
 
 test('updateWatch returns errors with the echoed values', async () => {
   const id = insertWatch(core.db);
   const bad = { id: String(id), instructions: '', interval: 'soon', model: '' };
-  expect(await updateWatch(null, form(bad))).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'interval' }, values: bad });
+  expect(await updateWatch(null, form(bad))).toMatchObject({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'interval' },
+    values: bad,
+  });
   const missing = { id: '99999', instructions: '', model: '' };
   expect(await updateWatch(null, form(missing))).toEqual({ ok: false, error: { code: 'NOT_FOUND' }, values: missing });
   expect(redirect).not.toHaveBeenCalled();
 });
 
 test('previewTarget returns the kind and the MR preview', async () => {
-  mrLookup.mockResolvedValue({ title: 'Add login', state: 'opened', sourceBranch: 'feat/login' } as Awaited<ReturnType<GitLabClient['mr']>>);
+  mrLookup.mockResolvedValue({ title: 'Add login', state: 'opened', sourceBranch: 'feat/login' } as Awaited<
+    ReturnType<GitLabClient['mr']>
+  >);
   expect(await previewTarget(MR_URL, 'pages')).toEqual({
     kind: 'mr',
     preview: { title: 'Add login', state: 'opened', sourceBranch: 'feat/login' },
@@ -238,5 +286,9 @@ test('previewTarget returns the kind and the MR preview', async () => {
 test('previewTarget returns the kind with a reason when the preview fails, and the parse error for bad targets', async () => {
   mrLookup.mockRejectedValue(new Error('GitLab 401'));
   expect(await previewTarget(MR_URL, 'pages')).toEqual({ kind: 'mr', preview: null, previewError: 'GitLab 401' });
-  expect(await previewTarget('not a target', 'pages')).toMatchObject({ kind: null, preview: null, error: { code: 'INVALID_TARGET' } });
+  expect(await previewTarget('not a target', 'pages')).toMatchObject({
+    kind: null,
+    preview: null,
+    error: { code: 'INVALID_TARGET' },
+  });
 });

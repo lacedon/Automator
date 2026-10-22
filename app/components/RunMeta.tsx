@@ -25,8 +25,8 @@ function RunTime({ view }: { view: RunDetailView }) {
   }
   return (
     <>
-      {formatDateTime(run.startedAt)} → {run.endedAt === null ? '—' : formatDateTime(run.endedAt)} ({tookMs === null ? '—' : formatTook(tookMs)})
-      {run.exitCode !== null && ` · exit ${run.exitCode}`}
+      {formatDateTime(run.startedAt)} → {run.endedAt === null ? '—' : formatDateTime(run.endedAt)} (
+      {tookMs === null ? '—' : formatTook(tookMs)}){run.exitCode !== null && ` · exit ${run.exitCode}`}
     </>
   );
 }

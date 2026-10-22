@@ -57,11 +57,14 @@ describe('CleanupService', () => {
     const runId = insertRun(db, dataDir, watchId);
     const eventId = Number(
       db
-        .prepare("INSERT INTO needs_you_events (watch_id, run_id, reason, created_at, teams_status) VALUES (?, ?, 'r', 0, 'sent')")
+        .prepare(
+          "INSERT INTO needs_you_events (watch_id, run_id, reason, created_at, teams_status) VALUES (?, ?, 'r', 0, 'sent')",
+        )
         .run(watchId, runId).lastInsertRowid,
     );
     fs.mkdirSync(dataDir.notifyDir, { recursive: true });
-    for (const file of [dataDir.notifyTranscriptPath(eventId), dataDir.notifyLogPath(eventId)]) fs.writeFileSync(file, 'x');
+    for (const file of [dataDir.notifyTranscriptPath(eventId), dataDir.notifyLogPath(eventId)])
+      fs.writeFileSync(file, 'x');
 
     expect(service.run()).toEqual({ deletedWatches: 1, deletedAttempts: 0 });
     expect(fs.readdirSync(dataDir.notifyDir)).toEqual([]);

@@ -17,7 +17,12 @@ export function Sidebar({ counts }: { counts: { watches: number; queued: number 
       {items.map(({ href, label, count }) => {
         const active = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
         return (
-          <Link key={href} href={href} className={active ? 'nav-item active' : 'nav-item'} aria-current={active ? 'page' : undefined}>
+          <Link
+            key={href}
+            href={href}
+            className={active ? 'nav-item active' : 'nav-item'}
+            aria-current={active ? 'page' : undefined}
+          >
             <span>{label}</span>
             {count !== undefined && <span className="nav-count">{count}</span>}
           </Link>

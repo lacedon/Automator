@@ -47,7 +47,14 @@ describe('enterNeedsYou', () => {
     db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(now, a);
     const runId = insertRun(db, a, 'finished');
     const pending = enterNeedsYou(db, { watchId: a, runId, reason: 'help', now, teamsEnabled: true });
-    expect(pending).toMatchObject({ watchId: a, runId, reason: 'help', createdAt: now, teamsStatus: 'pending', teamsError: null });
+    expect(pending).toMatchObject({
+      watchId: a,
+      runId,
+      reason: 'help',
+      createdAt: now,
+      teamsStatus: 'pending',
+      teamsError: null,
+    });
     expect(watch(db, a)).toMatchObject({
       state: 'needs_you',
       needsYouReason: 'help',

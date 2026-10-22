@@ -74,11 +74,11 @@ npm run check   # type check, lint, dependency rules and Vitest
 
 ### Watch kinds
 
-| Kind | Target | Default behavior |
-| --- | --- | --- |
-| GitLab MR | Merge request URL | Handle new outside comments, pipeline failures and merge conflicts |
-| Jira Ticket | Ticket key/URL | Look at changes and comments, and reply when the next step is clear |
-| Free-form | Any URL + **required** instructions | Follow the Watch's instructions |
+| Kind        | Target                              | Default behavior                                                    |
+| ----------- | ----------------------------------- | ------------------------------------------------------------------- |
+| GitLab MR   | Merge request URL                   | Handle new outside comments, pipeline failures and merge conflicts  |
+| Jira Ticket | Ticket key/URL                      | Look at changes and comments, and reply when the next step is clear |
+| Free-form   | Any URL + **required** instructions | Follow the Watch's instructions                                     |
 
 MR and Jira Watches use the default prompt for their kind, plus optional extra instructions. Default prompts are editable Markdown files, one per kind. Each Watch can also use a different model.
 
@@ -131,6 +131,7 @@ Further rules:
   - `unresolved`: review existing unresolved discussions once.
 
   Failed pipelines and conflicts count in both modes.
+
 - **Run now** can also be asked to review existing unresolved discussions.
 - GitLab REST credentials are required. If they are missing or invalid, or can't access the MR, the Watch moves to **Needs you** after a limited number of retries for temporary failures. It doesn't fall back silently.
 
@@ -237,6 +238,7 @@ Failures:
   - the Teams chat to notify.
 
   A credential-free example config is committed.
+
 - **Secrets** (GitLab and Jira tokens) are read from environment variables or a gitignored `.env`. They are never added to prompts or result files.
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
 - Changes to the config take effect after a restart (v1). The dashboard doesn't edit config or secrets.

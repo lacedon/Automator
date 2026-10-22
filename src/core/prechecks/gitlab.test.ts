@@ -122,7 +122,9 @@ describe('GitLabPrecheck.check', () => {
   });
 
   test('baseline-only first check ignores unresolved discussions', async () => {
-    const { precheck } = setup({ discussions: [discussion('d3', [note(13, anna, 'Rename this', { resolvable: true })])] });
+    const { precheck } = setup({
+      discussions: [discussion('d3', [note(13, anna, 'Rename this', { resolvable: true })])],
+    });
     expect(await precheck.check(watch({ initialReview: 'baseline-only' }))).toEqual({
       kind: 'unchanged',
       cursor: cursor({ lastNoteId: 13 }),
@@ -131,7 +133,11 @@ describe('GitLabPrecheck.check', () => {
 
   test("new note by other after cursor is changed with reason 'new comment by @anna'", async () => {
     const { precheck } = setup({
-      discussions: [...baselineDiscussions, discussion('d3', [note(14, anna, 'One more thing')]), discussion('d4', [note(15, bob, 'Me too')])],
+      discussions: [
+        ...baselineDiscussions,
+        discussion('d3', [note(14, anna, 'One more thing')]),
+        discussion('d4', [note(15, bob, 'Me too')]),
+      ],
     });
     expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: 12 }) }))).toEqual({
       kind: 'changed',
@@ -188,7 +194,10 @@ describe('GitLabPrecheck.check', () => {
   });
 
   test("conflict on new sha is changed 'merge conflict'", async () => {
-    const { precheck } = setup({ mr: mrJson({ detailed_merge_status: 'conflict', has_conflicts: true }), discussions: baselineDiscussions });
+    const { precheck } = setup({
+      mr: mrJson({ detailed_merge_status: 'conflict', has_conflicts: true }),
+      discussions: baselineDiscussions,
+    });
     expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: 12, handledConflictSha: 'old' }) }))).toEqual({
       kind: 'changed',
       reason: 'merge conflict',
@@ -196,14 +205,20 @@ describe('GitLabPrecheck.check', () => {
   });
 
   test('same sha already handled is unchanged', async () => {
-    const { precheck } = setup({ mr: mrJson({ detailed_merge_status: 'conflict', has_conflicts: true }), discussions: baselineDiscussions });
+    const { precheck } = setup({
+      mr: mrJson({ detailed_merge_status: 'conflict', has_conflicts: true }),
+      discussions: baselineDiscussions,
+    });
     expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: 12, handledConflictSha: HEAD_SHA }) }))).toEqual({
       kind: 'unchanged',
     });
   });
 
   test('need_rebase is not a conflict', async () => {
-    const { precheck } = setup({ mr: mrJson({ detailed_merge_status: 'need_rebase' }), discussions: baselineDiscussions });
+    const { precheck } = setup({
+      mr: mrJson({ detailed_merge_status: 'need_rebase' }),
+      discussions: baselineDiscussions,
+    });
     expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: 12 }) }))).toEqual({ kind: 'unchanged' });
   });
 
@@ -270,13 +285,19 @@ describe('GitLabPrecheck.snapshot', () => {
       }),
       discussions: [
         ...baselineDiscussions,
-        discussion('d3', [note(14, anna, 'Please rename', { createdAt: '2026-10-21T08:00:00.000Z' }), note(15, me, 'Done')]),
+        discussion('d3', [
+          note(14, anna, 'Please rename', { createdAt: '2026-10-21T08:00:00.000Z' }),
+          note(15, me, 'Done'),
+        ]),
         discussion('d4', [note(16, bob, 'added 1 commit', { system: true })]),
       ],
     });
-    const snap = await precheck.snapshot(watch({ cursor: cursor({ lastNoteId: 12, handledPipelineId: 1, handledConflictSha: 'old' }) }), {
-      reviewUnresolved: false,
-    });
+    const snap = await precheck.snapshot(
+      watch({ cursor: cursor({ lastNoteId: 12, handledPipelineId: 1, handledConflictSha: 'old' }) }),
+      {
+        reviewUnresolved: false,
+      },
+    );
     expect(snap.title).toBe('Add widgets');
     expect(snap.sourceBranch).toBe('feature/widgets');
     expect(snap.close).toBeUndefined();
@@ -290,9 +311,12 @@ describe('GitLabPrecheck.snapshot', () => {
 
   test('snapshot keeps previous handled values when nothing failed or conflicted', async () => {
     const { precheck } = setup({ discussions: baselineDiscussions });
-    const snap = await precheck.snapshot(watch({ cursor: cursor({ lastNoteId: 12, handledPipelineId: 7, handledConflictSha: 'old' }) }), {
-      reviewUnresolved: false,
-    });
+    const snap = await precheck.snapshot(
+      watch({ cursor: cursor({ lastNoteId: 12, handledPipelineId: 7, handledConflictSha: 'old' }) }),
+      {
+        reviewUnresolved: false,
+      },
+    );
     expect(snap.events).toEqual([]);
     expect(snap.cursorCandidate).toEqual({ lastNoteId: 12, handledPipelineId: 7, handledConflictSha: 'old' });
   });
@@ -312,13 +336,18 @@ describe('GitLabPrecheck.snapshot', () => {
       discussions: [...baselineDiscussions, discussion('d3', [note(13, anna, 'Rename this', { resolvable: true })])],
     });
     const snap = await precheck.snapshot(watch({ initialReview: 'unresolved' }), { reviewUnresolved: false });
-    expect(snap.events).toEqual([{ at: expect.any(Number), author: '@anna', text: 'Rename this', url: `${MR_URL}#note_13` }]);
+    expect(snap.events).toEqual([
+      { at: expect.any(Number), author: '@anna', text: 'Rename this', url: `${MR_URL}#note_13` },
+    ]);
   });
 
   test('snapshot with reviewUnresolved includes unresolved discussions regardless of cursor', async () => {
     const { precheck } = setup({
       discussions: [
-        discussion('d1', [note(5, anna, 'Old unresolved', { resolvable: true }), note(6, me, 'Not sure', { resolvable: true })]),
+        discussion('d1', [
+          note(5, anna, 'Old unresolved', { resolvable: true }),
+          note(6, me, 'Not sure', { resolvable: true }),
+        ]),
         discussion('d2', [note(7, bob, 'Old resolved', { resolvable: true, resolved: true })]),
         discussion('d3', [note(8, me, 'My own open thread', { resolvable: true })]),
         discussion('d4', [note(20, bob, 'Fresh comment')]),
@@ -358,7 +387,9 @@ describe('createGitLabClient', () => {
       id: 'd0',
       resolvable: false,
       resolved: false,
-      notes: [{ id: 1, system: false, authorId: anna.id, authorUsername: 'anna', body: 'n0', createdAt: expect.any(String) }],
+      notes: [
+        { id: 1, system: false, authorId: anna.id, authorUsername: 'anna', body: 'n0', createdAt: expect.any(String) },
+      ],
     });
     expect(calls.filter((c) => c.includes('discussions'))).toHaveLength(3);
   });

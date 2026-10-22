@@ -35,15 +35,14 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const finish = (eventId: number, status: 'sent' | 'failed', error: string | null): void => {
-    db.prepare("UPDATE needs_you_events SET teams_status = ?, teams_error = ? WHERE id = ? AND teams_status = 'pending'").run(
-      status,
-      error,
-      eventId,
-    );
+    db.prepare(
+      "UPDATE needs_you_events SET teams_status = ?, teams_error = ? WHERE id = ? AND teams_status = 'pending'",
+    ).run(status, error, eventId);
   };
 
   const send = async (event: NeedsYouEvent, teams: NonNullable<Config['teams']>): Promise<void> => {
-    const watch = db.prepare('SELECT title FROM watches WHERE id = ?').get(event.watchId) as { title: string } | undefined;
+    const watch = db.prepare('SELECT title FROM watches WHERE id = ?').get(event.watchId) as
+      { title: string } | undefined;
     const title = watch?.title ?? `Watch ${event.watchId}`;
     const message = `Automator: "${title}" needs you: ${event.reason}. ${teams.dashboardUrl}/watches/${event.watchId}`;
     const prompt =

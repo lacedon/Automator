@@ -40,7 +40,11 @@ function UnknownRepository({ error, outcome }: UnknownRepositoryProps) {
       {error.attemptFile !== null && (
         <p className="muted">
           Result file: <code>{error.attemptFile}</code>{' '}
-          <a href={`/files/attempt/${encodeURIComponent(basename(error.attemptFile))}`} target="_blank" rel="noreferrer">
+          <a
+            href={`/files/attempt/${encodeURIComponent(basename(error.attemptFile))}`}
+            target="_blank"
+            rel="noreferrer"
+          >
             open
           </a>
         </p>

@@ -1,114 +1,497 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>04-queue-runs-adhoc</title>
-<style>body{background:#0d1117;color:#e6edf3;font-family:-apple-system,system-ui,sans-serif;padding:24px;max-width:1100px;margin:auto}.subtitle{color:#8d96a0}.options{display:grid;gap:20px}.letter{display:none}</style></head><body>
-<h2>Queue, Runs, Run detail and Ad-hoc</h2>
-<p class="subtitle">The remaining v1 screens, graphite palette, layout A.</p>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>04-queue-runs-adhoc</title>
+    <style>
+      body {
+        background: #0d1117;
+        color: #e6edf3;
+        font-family: -apple-system, system-ui, sans-serif;
+        padding: 24px;
+        max-width: 1100px;
+        margin: auto;
+      }
+      .subtitle {
+        color: #8d96a0;
+      }
+      .options {
+        display: grid;
+        gap: 20px;
+      }
+      .letter {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Queue, Runs, Run detail and Ad-hoc</h2>
+    <p class="subtitle">The remaining v1 screens, graphite palette, layout A.</p>
 
-<style>
-  .m { font: 12px/1.45 -apple-system, system-ui, sans-serif; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:8px; overflow:hidden; margin-bottom:22px; }
-  .m .bar { display:flex; gap:10px; align-items:center; padding:9px 14px; font-weight:600; background:#010409; border-bottom:1px solid #30363d; }
-  .m .sp { flex:1 }
-  .m .btn { border-radius:5px; padding:3px 9px; font-weight:600; font-size:11px; background:#238636; color:#fff; white-space:nowrap; display:inline-block; }
-  .m .btn.g { background:#21262d; color:#e6edf3; border:1px solid #30363d; }
-  .m .btn.d { background:#21262d; color:#ff7b72; border:1px solid #30363d; }
-  .m .side { width:140px; padding:10px 0; background:#010409; border-right:1px solid #30363d; color:#8d96a0; flex-shrink:0; }
-  .m .side div { padding:6px 14px; display:flex; justify-content:space-between; }
-  .m .side .on { background:#1f2937; color:#e6edf3; box-shadow: inset 3px 0 #2f81f7; }
-  .m .main { flex:1; padding:12px 16px; min-width:0; }
-  .m .h { font-weight:700; font-size:11px; letter-spacing:.04em; text-transform:uppercase; margin:14px 0 6px; color:#8d96a0; }
-  .m .mut { color:#8d96a0; font-size:11px; }
-  .m .pill { font-size:10px; padding:1px 7px; border-radius:10px; font-weight:600; white-space:nowrap; }
-  .pill.needs { background:#5a1e22; color:#ff9492; } .pill.act { background:#12361f; color:#56d364; }
-  .pill.no { background:#262c36; color:#8d96a0; } .pill.run { background:#3b2e0a; color:#e3b341; }
-  .pill.blue { background:#0c2d6b; color:#79c0ff; } .pill.int { background:#3d1f00; color:#ffa657; }
-  .m code { font-size:11px; padding:0 4px; border-radius:3px; background:#262c36; }
-  .m table { width:100%; border-collapse:collapse; }
-  .m th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#8d96a0; font-weight:600; padding:6px 8px; border-bottom:1px solid #30363d; }
-  .m td { padding:7px 8px; border-bottom:1px solid #21262d; }
-  .m a { color:#58a6ff; text-decoration:none; }
-  .m .card { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px 12px; }
-  .m .card.run { border-color:#5c4813; background:#1c1a10; }
-  .m .card.err { background:#2d1517; border-color:#6e2a2e; }
-  .m .chip { border:1px solid #30363d; border-radius:12px; padding:2px 9px; font-size:11px; color:#c9d1d9; }
-  .m .chip.on { background:#1f2937; border-color:#2f81f7; }
-  .m .inp { background:#010409; border:1px solid #30363d; border-radius:5px; padding:4px 8px; color:#8d96a0; }
-  .m .tabs span { padding:6px 12px; color:#8d96a0; border-bottom:2px solid transparent; }
-  .m .tabs .on { color:#e6edf3; border-color:#f78166; }
-  .m pre { background:#010409; border:1px solid #30363d; border-radius:6px; padding:10px; margin:0; font:11px/1.5 ui-monospace, Menlo, monospace; color:#c9d1d9; white-space:pre-wrap; }
-  .m .kv { display:grid; grid-template-columns:100px 1fr; gap:4px 10px; } .m .kv div:nth-child(odd){color:#8d96a0}
-  .lbl { font-weight:600; color:#c9d1d9; margin:4px 0 6px; }
-  .f label { display:block; font-weight:600; margin-bottom:4px; }
-  .f .in { background:#010409; border:1px solid #30363d; border-radius:5px; padding:6px 9px; color:#e6edf3; margin-bottom:10px; }
-</style>
+    <style>
+      .m {
+        font:
+          12px/1.45 -apple-system,
+          system-ui,
+          sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 22px;
+      }
+      .m .bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 9px 14px;
+        font-weight: 600;
+        background: #010409;
+        border-bottom: 1px solid #30363d;
+      }
+      .m .sp {
+        flex: 1;
+      }
+      .m .btn {
+        border-radius: 5px;
+        padding: 3px 9px;
+        font-weight: 600;
+        font-size: 11px;
+        background: #238636;
+        color: #fff;
+        white-space: nowrap;
+        display: inline-block;
+      }
+      .m .btn.g {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+      }
+      .m .btn.d {
+        background: #21262d;
+        color: #ff7b72;
+        border: 1px solid #30363d;
+      }
+      .m .side {
+        width: 140px;
+        padding: 10px 0;
+        background: #010409;
+        border-right: 1px solid #30363d;
+        color: #8d96a0;
+        flex-shrink: 0;
+      }
+      .m .side div {
+        padding: 6px 14px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .m .side .on {
+        background: #1f2937;
+        color: #e6edf3;
+        box-shadow: inset 3px 0 #2f81f7;
+      }
+      .m .main {
+        flex: 1;
+        padding: 12px 16px;
+        min-width: 0;
+      }
+      .m .h {
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin: 14px 0 6px;
+        color: #8d96a0;
+      }
+      .m .mut {
+        color: #8d96a0;
+        font-size: 11px;
+      }
+      .m .pill {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .pill.needs {
+        background: #5a1e22;
+        color: #ff9492;
+      }
+      .pill.act {
+        background: #12361f;
+        color: #56d364;
+      }
+      .pill.no {
+        background: #262c36;
+        color: #8d96a0;
+      }
+      .pill.run {
+        background: #3b2e0a;
+        color: #e3b341;
+      }
+      .pill.blue {
+        background: #0c2d6b;
+        color: #79c0ff;
+      }
+      .pill.int {
+        background: #3d1f00;
+        color: #ffa657;
+      }
+      .m code {
+        font-size: 11px;
+        padding: 0 4px;
+        border-radius: 3px;
+        background: #262c36;
+      }
+      .m table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .m th {
+        text-align: left;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #8d96a0;
+        font-weight: 600;
+        padding: 6px 8px;
+        border-bottom: 1px solid #30363d;
+      }
+      .m td {
+        padding: 7px 8px;
+        border-bottom: 1px solid #21262d;
+      }
+      .m a {
+        color: #58a6ff;
+        text-decoration: none;
+      }
+      .m .card {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px 12px;
+      }
+      .m .card.run {
+        border-color: #5c4813;
+        background: #1c1a10;
+      }
+      .m .card.err {
+        background: #2d1517;
+        border-color: #6e2a2e;
+      }
+      .m .chip {
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        padding: 2px 9px;
+        font-size: 11px;
+        color: #c9d1d9;
+      }
+      .m .chip.on {
+        background: #1f2937;
+        border-color: #2f81f7;
+      }
+      .m .inp {
+        background: #010409;
+        border: 1px solid #30363d;
+        border-radius: 5px;
+        padding: 4px 8px;
+        color: #8d96a0;
+      }
+      .m .tabs span {
+        padding: 6px 12px;
+        color: #8d96a0;
+        border-bottom: 2px solid transparent;
+      }
+      .m .tabs .on {
+        color: #e6edf3;
+        border-color: #f78166;
+      }
+      .m pre {
+        background: #010409;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        margin: 0;
+        font:
+          11px/1.5 ui-monospace,
+          Menlo,
+          monospace;
+        color: #c9d1d9;
+        white-space: pre-wrap;
+      }
+      .m .kv {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 4px 10px;
+      }
+      .m .kv div:nth-child(odd) {
+        color: #8d96a0;
+      }
+      .lbl {
+        font-weight: 600;
+        color: #c9d1d9;
+        margin: 4px 0 6px;
+      }
+      .f label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .f .in {
+        background: #010409;
+        border: 1px solid #30363d;
+        border-radius: 5px;
+        padding: 6px 9px;
+        color: #e6edf3;
+        margin-bottom: 10px;
+      }
+    </style>
 
-<div class="lbl">Screen 4 — Queue</div>
-<div class="m"><div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-<div style="display:flex"><div class="side"><div>Home</div><div>Watches <span>12</span></div><div class="on">Queue <span>3</span></div><div>Runs</div><div>Ad-hoc</div></div>
-<div class="main">
-  <div class="card run"><span class="pill run">● Running 04:12 / 30:00</span> &nbsp;<b>!57 Bump eslint config</b> · inspire-web · <span class="mut">scheduled · run #321 · started 15:37</span>
-    <span style="float:right"><span class="btn d">Cancel run</span></span>
-    <div class="mut" style="margin-top:4px">Live transcript isn't available in v1. It appears when the Run finishes.</div></div>
-  <div class="h">Waiting · manual &amp; ad-hoc go first</div>
-  <table>
-    <tr><th>#</th><th>Priority</th><th>Item</th><th>Repository</th><th>Queued</th><th>Reason</th><th></th></tr>
-    <tr><td>1</td><td><span class="pill blue">manual</span></td><td>PROJ-1931 Clarify SSO timeout</td><td>mbdp-pages</td><td>15:39</td><td>Resume &amp; run now</td><td><a>close Watch</a></td></tr>
-    <tr><td>2</td><td><span class="pill no">scheduled</span></td><td>!51 Pagination for reports</td><td>inspire-web</td><td>15:38</td><td>new comment by @anna</td><td><a>close Watch</a></td></tr>
-    <tr><td>3</td><td><span class="pill no">scheduled</span></td><td>!63 Retry flaky upload</td><td>inspire-web</td><td>15:40</td><td>pipeline #55210 failed</td><td><a>close Watch</a></td></tr>
-  </table>
-</div></div></div>
+    <div class="lbl">Screen 4 — Queue</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
+      </div>
+      <div style="display: flex">
+        <div class="side">
+          <div>Home</div>
+          <div>Watches <span>12</span></div>
+          <div class="on">Queue <span>3</span></div>
+          <div>Runs</div>
+          <div>Ad-hoc</div>
+        </div>
+        <div class="main">
+          <div class="card run">
+            <span class="pill run">● Running 04:12 / 30:00</span> &nbsp;<b>!57 Bump eslint config</b> · inspire-web ·
+            <span class="mut">scheduled · run #321 · started 15:37</span>
+            <span style="float: right"><span class="btn d">Cancel run</span></span>
+            <div class="mut" style="margin-top: 4px">
+              Live transcript isn't available in v1. It appears when the Run finishes.
+            </div>
+          </div>
+          <div class="h">Waiting · manual &amp; ad-hoc go first</div>
+          <table>
+            <tr>
+              <th>#</th>
+              <th>Priority</th>
+              <th>Item</th>
+              <th>Repository</th>
+              <th>Queued</th>
+              <th>Reason</th>
+              <th></th>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td><span class="pill blue">manual</span></td>
+              <td>PROJ-1931 Clarify SSO timeout</td>
+              <td>mbdp-pages</td>
+              <td>15:39</td>
+              <td>Resume &amp; run now</td>
+              <td><a>close Watch</a></td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td><span class="pill no">scheduled</span></td>
+              <td>!51 Pagination for reports</td>
+              <td>inspire-web</td>
+              <td>15:38</td>
+              <td>new comment by @anna</td>
+              <td><a>close Watch</a></td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td><span class="pill no">scheduled</span></td>
+              <td>!63 Retry flaky upload</td>
+              <td>inspire-web</td>
+              <td>15:40</td>
+              <td>pipeline #55210 failed</td>
+              <td><a>close Watch</a></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
 
-<div class="lbl">Screen 5 — Runs (history)</div>
-<div class="m"><div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-<div style="display:flex"><div class="side"><div>Home</div><div>Watches <span>12</span></div><div>Queue <span>3</span></div><div class="on">Runs</div><div>Ad-hoc</div></div>
-<div class="main">
-  <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip on">All</span><span class="chip">needs-you</span><span class="chip">acted</span><span class="chip">nothing</span><span class="chip">errors</span><span class="sp"></span><span class="inp">Trigger: any ▾</span><span class="inp">Repository: any ▾</span></div>
-  <table style="margin-top:8px">
-    <tr><th>#</th><th>Watch / prompt</th><th>Repository</th><th>Trigger</th><th>Started</th><th>Took</th><th>Outcome</th><th>Summary</th></tr>
-    <tr><td>320</td><td>!63 Retry flaky upload</td><td>inspire-web</td><td>schedule</td><td>15:20</td><td>—</td><td><span class="pill needs">error</span></td><td>GitLab 401 — token can't access MR</td></tr>
-    <tr><td>319</td><td><i>ad-hoc:</i> “Update CHANGELOG for 4.2”</td><td>mbdp-pages</td><td>ad-hoc</td><td>15:05</td><td>2m</td><td><span class="pill act">acted</span></td><td>Committed CHANGELOG entry</td></tr>
-    <tr><td>318</td><td>!42 Add retry to export job</td><td>inspire-web</td><td>schedule</td><td>15:02</td><td>14m</td><td><span class="pill needs">needs-you</span></td><td>Tests fail in export.spec</td></tr>
-    <tr><td>317</td><td>!57 Bump eslint config</td><td>inspire-web</td><td>manual</td><td>14:30</td><td>30m</td><td><span class="pill int">timed out</span></td><td>Run timed out after 30m</td></tr>
-  </table>
-</div></div></div>
+    <div class="lbl">Screen 5 — Runs (history)</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
+      </div>
+      <div style="display: flex">
+        <div class="side">
+          <div>Home</div>
+          <div>Watches <span>12</span></div>
+          <div>Queue <span>3</span></div>
+          <div class="on">Runs</div>
+          <div>Ad-hoc</div>
+        </div>
+        <div class="main">
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <span class="chip on">All</span><span class="chip">needs-you</span><span class="chip">acted</span
+            ><span class="chip">nothing</span><span class="chip">errors</span><span class="sp"></span
+            ><span class="inp">Trigger: any ▾</span><span class="inp">Repository: any ▾</span>
+          </div>
+          <table style="margin-top: 8px">
+            <tr>
+              <th>#</th>
+              <th>Watch / prompt</th>
+              <th>Repository</th>
+              <th>Trigger</th>
+              <th>Started</th>
+              <th>Took</th>
+              <th>Outcome</th>
+              <th>Summary</th>
+            </tr>
+            <tr>
+              <td>320</td>
+              <td>!63 Retry flaky upload</td>
+              <td>inspire-web</td>
+              <td>schedule</td>
+              <td>15:20</td>
+              <td>—</td>
+              <td><span class="pill needs">error</span></td>
+              <td>GitLab 401 — token can't access MR</td>
+            </tr>
+            <tr>
+              <td>319</td>
+              <td><i>ad-hoc:</i> “Update CHANGELOG for 4.2”</td>
+              <td>mbdp-pages</td>
+              <td>ad-hoc</td>
+              <td>15:05</td>
+              <td>2m</td>
+              <td><span class="pill act">acted</span></td>
+              <td>Committed CHANGELOG entry</td>
+            </tr>
+            <tr>
+              <td>318</td>
+              <td>!42 Add retry to export job</td>
+              <td>inspire-web</td>
+              <td>schedule</td>
+              <td>15:02</td>
+              <td>14m</td>
+              <td><span class="pill needs">needs-you</span></td>
+              <td>Tests fail in export.spec</td>
+            </tr>
+            <tr>
+              <td>317</td>
+              <td>!57 Bump eslint config</td>
+              <td>inspire-web</td>
+              <td>manual</td>
+              <td>14:30</td>
+              <td>30m</td>
+              <td><span class="pill int">timed out</span></td>
+              <td>Run timed out after 30m</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
 
-<div class="lbl">Screen 6 — Run detail</div>
-<div class="m"><div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-<div style="display:flex"><div class="side"><div>Home</div><div>Watches <span>12</span></div><div>Queue <span>3</span></div><div class="on">Runs</div><div>Ad-hoc</div></div>
-<div class="main">
-  <div class="mut">Runs / #318</div>
-  <div style="font-size:16px;font-weight:700;margin:4px 0">Run #318 · <a>!42 Add retry to export job</a> <span class="pill needs">needs-you</span></div>
-  <div class="card" style="margin:8px 0"><div class="kv">
-    <div>Summary</div><div>Applied the rename requested by @anna. <code>npm test</code> fails in export.spec (3 tests). Did not push.</div>
-    <div>Trigger</div><div>schedule · new comment note #9930</div>
-    <div>Time</div><div>15:02 → 15:16 (14m) · exit 0</div>
-    <div>Repository</div><div>inspire-web · branch <code>feature/export-retry</code></div>
-    <div>Files</div><div><code>~/.automator/runs/318/result.json</code> · <code>transcript.md</code> <a>reveal</a></div>
-  </div></div>
-  <div class="tabs" style="display:flex;border-bottom:1px solid #30363d;margin-bottom:8px"><span class="on">Transcript</span><span>Result JSON</span><span>Prompt</span></div>
-<pre>● Reading MR !42 state and discussions…
+    <div class="lbl">Screen 6 — Run detail</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
+      </div>
+      <div style="display: flex">
+        <div class="side">
+          <div>Home</div>
+          <div>Watches <span>12</span></div>
+          <div>Queue <span>3</span></div>
+          <div class="on">Runs</div>
+          <div>Ad-hoc</div>
+        </div>
+        <div class="main">
+          <div class="mut">Runs / #318</div>
+          <div style="font-size: 16px; font-weight: 700; margin: 4px 0">
+            Run #318 · <a>!42 Add retry to export job</a> <span class="pill needs">needs-you</span>
+          </div>
+          <div class="card" style="margin: 8px 0">
+            <div class="kv">
+              <div>Summary</div>
+              <div>
+                Applied the rename requested by @anna. <code>npm test</code> fails in export.spec (3 tests). Did not
+                push.
+              </div>
+              <div>Trigger</div>
+              <div>schedule · new comment note #9930</div>
+              <div>Time</div>
+              <div>15:02 → 15:16 (14m) · exit 0</div>
+              <div>Repository</div>
+              <div>inspire-web · branch <code>feature/export-retry</code></div>
+              <div>Files</div>
+              <div><code>~/.automator/runs/318/result.json</code> · <code>transcript.md</code> <a>reveal</a></div>
+            </div>
+          </div>
+          <div class="tabs" style="display: flex; border-bottom: 1px solid #30363d; margin-bottom: 8px">
+            <span class="on">Transcript</span><span>Result JSON</span><span>Prompt</span>
+          </div>
+          <pre>
+● Reading MR !42 state and discussions…
   1 new discussion by @anna: "Rename retryCount → maxRetries"
 ● Checking checkout: on feature/export-retry, clean ✓
 ● Editing src/export/job.ts (+6 −6)
 ● Running validation: npm test
   ✗ export.spec.ts › retries 3 times (expected maxRetries)
 ● Stopping: validation failed — marking needs-you</pre>
-</div></div></div>
+        </div>
+      </div>
+    </div>
 
-<div class="lbl">Screen 7 — Ad-hoc run</div>
-<div class="m"><div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-<div style="display:flex"><div class="side"><div>Home</div><div>Watches <span>12</span></div><div>Queue <span>3</span></div><div>Runs</div><div class="on">Ad-hoc</div></div>
-<div class="main" style="max-width:640px">
-  <div style="font-size:16px;font-weight:700;margin-bottom:10px">New ad-hoc run</div>
-  <div class="f"><label>Repository</label><div class="in">mbdp-pages ▾ <span class="mut">~/work/mbdp-pages</span></div>
-  <label>Prompt</label><div class="in" style="height:60px">Update CHANGELOG for 4.2 from merged MRs since the last tag.</div>
-  <label>Model</label><div class="in" style="width:200px">default (gpt-5) ▾</div></div>
-  <span class="btn">Queue run</span> <span class="mut">&nbsp;Goes ahead of scheduled work, ignores working hours, never interrupts the current Run.</span>
-  <div class="h">Ad-hoc history</div>
-  <table>
-    <tr><th>#</th><th>Prompt</th><th>Repository</th><th>Status</th><th></th></tr>
-    <tr><td>322</td><td>Regenerate API types</td><td>inspire-web</td><td><span class="pill blue">queued #2</span></td><td><a>cancel</a></td></tr>
-    <tr><td>319</td><td>Update CHANGELOG for 4.2</td><td>mbdp-pages</td><td><span class="pill act">acted</span></td><td><a>open</a> · <a>delete</a></td></tr>
-  </table>
-</div></div></div>
-
-</body></html>
+    <div class="lbl">Screen 7 — Ad-hoc run</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
+      </div>
+      <div style="display: flex">
+        <div class="side">
+          <div>Home</div>
+          <div>Watches <span>12</span></div>
+          <div>Queue <span>3</span></div>
+          <div>Runs</div>
+          <div class="on">Ad-hoc</div>
+        </div>
+        <div class="main" style="max-width: 640px">
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 10px">New ad-hoc run</div>
+          <div class="f">
+            <label>Repository</label>
+            <div class="in">mbdp-pages ▾ <span class="mut">~/work/mbdp-pages</span></div>
+            <label>Prompt</label>
+            <div class="in" style="height: 60px">Update CHANGELOG for 4.2 from merged MRs since the last tag.</div>
+            <label>Model</label>
+            <div class="in" style="width: 200px">default (gpt-5) ▾</div>
+          </div>
+          <span class="btn">Queue run</span>
+          <span class="mut"
+            >&nbsp;Goes ahead of scheduled work, ignores working hours, never interrupts the current Run.</span
+          >
+          <div class="h">Ad-hoc history</div>
+          <table>
+            <tr>
+              <th>#</th>
+              <th>Prompt</th>
+              <th>Repository</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+            <tr>
+              <td>322</td>
+              <td>Regenerate API types</td>
+              <td>inspire-web</td>
+              <td><span class="pill blue">queued #2</span></td>
+              <td><a>cancel</a></td>
+            </tr>
+            <tr>
+              <td>319</td>
+              <td>Update CHANGELOG for 4.2</td>
+              <td>mbdp-pages</td>
+              <td><span class="pill act">acted</span></td>
+              <td><a>open</a> · <a>delete</a></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

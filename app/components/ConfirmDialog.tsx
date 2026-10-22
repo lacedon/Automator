@@ -17,7 +17,16 @@ type Props = {
   className?: string;
 };
 
-export function ConfirmDialog({ label, message, confirmLabel, dismissLabel = 'Back', action, danger, disabledReason, className }: Props) {
+export function ConfirmDialog({
+  label,
+  message,
+  confirmLabel,
+  dismissLabel = 'Back',
+  action,
+  danger,
+  disabledReason,
+  className,
+}: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<AppError | string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -61,10 +70,20 @@ export function ConfirmDialog({ label, message, confirmLabel, dismissLabel = 'Ba
         <p>{message}</p>
         {error !== null && <ErrorBox error={error} />}
         <div className="actions">
-          <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => dialog.current?.close()}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={pending}
+            onClick={() => dialog.current?.close()}
+          >
             {dismissLabel}
           </button>
-          <button type="button" className={danger ? 'btn btn-danger' : 'btn btn-primary'} disabled={pending} onClick={confirm}>
+          <button
+            type="button"
+            className={danger ? 'btn btn-danger' : 'btn btn-primary'}
+            disabled={pending}
+            onClick={confirm}
+          >
             {confirmLabel}
           </button>
         </div>

@@ -40,7 +40,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       <RunMeta view={view} />
       {run.error !== null && <RunErrorCard error={run.error} />}
       {run.status === 'finished' && <NoAutoRefresh />}
-      <RunTabs transcript={view.transcript} result={view.result} prompt={view.prompt} noTranscript={noTranscriptText(run)} />
+      <RunTabs
+        transcript={view.transcript}
+        result={view.result}
+        prompt={view.prompt}
+        noTranscript={noTranscriptText(run)}
+      />
     </>
   );
 }

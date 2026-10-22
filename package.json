@@ -17,7 +17,9 @@
     "automator": "node bin/automator.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
-    "check": "tsc --noEmit && eslint . && depcruise src app && vitest run"
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "tsc --noEmit && eslint . && prettier --check . && depcruise src app && vitest run"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
@@ -39,7 +41,9 @@
     "dependency-cruiser": "^18.7.0",
     "eslint": "^10.13.0",
     "eslint-config-next": "^16.4.2",
+    "eslint-config-prettier": "^10.1.8",
     "msw": "^3.0.3",
+    "prettier": "^3.9.10",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5"

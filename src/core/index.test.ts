@@ -50,12 +50,19 @@ describe('createCore', () => {
       kind: 'mr',
       preview: { title: 'Fix it', state: 'opened', sourceBranch: 'feat/fix' },
     });
-    expect(await core.watches.previewTarget('https://example.com/x', 'pages')).toMatchObject({ kind: 'free', preview: null });
+    expect(await core.watches.previewTarget('https://example.com/x', 'pages')).toMatchObject({
+      kind: 'free',
+      preview: null,
+    });
   });
 
   test('caches the GitLab user in meta across cores', async () => {
     const { core, clock, gitlab, open } = setup();
-    const id = insertWatch(core.db, { kind: 'mr', targetUrl: MR_URL, normalizedTarget: 'gitlab:gitlab.example.com/g/p!7' });
+    const id = insertWatch(core.db, {
+      kind: 'mr',
+      targetUrl: MR_URL,
+      normalizedTarget: 'gitlab:gitlab.example.com/g/p!7',
+    });
     core.db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(clock.now() - 1, id);
 
     await core.scheduler.tick();
@@ -74,12 +81,18 @@ describe('createCore', () => {
     vi.stubEnv('GITLAB_TOKEN', 'token-a');
     cleanups.push(() => vi.unstubAllEnvs());
     const { core, clock, gitlab, open } = setup();
-    const id = insertWatch(core.db, { kind: 'mr', targetUrl: MR_URL, normalizedTarget: 'gitlab:gitlab.example.com/g/p!7' });
+    const id = insertWatch(core.db, {
+      kind: 'mr',
+      targetUrl: MR_URL,
+      normalizedTarget: 'gitlab:gitlab.example.com/g/p!7',
+    });
     const due = () => core.db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(clock.now() - 1, id);
     due();
     await core.scheduler.tick();
     expect(gitlab.me).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(core.db.prepare("SELECT value FROM meta WHERE key = 'gitlab_me:corp'").get())).not.toContain('token-a');
+    expect(JSON.stringify(core.db.prepare("SELECT value FROM meta WHERE key = 'gitlab_me:corp'").get())).not.toContain(
+      'token-a',
+    );
 
     vi.stubEnv('GITLAB_TOKEN', 'token-b');
     const second = open();

@@ -97,7 +97,8 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
   for (const w of watches) counts[w.state] += 1;
 
   const jiraNotice =
-    !config.jira.enabled && db.prepare("SELECT 1 FROM watches WHERE kind = 'jira' AND state <> 'closed' LIMIT 1").get() !== undefined;
+    !config.jira.enabled &&
+    db.prepare("SELECT 1 FROM watches WHERE kind = 'jira' AND state <> 'closed' LIMIT 1").get() !== undefined;
 
   const src = nextCheckSource(deps);
   const last = lastRuns(deps);

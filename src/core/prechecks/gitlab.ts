@@ -37,10 +37,12 @@ function analyze(mr: GitLabMr, discussions: GitLabDiscussion[], me: Me, cursor: 
   const byOther = (n: GitLabNote) => !n.system && n.authorId !== me.id;
   const notes = discussions.flatMap((d) => d.notes);
   const pipeline = mr.headPipeline;
-  const failedPipelineId = pipeline !== null && pipeline.status === 'failed' && pipeline.sha === mr.sha ? pipeline.id : null;
+  const failedPipelineId =
+    pipeline !== null && pipeline.status === 'failed' && pipeline.sha === mr.sha ? pipeline.id : null;
   const conflicted = mr.detailedMergeStatus === 'conflict';
   return {
-    newNotes: cursor === null ? [] : notes.filter((n) => byOther(n) && n.id > cursor.lastNoteId).sort((a, b) => a.id - b.id),
+    newNotes:
+      cursor === null ? [] : notes.filter((n) => byOther(n) && n.id > cursor.lastNoteId).sort((a, b) => a.id - b.id),
     unresolved: discussions.filter((d) => d.resolvable && !d.resolved && d.notes.some(byOther)),
     failedPipelineId,
     pipelinePending: failedPipelineId !== null && failedPipelineId !== cursor?.handledPipelineId,
@@ -71,7 +73,10 @@ export class GitLabPrecheck implements Precheck {
 
       if (reasons.length > 0) return { kind: 'changed', reason: reasons.join('; ') };
       if (cursor === null) {
-        return { kind: 'unchanged', cursor: { lastNoteId: a.maxNoteId, handledPipelineId: null, handledConflictSha: null } };
+        return {
+          kind: 'unchanged',
+          cursor: { lastNoteId: a.maxNoteId, handledPipelineId: null, handledConflictSha: null },
+        };
       }
       return { kind: 'unchanged' };
     } catch (e) {
@@ -92,9 +97,18 @@ export class GitLabPrecheck implements Precheck {
     }
     const events: EventSummary[] = [...noteEvents.values()]
       .sort((x, y) => x.id - y.id)
-      .map((n) => ({ at: Date.parse(n.createdAt), author: `@${n.authorUsername}`, text: n.body, url: `${mr.webUrl}#note_${n.id}` }));
+      .map((n) => ({
+        at: Date.parse(n.createdAt),
+        author: `@${n.authorUsername}`,
+        text: n.body,
+        url: `${mr.webUrl}#note_${n.id}`,
+      }));
     if (a.pipelinePending) {
-      events.push({ at: Date.now(), author: 'gitlab', text: `Pipeline #${a.failedPipelineId} failed on ${mr.sha.slice(0, 8)}` });
+      events.push({
+        at: Date.now(),
+        author: 'gitlab',
+        text: `Pipeline #${a.failedPipelineId} failed on ${mr.sha.slice(0, 8)}`,
+      });
     }
     if (a.conflictPending) events.push({ at: Date.now(), author: 'gitlab', text: 'Merge conflict with target branch' });
 

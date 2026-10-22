@@ -68,7 +68,14 @@ describe('QueueService', () => {
     const w = insertWatch(db);
     const first = queue.enqueueWatch({ ...base, watchId: w, trigger: 'schedule', reason: 'r1' });
     clock.advance(1000);
-    queue.enqueueWatch({ ...base, watchId: w, trigger: 'manual', reason: 'r2', extraInstructions: 'A', reviewUnresolved: true });
+    queue.enqueueWatch({
+      ...base,
+      watchId: w,
+      trigger: 'manual',
+      reason: 'r2',
+      extraInstructions: 'A',
+      reviewUnresolved: true,
+    });
     clock.advance(1000);
     const merged = queue.enqueueWatch({
       ...base,
@@ -181,7 +188,9 @@ describe('QueueService', () => {
       ok: false,
       error: { code: 'INVALID_STATE', state: 'running', action: 'cancelQueued' },
     });
-    expect(db.prepare('SELECT cancel_requested_at FROM runs WHERE id = ?').get(running.id)).toEqual({ cancel_requested_at: null });
+    expect(db.prepare('SELECT cancel_requested_at FROM runs WHERE id = ?').get(running.id)).toEqual({
+      cancel_requested_at: null,
+    });
     expect(queue.cancelQueued(queued.id)).toEqual({ ok: true, value: undefined });
     expect(statuses(db)).toEqual([{ id: running.id, status: 'running' }]);
     expect(queue.cancelQueued(queued.id)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });

@@ -14,8 +14,7 @@ export type EditableWatch = Pick<
 >;
 
 type Props = { options: FormOptions } & (
-  | { mode: 'create'; initial: { target: string; repository: string } }
-  | { mode: 'edit'; watch: EditableWatch }
+  { mode: 'create'; initial: { target: string; repository: string } } | { mode: 'edit'; watch: EditableWatch }
 );
 
 const PREVIEW_DEBOUNCE_MS = 500;
@@ -187,12 +186,16 @@ export function WatchForm(props: Props) {
               <div className="input-locked">{watch.repository}</div>
             </div>
           </div>
-          <p className="field-hint muted locked-note">To change the target or Repository, close this Watch and create a new one.</p>
+          <p className="field-hint muted locked-note">
+            To change the target or Repository, close this Watch and create a new one.
+          </p>
         </>
       )}
 
       {kind === 'jira' && !options.jiraEnabled && (
-        <div className="notice">Jira checking is off in the config, so this Watch won&apos;t be checked until it is turned on.</div>
+        <div className="notice">
+          Jira checking is off in the config, so this Watch won&apos;t be checked until it is turned on.
+        </div>
       )}
 
       <div className="field">
@@ -213,14 +216,16 @@ export function WatchForm(props: Props) {
             Default prompt: <code>{promptFile}</code>
           </div>
         )}
-        {kind === 'free' && <div className="field-hint muted">Free-form Watches have no default prompt: the instructions are the whole task.</div>}
+        {kind === 'free' && (
+          <div className="field-hint muted">
+            Free-form Watches have no default prompt: the instructions are the whole task.
+          </div>
+        )}
       </div>
 
       <div className="field-row">
         <div className="field">
-          <label htmlFor="wf-interval">
-            Interval {intervalIsDefault && <span className="muted">(default)</span>}
-          </label>
+          <label htmlFor="wf-interval">Interval {intervalIsDefault && <span className="muted">(default)</span>}</label>
           <input
             id="wf-interval"
             name={interval === null ? undefined : 'interval'}
@@ -234,7 +239,13 @@ export function WatchForm(props: Props) {
         </div>
         <div className="field">
           <label htmlFor="wf-model">Model</label>
-          <select id="wf-model" name="model" className={inputClass('model')} value={model} onChange={(e) => setModel(e.target.value)}>
+          <select
+            id="wf-model"
+            name="model"
+            className={inputClass('model')}
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          >
             <option value="">default ({options.defaultModel})</option>
             {model !== '' && !otherModels.includes(model) && <option value={model}>{model}</option>}
             {otherModels.map((m) => (
@@ -271,8 +282,8 @@ export function WatchForm(props: Props) {
       </div>
       {kind === 'mr' && (
         <p className="field-hint muted review-hint">
-          baseline-only: Ignore existing comments. unresolved: Review existing unresolved discussions once. Failed pipelines and conflicts
-          count in both modes.
+          baseline-only: Ignore existing comments. unresolved: Review existing unresolved discussions once. Failed
+          pipelines and conflicts count in both modes.
         </p>
       )}
 

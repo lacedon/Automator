@@ -28,7 +28,12 @@ export function WatchFilters({ filter, counts, repositories }: Props) {
       {STATE_CHIPS.map(({ state, label, count }) => {
         const on = filter.state === state;
         return (
-          <Link key={label} href={hrefFor({ ...filter, state })} className={on ? 'chip on' : 'chip'} aria-current={on ? 'page' : undefined}>
+          <Link
+            key={label}
+            href={hrefFor({ ...filter, state })}
+            className={on ? 'chip on' : 'chip'}
+            aria-current={on ? 'page' : undefined}
+          >
             {label} {counts[count]}
           </Link>
         );
@@ -52,7 +57,13 @@ export function WatchFilters({ filter, counts, repositories }: Props) {
             </option>
           ))}
         </select>
-        <input type="search" name="q" defaultValue={filter.q ?? ''} placeholder="Search target…" aria-label="Search target" />
+        <input
+          type="search"
+          name="q"
+          defaultValue={filter.q ?? ''}
+          placeholder="Search target…"
+          aria-label="Search target"
+        />
         <button type="submit" className="btn btn-secondary">
           Filter
         </button>

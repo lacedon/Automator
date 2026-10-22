@@ -56,7 +56,8 @@ export const STATUSES = {
 
 type Status = (typeof STATUSES)[keyof typeof STATUSES];
 
-const at = (id: number) => new Date(Date.parse('2026-10-20T09:00:00Z') + id * 60_000).toISOString().replace('Z', '+0000');
+const at = (id: number) =>
+  new Date(Date.parse('2026-10-20T09:00:00Z') + id * 60_000).toISOString().replace('Z', '+0000');
 
 function userJson(user: User) {
   return {
@@ -171,7 +172,10 @@ export function jiraHandlers(fixture: JiraFixture = {}, calls: string[] = []) {
   };
   return [
     http.get(`${api}/myself`, ({ request }) => record(request) ?? HttpResponse.json(userJson(JIRA_USERS.me))),
-    http.get(`${api}/issue/${ISSUE_KEY}`, ({ request }) => record(request) ?? HttpResponse.json(fixture.issue ?? issueJson())),
+    http.get(
+      `${api}/issue/${ISSUE_KEY}`,
+      ({ request }) => record(request) ?? HttpResponse.json(fixture.issue ?? issueJson()),
+    ),
     http.get(`${api}/status`, ({ request }) => record(request) ?? HttpResponse.json(Object.values(STATUSES))),
   ];
 }

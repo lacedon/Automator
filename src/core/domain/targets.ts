@@ -44,7 +44,8 @@ export function parseTarget(input: string, config: Config, repository?: string):
   if (JIRA_KEY.test(trimmed)) {
     const conn = repository === undefined ? undefined : config.repositories[repository]?.jira;
     const connection = conn === undefined ? undefined : config.jira.connections[conn];
-    if (conn === undefined || connection === undefined) return invalid('Jira key needs a Repository with a Jira connection');
+    if (conn === undefined || connection === undefined)
+      return invalid('Jira key needs a Repository with a Jira connection');
     return ok(jiraTarget(conn, connection.baseUrl, trimmed));
   }
 
@@ -54,7 +55,8 @@ export function parseTarget(input: string, config: Config, repository?: string):
   } catch {
     return invalid(`Not a URL or Jira key: ${trimmed}`);
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return invalid(`Only http(s) URLs are supported: ${trimmed}`);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:')
+    return invalid(`Only http(s) URLs are supported: ${trimmed}`);
 
   const host = url.host.toLowerCase();
 

@@ -44,7 +44,13 @@ export function ActionButton({ action, children, className = 'btn btn-secondary'
       }
     });
   return (
-    <button type="button" className={className} disabled={pending || disabledReason !== undefined} title={disabledReason} onClick={run}>
+    <button
+      type="button"
+      className={className}
+      disabled={pending || disabledReason !== undefined}
+      title={disabledReason}
+      onClick={run}
+    >
       {children}
     </button>
   );

@@ -42,7 +42,12 @@ function RunFilters({ filter, repositories }: { filter: Filter; repositories: st
       {OUTCOME_CHIPS.map(({ outcome, label }) => {
         const on = filter.outcome === outcome;
         return (
-          <Link key={label} href={hrefFor({ ...filter, outcome })} className={on ? 'chip on' : 'chip'} aria-current={on ? 'page' : undefined}>
+          <Link
+            key={label}
+            href={hrefFor({ ...filter, outcome })}
+            className={on ? 'chip on' : 'chip'}
+            aria-current={on ? 'page' : undefined}
+          >
             {label}
           </Link>
         );

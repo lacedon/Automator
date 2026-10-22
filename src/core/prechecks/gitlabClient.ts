@@ -65,7 +65,11 @@ function toDiscussion(d: DiscussionJson): GitLabDiscussion {
   };
 }
 
-export function createGitLabClient(host: string, token: string | undefined, fetchImpl: FetchLike = fetchWithRetry): GitLabClient {
+export function createGitLabClient(
+  host: string,
+  token: string | undefined,
+  fetchImpl: FetchLike = fetchWithRetry,
+): GitLabClient {
   const origin = (/^https?:\/\//i.test(host) ? host : `https://${host}`).replace(/\/+$/, '');
   const api = `${origin}/api/v4`;
 
@@ -87,7 +91,9 @@ export function createGitLabClient(host: string, token: string | undefined, fetc
         sha: mr.sha,
         sourceBranch: mr.source_branch,
         detailedMergeStatus: mr.detailed_merge_status,
-        headPipeline: mr.head_pipeline ? { id: mr.head_pipeline.id, status: mr.head_pipeline.status, sha: mr.head_pipeline.sha } : null,
+        headPipeline: mr.head_pipeline
+          ? { id: mr.head_pipeline.id, status: mr.head_pipeline.status, sha: mr.head_pipeline.sha }
+          : null,
         webUrl: mr.web_url,
       };
     },

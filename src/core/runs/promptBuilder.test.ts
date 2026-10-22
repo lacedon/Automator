@@ -114,7 +114,15 @@ function eventsSection(prompt: string): string {
 describe('buildWatchPrompt', () => {
   test('sections appear in spec order', () => {
     const prompt = watchPrompt();
-    const headings = ['## Rules', '## Default instructions', '## Watch', '## This Run', '## Recent Runs', '## Validation', '## Result'];
+    const headings = [
+      '## Rules',
+      '## Default instructions',
+      '## Watch',
+      '## This Run',
+      '## Recent Runs',
+      '## Validation',
+      '## Result',
+    ];
     const positions = headings.map((h) => prompt.indexOf(`${h}\n`));
     expect(positions.every((p) => p >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
@@ -150,7 +158,12 @@ describe('buildWatchPrompt', () => {
 
   test('free-form has no default instructions section', () => {
     const prompt = watchPrompt({
-      watch: watch({ kind: 'free', targetUrl: 'https://example.com/page', mrSourceBranch: null, instructions: 'Check the page' }),
+      watch: watch({
+        kind: 'free',
+        targetUrl: 'https://example.com/page',
+        mrSourceBranch: null,
+        instructions: 'Check the page',
+      }),
       snapshot: snapshot({ events: [], cursorCandidate: {}, sourceBranch: undefined }),
     });
     expect(prompt).not.toContain('## Default instructions');
@@ -160,7 +173,11 @@ describe('buildWatchPrompt', () => {
 
   test('jira without token tells Copilot to check via MCP', () => {
     const jira = watch({ kind: 'jira', targetUrl: 'https://jira.example.com/browse/ABC-1', mrSourceBranch: null });
-    const jiraSnapshot = snapshot({ events: [], cursorCandidate: { lastChangelogId: null, lastCommentId: null }, sourceBranch: undefined });
+    const jiraSnapshot = snapshot({
+      events: [],
+      cursorCandidate: { lastChangelogId: null, lastCommentId: null },
+      sourceBranch: undefined,
+    });
     const without = watchPrompt({ watch: jira, snapshot: jiraSnapshot, hasJiraToken: false });
     expect(without).toContain('check the ticket through MCP');
     expect(without).toContain('Do not change code unless the Watch instructions');
@@ -174,7 +191,11 @@ describe('buildWatchPrompt', () => {
     fs.writeFileSync(path.join(dir, 'jira.md'), '');
     const prompt = watchPrompt({
       watch: watch({ kind: 'jira', targetUrl: 'https://jira.example.com/browse/ABC-1', mrSourceBranch: null }),
-      snapshot: snapshot({ events: [], cursorCandidate: { lastChangelogId: null, lastCommentId: null }, sourceBranch: undefined }),
+      snapshot: snapshot({
+        events: [],
+        cursorCandidate: { lastChangelogId: null, lastCommentId: null },
+        sourceBranch: undefined,
+      }),
       config: testConfig({ prompts: { dir } }),
     });
     const watchPart = prompt.slice(prompt.indexOf('## Watch'), prompt.indexOf('## This Run'));

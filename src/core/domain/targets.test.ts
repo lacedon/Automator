@@ -4,7 +4,10 @@ import { parseTarget } from './targets';
 
 const config: Config = {
   ...createConfigSchema('/cfg').parse({
-    repositories: { pages: { folder: '/repo/pages', gitlab: 'corp', jira: 'corp' }, nojira: { folder: '/repo/x', gitlab: 'corp' } },
+    repositories: {
+      pages: { folder: '/repo/pages', gitlab: 'corp', jira: 'corp' },
+      nojira: { folder: '/repo/x', gitlab: 'corp' },
+    },
     gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
     jira: { connections: { corp: { baseUrl: 'https://jira.example.com' } } },
   }),

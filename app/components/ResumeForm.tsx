@@ -9,7 +9,14 @@ export function ResumeForm({ watchId, withNote }: { watchId: number; withNote?: 
   return (
     <form action={formAction} className="resume-form">
       <input type="hidden" name="id" value={watchId} />
-      {withNote && <textarea name="note" rows={2} aria-label="Resolution note" placeholder="Resolution note for the next run (optional)…" />}
+      {withNote && (
+        <textarea
+          name="note"
+          rows={2}
+          aria-label="Resolution note"
+          placeholder="Resolution note for the next run (optional)…"
+        />
+      )}
       <div className="actions">
         <button type="submit" className="btn btn-secondary" disabled={pending}>
           Resume

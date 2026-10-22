@@ -145,7 +145,9 @@ describe('createCopilotLauncher', () => {
       logPath: s.logPath,
       env: { ...process.env, FAKE_COPILOT_MODE: 'hang', FAKE_COPILOT_CHILD_PID_FILE: s.childPidFile },
     });
-    expect(await waitFor(() => fs.existsSync(s.childPidFile) && fs.readFileSync(s.childPidFile, 'utf8') !== '', 5000)).toBe(true);
+    expect(
+      await waitFor(() => fs.existsSync(s.childPidFile) && fs.readFileSync(s.childPidFile, 'utf8') !== '', 5000),
+    ).toBe(true);
     const childPid = Number(fs.readFileSync(s.childPidFile, 'utf8'));
     expect(isAlive(proc.pid)).toBe(true);
     expect(isAlive(childPid)).toBe(true);

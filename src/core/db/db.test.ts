@@ -162,7 +162,13 @@ describe('db', () => {
     ).run(watchId, T);
     const event = toNeedsYouEvent(db.prepare('SELECT * FROM needs_you_events').get());
     expect(event).toEqual({
-      id: 1, watchId, runId: null, reason: 'r', createdAt: T, teamsStatus: 'disabled', teamsError: null,
+      id: 1,
+      watchId,
+      runId: null,
+      reason: 'r',
+      createdAt: T,
+      teamsStatus: 'disabled',
+      teamsError: null,
     });
   });
 });

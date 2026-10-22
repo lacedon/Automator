@@ -25,8 +25,7 @@ export function acquireWorkerLock(
     .transaction((): Result<void, WorkerRunning> => {
       const now = clock.now();
       const row = db.prepare('SELECT pid, heartbeat_at FROM worker_lock WHERE id = 1').get() as
-        | { pid: number; heartbeat_at: number }
-        | undefined;
+        { pid: number; heartbeat_at: number } | undefined;
       if (row !== undefined && row.pid !== pid && now - row.heartbeat_at < STALE_MS && isAlive(row.pid)) {
         return err({ code: 'WORKER_RUNNING', pid: row.pid });
       }
@@ -41,7 +40,9 @@ export function acquireWorkerLock(
 
 // Returns false when the lock is no longer held by this pid.
 export function heartbeat(db: Database, clock: Clock, pid: number): boolean {
-  return db.prepare('UPDATE worker_lock SET heartbeat_at = ? WHERE id = 1 AND pid = ?').run(clock.now(), pid).changes > 0;
+  return (
+    db.prepare('UPDATE worker_lock SET heartbeat_at = ? WHERE id = 1 AND pid = ?').run(clock.now(), pid).changes > 0
+  );
 }
 
 export function releaseWorkerLock(db: Database, pid: number): void {

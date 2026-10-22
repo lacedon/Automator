@@ -29,7 +29,8 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
   const otherModels = options.models.filter((m) => m !== options.defaultModel);
   const failed = state?.ok === false ? state.error : null;
   const inputClass = (field: string) =>
-    (failed?.code === 'UNKNOWN_REPOSITORY' && field === 'repository') || (failed?.code === 'INVALID_INPUT' && failed.field === field)
+    (failed?.code === 'UNKNOWN_REPOSITORY' && field === 'repository') ||
+    (failed?.code === 'INVALID_INPUT' && failed.field === field)
       ? 'input-err'
       : undefined;
 
@@ -74,7 +75,13 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
       </div>
       <div className="field field-narrow">
         <label htmlFor="ah-model">Model</label>
-        <select id="ah-model" name="model" className={inputClass('model')} value={model} onChange={(e) => setModel(e.target.value)}>
+        <select
+          id="ah-model"
+          name="model"
+          className={inputClass('model')}
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+        >
           <option value="">default ({options.defaultModel})</option>
           {otherModels.map((m) => (
             <option key={m} value={m}>
@@ -87,7 +94,9 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
         <button type="submit" className="btn btn-primary" disabled={pending}>
           Queue run
         </button>
-        <span className="muted">Goes ahead of scheduled work, ignores working hours, never interrupts the current Run.</span>
+        <span className="muted">
+          Goes ahead of scheduled work, ignores working hours, never interrupts the current Run.
+        </span>
       </div>
     </form>
   );

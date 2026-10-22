@@ -23,31 +23,31 @@ Success: from any page, Needs you items and the currently running Run are reacha
 - **Sidebar items:** Home, Watches (total non-cleaned count), Queue (waiting count), Runs, Ad-hoc. Active item: highlighted background with a blue left bar.
 - **Theme:** dark only (v1). Graphite palette:
 
-| Token | Value | Use |
-| --- | --- | --- |
-| bg | `#0d1117` | page background |
-| bg-sunken | `#010409` | top bar, sidebar, inputs, code blocks |
-| surface | `#161b22` | cards, rows |
-| border | `#30363d` | borders, dividers |
-| text | `#e6edf3` | primary text |
-| text-muted | `#8d96a0` | secondary text, table headers |
-| link | `#58a6ff` | links |
-| accent | `#2f81f7` | active nav, focused filter chip |
-| primary | `#238636` | primary buttons |
+| Token       | Value     | Use                                      |
+| ----------- | --------- | ---------------------------------------- |
+| bg          | `#0d1117` | page background                          |
+| bg-sunken   | `#010409` | top bar, sidebar, inputs, code blocks    |
+| surface     | `#161b22` | cards, rows                              |
+| border      | `#30363d` | borders, dividers                        |
+| text        | `#e6edf3` | primary text                             |
+| text-muted  | `#8d96a0` | secondary text, table headers            |
+| link        | `#58a6ff` | links                                    |
+| accent      | `#2f81f7` | active nav, focused filter chip          |
+| primary     | `#238636` | primary buttons                          |
 | danger-text | `#ff7b72` | destructive buttons (Delete, Cancel run) |
 
 - **Status pills** (rounded, small, bold): one colour family per meaning, used consistently for Watch states, Run outcomes and queue priority.
 
-| Meaning | Background / text | Used for |
-| --- | --- | --- |
-| Needs you / error | `#5a1e22` / `#ff9492` | Watch state Needs you, outcome `needs-you`, Run errors |
-| Good | `#12361f` / `#56d364` | Watch state Active, outcome `acted` |
-| Running | `#3b2e0a` / `#e3b341` | Run in progress (with `●` and elapsed time) |
-| Neutral | `#262c36` / `#8d96a0` | outcome `nothing`, scheduled queue items |
-| Paused | `#262c36` / `#c9d1d9` | Watch state Paused |
-| Closed | `#1c2128` / `#6e7681` | Watch state Closed |
-| Info | `#0c2d6b` / `#79c0ff` | manual/ad-hoc queue priority, queued ad-hoc Runs, detected kind badge |
-| Interrupted | `#3d1f00` / `#ffa657` | Run timed out, cancelled or interrupted |
+| Meaning           | Background / text     | Used for                                                              |
+| ----------------- | --------------------- | --------------------------------------------------------------------- |
+| Needs you / error | `#5a1e22` / `#ff9492` | Watch state Needs you, outcome `needs-you`, Run errors                |
+| Good              | `#12361f` / `#56d364` | Watch state Active, outcome `acted`                                   |
+| Running           | `#3b2e0a` / `#e3b341` | Run in progress (with `●` and elapsed time)                           |
+| Neutral           | `#262c36` / `#8d96a0` | outcome `nothing`, scheduled queue items                              |
+| Paused            | `#262c36` / `#c9d1d9` | Watch state Paused                                                    |
+| Closed            | `#1c2128` / `#6e7681` | Watch state Closed                                                    |
+| Info              | `#0c2d6b` / `#79c0ff` | manual/ad-hoc queue priority, queued ad-hoc Runs, detected kind badge |
+| Interrupted       | `#3d1f00` / `#ffa657` | Run timed out, cancelled or interrupted                               |
 
 - **Needs you emphasis:** cards with a dark red background (`#2d1517`, border `#6e2a2e`); list rows with a red tint (`#1d1214`).
 - **Notices:** amber box (`#1c1a10`, border `#5c4813`, text `#e3b341`) for explanatory system state, e.g. Jira disabled.

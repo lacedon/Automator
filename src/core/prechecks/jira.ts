@@ -57,7 +57,9 @@ function historyReason(h: History): string {
 }
 
 function historyText(h: History): string {
-  return h.items.map((i) => `${i.field}: ${i.fromString !== null ? `${i.fromString} → ` : ''}${i.toString ?? ''}`).join('; ');
+  return h.items
+    .map((i) => `${i.field}: ${i.fromString !== null ? `${i.fromString} → ` : ''}${i.toString ?? ''}`)
+    .join('; ');
 }
 
 export class JiraPrecheck implements Precheck {

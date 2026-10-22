@@ -23,15 +23,18 @@ function setup(statuses: JiraClient['statuses']) {
       },
     },
   });
-  const clientFor = vi.fn(
-    (): JiraClient => ({ myself: () => Promise.reject(new Error('unused')), issue: () => Promise.reject(new Error('unused')), statuses }),
-  );
+  const clientFor = vi.fn((): JiraClient => ({
+    myself: () => Promise.reject(new Error('unused')),
+    issue: () => Promise.reject(new Error('unused')),
+    statuses,
+  }));
   const core = createCore(config, { jira: clientFor });
   cleanups.push(() => {
     core.close();
     fs.rmSync(path.dirname(config.dataDir), { recursive: true, force: true });
   });
-  const meta = (key: string) => (core.db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value;
+  const meta = (key: string) =>
+    (core.db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value;
   return { core, clientFor, meta };
 }
 

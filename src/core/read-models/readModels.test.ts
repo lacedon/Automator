@@ -148,7 +148,11 @@ describe('read models', () => {
     expect(nextCheckText({ ...base, nextCheckAt: now + 9 * MIN + 30_000 }, ctx)).toEqual({ kind: 'in', text: 'in 9m' });
     expect(nextCheckText({ ...base, nextCheckAt: now + 2 * 3_600_000 }, ctx).text).toBe('in 2h');
     expect(nextCheckText({ ...base, nextCheckAt: now + 20_000 }, ctx).text).toBe('in <1m');
-    expect(nextCheckText(base, { ...ctx, running })).toEqual({ kind: 'running', text: 'running', since: now - 2 * MIN });
+    expect(nextCheckText(base, { ...ctx, running })).toEqual({
+      kind: 'running',
+      text: 'running',
+      since: now - 2 * MIN,
+    });
     expect(nextCheckText(base, { ...ctx, queuedPos: 2 })).toEqual({ kind: 'queued', text: 'queued #2' });
     const friday = Date.parse('2026-10-23T18:55:00');
     expect(nextCheckText({ ...base, nextCheckAt: friday + 9 * MIN }, { ...ctx, now: friday })).toEqual({
@@ -156,7 +160,10 @@ describe('read models', () => {
       text: 'after hours · Mon 08:00',
     });
     expect(nextCheckText({ ...base, state: 'needs_you' }, ctx)).toEqual({ kind: 'stopped', text: 'stopped' });
-    expect(nextCheckText({ ...getWatch(db, jiraId), nextCheckAt: now }, ctx)).toEqual({ kind: 'jira-off', text: 'Jira off' });
+    expect(nextCheckText({ ...getWatch(db, jiraId), nextCheckAt: now }, ctx)).toEqual({
+      kind: 'jira-off',
+      text: 'Jira off',
+    });
     expect(nextCheckText({ ...base, state: 'closed', closedAt: now - 18 * DAY - 1 }, ctx)).toEqual({
       kind: 'cleanup',
       text: 'cleanup in 12d',
@@ -213,7 +220,13 @@ describe('read models', () => {
     const { db, read } = setup();
     const w1 = insertWatch(db, { title: 'Scheduled early' });
     const w2 = insertWatch(db, { title: 'Manual late' });
-    const s = insertRun(db, { watch_id: w1, status: 'queued', priority: 1, queued_at: 100, reason: 'new comment by @anna' });
+    const s = insertRun(db, {
+      watch_id: w1,
+      status: 'queued',
+      priority: 1,
+      queued_at: 100,
+      reason: 'new comment by @anna',
+    });
     const m = insertRun(db, { watch_id: w2, status: 'queued', priority: 0, trigger: 'manual', queued_at: 300 });
     const a = insertRun(db, { status: 'queued', priority: 0, trigger: 'adhoc', queued_at: 200, adhoc_prompt: 'do it' });
 
@@ -292,7 +305,13 @@ describe('read models', () => {
 
   test('adhoc view lists ad-hoc Runs newest first with queue position', () => {
     const { db, read } = setup();
-    const done = insertRun(db, { trigger: 'adhoc', priority: 0, adhoc_prompt: 'one', result_status: 'success', outcome: 'acted' });
+    const done = insertRun(db, {
+      trigger: 'adhoc',
+      priority: 0,
+      adhoc_prompt: 'one',
+      result_status: 'success',
+      outcome: 'acted',
+    });
     const queued = insertRun(db, { trigger: 'adhoc', priority: 0, adhoc_prompt: 'two', status: 'queued' });
     insertRun(db, { watch_id: insertWatch(db), status: 'finished' });
 

@@ -64,7 +64,8 @@ function NowRunning({ run }: { run: RunningCard }) {
           ● <Elapsed since={run.startedAt} />
         </Pill>
         <Link href={`/runs/${run.runId}`} className="row-text">
-          <RunTitle watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} /> <span className="muted">· {run.repository}</span>
+          <RunTitle watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} />{' '}
+          <span className="muted">· {run.repository}</span>
         </Link>
         <ConfirmDialog
           label={run.cancelRequested ? 'Cancelling…' : 'Cancel'}

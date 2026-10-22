@@ -23,7 +23,8 @@ export type PrecheckDeps = {
 export function createPrechecks(deps: PrecheckDeps): Prechecks {
   const { config, secrets, fetchImpl = fetchWithRetry } = deps;
   const gitlabClientFor =
-    deps.gitlabClientFor ?? ((conn: string) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn], fetchImpl));
+    deps.gitlabClientFor ??
+    ((conn: string) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn], fetchImpl));
   return {
     mr: new GitLabPrecheck({
       config,
@@ -34,7 +35,8 @@ export function createPrechecks(deps: PrecheckDeps): Prechecks {
       config,
       secrets,
       clientFor:
-        deps.jiraClientFor ?? ((conn) => createJiraClient(config.jira.connections[conn]!, secrets.jira[conn] ?? {}, fetchImpl)),
+        deps.jiraClientFor ??
+        ((conn) => createJiraClient(config.jira.connections[conn]!, secrets.jira[conn] ?? {}, fetchImpl)),
     }),
     free: new FreeformPrecheck(),
   };

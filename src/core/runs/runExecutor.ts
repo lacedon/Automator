@@ -53,7 +53,10 @@ export interface RunExecutorDeps {
   onNeedsYou(e: NeedsYouEvent): Promise<void>;
 }
 
-export type RunConclusion = Pick<RunFinal, 'exitCode' | 'resultStatus' | 'outcome' | 'summary' | 'error' | 'interrupted' | 'branch'>;
+export type RunConclusion = Pick<
+  RunFinal,
+  'exitCode' | 'resultStatus' | 'outcome' | 'summary' | 'error' | 'interrupted' | 'branch'
+>;
 
 export function gitCurrentBranch(cwd: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -234,8 +237,7 @@ export class RunExecutor {
 
   private cancelRequested(runId: number): boolean {
     const row = this.deps.db.prepare('SELECT cancel_requested_at FROM runs WHERE id = ?').get(runId) as
-      | { cancel_requested_at: number | null }
-      | undefined;
+      { cancel_requested_at: number | null } | undefined;
     return row?.cancel_requested_at != null;
   }
 
@@ -246,7 +248,8 @@ export class RunExecutor {
 
     const repo = config.repositories[run.repository];
     if (repo === undefined) return failure('REPOSITORY_UNAVAILABLE', `Unknown Repository "${run.repository}"`);
-    if (!fs.existsSync(repo.folder)) return failure('REPOSITORY_UNAVAILABLE', `Repository folder not found: ${repo.folder}`);
+    if (!fs.existsSync(repo.folder))
+      return failure('REPOSITORY_UNAVAILABLE', `Repository folder not found: ${repo.folder}`);
 
     const resultPath = dataDir.copilotResultPath(run.id);
     let prompt: string;
@@ -340,7 +343,8 @@ export class RunExecutor {
       const how = exitCode === null ? `signal ${exit.signal ?? 'unknown'}` : `code ${exitCode}`;
       return failure('EXIT_NONZERO', `Copilot exited with ${how}`, { exitCode });
     }
-    if (!fs.existsSync(resultPath)) return failure('RESULT_MISSING', 'Copilot did not write copilot-result.json', { exitCode });
+    if (!fs.existsSync(resultPath))
+      return failure('RESULT_MISSING', 'Copilot did not write copilot-result.json', { exitCode });
 
     let parsed;
     try {
@@ -364,7 +368,10 @@ export class RunExecutor {
         clock.now(),
         watch.id,
       );
-      db.prepare('UPDATE runs SET cursor_candidate_json = ? WHERE id = ?').run(JSON.stringify(snapshot.cursorCandidate), run.id);
+      db.prepare('UPDATE runs SET cursor_candidate_json = ? WHERE id = ?').run(
+        JSON.stringify(snapshot.cursorCandidate),
+        run.id,
+      );
     })();
     return { ...watch, title: snapshot.title, mrSourceBranch };
   }
@@ -376,7 +383,12 @@ export class RunExecutor {
          WHERE watch_id = ? AND status = 'finished' AND id <> ?
          ORDER BY ended_at DESC LIMIT ?`,
       )
-      .all(watchId, runId, RECENT_RUNS) as { id: number; outcome: Outcome | null; summary: string | null; ended_at: number | null }[];
+      .all(watchId, runId, RECENT_RUNS) as {
+      id: number;
+      outcome: Outcome | null;
+      summary: string | null;
+      ended_at: number | null;
+    }[];
     return rows.map((r) => ({ id: r.id, outcome: r.outcome, summary: r.summary, endedAt: r.ended_at }));
   }
 }
