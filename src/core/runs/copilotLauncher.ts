@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import type { Env, Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 
@@ -38,6 +39,9 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         '--model',
         opts.model,
         '--allow-all-tools',
+        // Path checks are separate from tool approval; without this Copilot cannot write copilot-result.json.
+        '--add-dir',
+        path.dirname(opts.transcriptPath),
         '--share',
         opts.transcriptPath,
         '--no-color',
