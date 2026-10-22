@@ -19,7 +19,8 @@
     "e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "tsc --noEmit && eslint . && prettier --check . && depcruise src app && vitest run"
+    "check": "tsc --noEmit && eslint . && prettier --check . && depcruise src app && vitest run",
+    "prepare": "husky"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
@@ -42,6 +43,8 @@
     "eslint": "^10.13.0",
     "eslint-config-next": "^16.4.2",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "msw": "^3.0.3",
     "prettier": "^3.9.10",
     "typescript": "^6.0.3",
