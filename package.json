@@ -1,0 +1,53 @@
+{
+  "name": "automator",
+  "version": "1.0.0",
+  "description": "A small project to automate working with Jira and Git",
+  "license": "MIT",
+  "author": "Viktor Kukharev",
+  "repository": "github:lacedon/Automator",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "automator": "./bin/automator.mjs"
+  },
+  "scripts": {
+    "dev": "node scripts/start.mjs dev",
+    "build": "next build",
+    "start": "node scripts/start.mjs",
+    "automator": "node bin/automator.mjs",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "check": "tsc --noEmit && eslint . && depcruise src app && vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "commander": "^15.0.0",
+    "dotenv": "^18.0.8",
+    "next": "^16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "dependency-cruiser": "^18.7.0",
+    "eslint": "^10.13.0",
+    "eslint-config-next": "^16.4.2",
+    "msw": "^3.0.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true,
+    "unrs-resolver@1.12.2": true
+  }
+}

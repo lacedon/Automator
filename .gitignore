@@ -1,2 +1,12 @@
 .superpowers
 .claude
+node_modules
+.next
+automator.config.json
+.env
+test-results
+playwright-report
+coverage
+*.tsbuildinfo
+next-env.d.ts
+MCP/

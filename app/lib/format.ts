@@ -1,0 +1,45 @@
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+function mmss(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / SECOND));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+export function formatElapsed(ms: number, limitMs?: number): string {
+  return limitMs === undefined ? mmss(ms) : `${mmss(ms)} / ${mmss(limitMs)}`;
+}
+
+export function formatRelative(at: number, now: number): string {
+  const diff = now - at;
+  if (diff < MINUTE) return 'just now';
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m ago`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)}h ago`;
+  if (diff < 2 * DAY) return 'yesterday';
+  return `${Math.floor(diff / DAY)}d ago`;
+}
+
+export function formatTook(ms: number): string {
+  if (ms < MINUTE) return `${Math.round(ms / SECOND)}s`;
+  if (ms < HOUR) return `${Math.floor(ms / MINUTE)}m`;
+  return `${Math.floor(ms / HOUR)}h ${Math.floor((ms % HOUR) / MINUTE)}m`;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Local time of the dashboard host (the server and the browser are the same machine).
+export function formatDateTime(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Client-safe twin of core's formatDuration (client components can't import @core/index values); a test keeps them equal.
+export function formatInterval(ms: number): string {
+  for (const [unit, size] of [['d', DAY], ['h', HOUR], ['m', MINUTE]] as const) {
+    if (ms !== 0 && ms % size === 0) return `${ms / size}${unit}`;
+  }
+  return `${Math.round(ms / SECOND)}s`;
+}

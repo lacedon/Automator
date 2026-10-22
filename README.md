@@ -2,7 +2,7 @@
 
 A small personal tool to automate work with Jira and Git (GitLab). It keeps track of outside items that need follow-up, such as merge requests waiting for review or Jira tickets. It checks them from time to time and runs Copilot CLI when something needs doing. A local dashboard shows the current state.
 
-> **Status:** design agreed, implementation not started. This README describes the agreed behavior, not a finished product.
+> **Status:** v1 implemented.
 
 See also:
 
@@ -10,6 +10,43 @@ See also:
 - [ADR 0001: Serialize Runs in configured Repository folders](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md)
 - [Architecture and implementation design](./docs/superpowers/specs/2026-10-21-architecture-design.md)
 - [Dashboard UI design](./docs/superpowers/specs/2026-10-21-dashboard-ui-design.md)
+
+## Getting started
+
+Prerequisites:
+
+- Node.js 24
+- GitHub Copilot CLI installed and logged in (`copilot` on your `PATH`)
+
+Set up and start:
+
+```sh
+npm install
+cp automator.config.example.json automator.config.json   # then edit Repositories, connections, Teams chat
+cp .env.example .env                                     # then fill in GITLAB_TOKEN (and Jira tokens if used)
+npm run build
+npm start
+```
+
+`npm start` runs the dashboard and the worker together. Open <http://127.0.0.1:4317> (set `PORT` to change the port).
+
+Ctrl-C stops the dashboard at once, but the worker first waits for the active Run to finish (up to `runs.timeoutMinutes`) and records its result. Press Ctrl-C again (a second or more later) to force it to stop: the active Copilot process is killed, and on the next start the Run is marked interrupted and its Watch moves to Needs you.
+
+CLI examples (the worker must be running for queued Runs to start):
+
+```sh
+npm run automator -- watch add <url> --repo <name>
+npm run automator -- watch list
+npm run automator -- run --repo <name> --prompt "Summarize open TODOs in src/"
+```
+
+Tests:
+
+```sh
+npm test        # unit and integration tests (Vitest)
+npm run e2e     # Playwright smoke tests; first run: npx playwright install chromium
+npm run check   # type check, lint, dependency rules and Vitest
+```
 
 ## Goals
 
@@ -27,7 +64,7 @@ See also:
 
 ## Architecture
 
-- **Single user, localhost only.** No login.
+- **Single user, localhost only.** No login. The dashboard answers only requests whose `Host` is `127.0.0.1`, `localhost` or `[::1]` (403 otherwise), so a web page can't reach it through DNS rebinding.
 - **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs Copilot. Both use the same SQLite database.
 - **Repositories:** the configuration maps Repository names to local folders and to service connections (GitLab host and credential, and the Jira connection where needed). Every Watch and ad-hoc Run must name a Repository. Copilot starts directly in that folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
 - **One global queue:** all Copilot Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.
@@ -115,7 +152,7 @@ Free-form Watches always run Copilot on their interval.
 ### Schedule
 
 - Default intervals: **15 min** for MRs and **2 h** for everything else. Each Watch can override its interval.
-- Working hours: **Mon–Fri 08:00–19:00** local time by default, configurable. Scheduled work outside these hours waits.
+- Working hours: **Mon–Fri 08:00–19:00** local time by default, configurable (`start` must be earlier than `end`; overnight windows aren't supported). Scheduled work outside these hours waits.
 - Manual and ad-hoc Runs ignore working hours and go ahead of queued scheduled work, but they never interrupt a Run that's already in progress.
 - Scheduled work runs first-in, first-out (FIFO), with at most one queued request per Watch. Repeated triggers are combined into one.
 - After sleep or a restart, each Watch that is due gets checked once. Missed intervals aren't replayed.
@@ -170,7 +207,7 @@ Failures:
 - Copilot Runs that fail, are interrupted, time out or return an invalid or missing result are **not** retried automatically. The Watch moves to **Needs you** instead, so replies and pushes aren't duplicated.
 - The Run timeout is **30 minutes** by default, configurable.
 - Cancelling a Run records it as interrupted. It can't undo replies or pushes that already happened.
-- If you pause or close a Watch during a Run, that still applies after the Run ends. A Watch can't be deleted while its Run is still going unless you cancel the Run first.
+- If you pause or close a Watch during a Run, that still applies after the Run ends. Exception: if that Run fails or asks for help, a paused Watch moves to Needs you so the failure isn't hidden. A Watch can't be deleted while its Run is still going unless you cancel the Run first.
 - Ad-hoc Run failures stay in Run history and don't create a Watch.
 
 ## History and result files

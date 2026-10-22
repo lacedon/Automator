@@ -1,0 +1,107 @@
+import {
+  acquireWorkerLock,
+  bootstrap,
+  heartbeat,
+  isProcessAlive,
+  recoverInterruptedRuns,
+  releaseWorkerLock,
+  resolveJiraDoneNames,
+} from '@core/index';
+import { WorkerLoop } from './loop';
+import { createShutdownHandler } from './shutdownSignals';
+
+const ts = () => new Date().toISOString();
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+function attempt(step: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (e) {
+    console.error(`${ts()} ${step} failed: ${message(e)}`);
+  }
+}
+
+function main(): void {
+  const core = bootstrap();
+  const { pid } = process;
+  const lock = acquireWorkerLock(core.db, core.deps.clock, pid, isProcessAlive);
+  if (!lock.ok) {
+    console.error(`Another worker is running (pid ${lock.error.pid})`);
+    core.close();
+    process.exit(1);
+  }
+
+  let shuttingDown = false;
+  // Another worker owns the lock now; its restart recovery handles any Run left behind.
+  const lockLost = () => {
+    shuttingDown = true;
+    attempt('close', () => core.close());
+    process.exit(1);
+  };
+  const loop = new WorkerLoop(core, { onLockLost: lockLost });
+
+  // Keeps the lock fresh while startup steps (recovery, Jira lookups) may take minutes.
+  const startupHeartbeat = setInterval(() => {
+    let held = true;
+    attempt('heartbeat', () => {
+      held = heartbeat(core.db, core.deps.clock, pid);
+    });
+    if (!held && !shuttingDown) {
+      console.error(`${ts()} lost worker lock; exiting`);
+      lockLost();
+    }
+  }, 1000);
+
+  const startup = (async () => {
+    try {
+      const recovered = await recoverInterruptedRuns(core.executorDeps);
+      if (recovered > 0) console.log(`${ts()} recovered ${recovered} interrupted run(s)`);
+      if (core.config.jira.enabled && !shuttingDown) await resolveJiraDoneNames(core);
+    } finally {
+      clearInterval(startupHeartbeat);
+    }
+    if (shuttingDown) return;
+    loop.start();
+    console.log(`${ts()} worker started (pid ${pid})`);
+  })();
+
+  const shutdown = createShutdownHandler({
+    now: () => Date.now(),
+    onStop: (signal) => {
+      shuttingDown = true;
+      console.log(`${ts()} ${signal} received, waiting for the active run to finish (press Ctrl-C again to force)`);
+      void startup
+        .catch(() => {})
+        .then(() => loop.stop())
+        .catch((e: unknown) => console.error(`${ts()} shutdown failed: ${message(e)}`))
+        .finally(() => {
+          attempt('lock release', () => releaseWorkerLock(core.db, pid));
+          attempt('close', () => core.close());
+          console.log(`${ts()} worker stopped`);
+          process.exit(0);
+        });
+    },
+    onForce: (signal) => {
+      console.log(`${ts()} ${signal} again, killing the active run and exiting immediately`);
+      attempt('kill active run', () => core.executor.killActive());
+      process.exit(1);
+    },
+  });
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  startup.catch((e: unknown) => {
+    if (shuttingDown) return;
+    console.error(`${ts()} worker failed: ${message(e)}`);
+    attempt('lock release', () => releaseWorkerLock(core.db, pid));
+    attempt('close', () => core.close());
+    process.exit(1);
+  });
+}
+
+try {
+  main();
+} catch (e) {
+  console.error(`${ts()} worker failed: ${message(e)}`);
+  process.exit(1);
+}

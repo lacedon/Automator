@@ -21,14 +21,14 @@ Someone can build v1 from the README, the UI spec and this document without maki
 
 `npm start` runs both long-lived processes with `concurrently`:
 
-- **web**: `next start --hostname 127.0.0.1 --port 4317` (port configurable via `PORT`). Server Components read through `core/read-models`; mutations are Server Actions calling core services.
+- **web**: `next start --hostname 127.0.0.1 --port 4317` (port configurable via `PORT`). Server Components read through `core/read-models`; mutations are Server Actions calling core services. `proxy.ts` answers 403 to any request whose `Host` (or `X-Forwarded-Host`) isn't `127.0.0.1`, `localhost` or `[::1]` (DNS-rebinding guard) and sets `X-Content-Type-Options: nosniff`; Next.js itself rejects Server Actions whose `Origin` doesn't match the host.
 - **worker**: `tsx src/worker/main.ts`. Owns scheduling, pre-checks, Copilot Runs, notifications and cleanup.
 
 The **CLI** (`automator`, `tsx src/cli/main.ts`, exposed via `package.json#bin`) is a short-lived process calling the same core services as the dashboard. Neither the dashboard nor the CLI talks to the worker; they write SQLite rows the worker picks up.
 
 ### Worker single-instance lock
 
-On startup the worker, in a `BEGIN IMMEDIATE` transaction, reads `worker_lock` (single row). If a row exists with `heartbeat_at` newer than 15 s and its `pid` is alive (`process.kill(pid, 0)`), the worker exits with code 1 and a clear message. Otherwise it writes its own `pid`, `started_at`, `heartbeat_at`. The heartbeat updates every loop iteration. The lock is cleared on graceful shutdown (SIGINT/SIGTERM).
+On startup the worker, in a `BEGIN IMMEDIATE` transaction, reads `worker_lock` (single row). If a row exists with `heartbeat_at` newer than 15 s and its `pid` is alive (`process.kill(pid, 0)`), the worker exits with code 1 and a clear message. Otherwise it writes its own `pid`, `started_at`, `heartbeat_at`. The heartbeat updates every loop iteration. The lock is cleared on graceful shutdown (SIGINT/SIGTERM): the worker stops claiming, waits for the active Run to finish, then exits. Signals within 1 s of the first count as the same Ctrl-C (one Ctrl-C reaches the worker from the terminal and from the start script); a later one SIGKILLs the active Copilot group and exits at once, leaving the Run to restart recovery. `scripts/start.mjs` replaces `concurrently`, whose tree-kill would also signal Copilot: it forwards signals to its two direct children only, stops the other process when one exits on its own, and runs the worker under plain `node --import tsx` because the tsx CLI SIGKILLs its child when several signals arrive at once.
 
 ### Worker loop
 
@@ -53,7 +53,7 @@ app/                         Next.js App Router (routes from the UI spec)
   components/                pills, tables, dialogs, AutoRefresh
 src/core/
   config/                    zod schema, loader, secrets, duration parsing
-  db/                        open(), migrations/*.sql, migrate()
+  db/                        open(), migrations/index.ts (SQL per version), migrate()
   domain/                    targets, watch state machine, schedule math, Result/AppError
   watches/                   WatchService
   queue/                     QueueService
@@ -139,6 +139,7 @@ Rules:
 - `~` expands to the home directory; relative paths resolve against the config file's folder.
 - Every Repository's `gitlab`/`jira` must reference an existing connection (load error otherwise). A Repository folder that doesn't exist is **not** a load error; it is detected per Run/creation as described below.
 - `doneStatusIds`: absent ⇒ Done status category; `[]` ⇒ auto-close disabled.
+- `workingHours.days` must be non-empty without repeats and `start` must be earlier than `end` (no overnight windows); `runs.defaultModel` must be non-empty (load errors otherwise).
 - Secrets come only from the environment, loaded with `dotenv` from `.env` in the project root. The config holds env var **names**, never values. A missing token var makes that connection "no token": GitLab pre-checks then fail with an auth error (Watch → Needs you); Jira falls back to MCP-based checking as the README describes.
 - Config changes need a restart of both processes.
 
@@ -453,7 +454,7 @@ Plain query functions returning view-model objects shaped for the UI spec: `home
 - Routes and contents exactly as the UI spec: `/`, `/watches`, `/watches/new`, `/watches/[id]`, `/watches/[id]/edit`, `/queue`, `/runs`, `/runs/[id]`, `/adhoc`.
 - Pages are dynamic Server Components (`export const dynamic = 'force-dynamic'`) calling read models. A single `createCore()` instance per server process is cached in a module-level singleton.
 - Mutations are Server Actions in `app/actions/*` that parse `FormData` with zod, call a service, `revalidatePath` the affected routes and return `{ ok: true } | { ok: false; error: AppError }`. Forms use `useActionState` to render the red error boxes while keeping entered values.
-- `<AutoRefresh intervalMs={3000}/>` in the layout calls `router.refresh()` while `document.visibilityState === 'visible'` and pauses while a form field is focused or a dialog is open. Elapsed timers tick client-side from `started_at`.
+- `<AutoRefresh intervalMs={3000}/>` in the layout calls `router.refresh()` while `document.visibilityState === 'visible'` and pauses while a form field is focused, a dialog is open, or the page renders `<NoAutoRefresh/>` (Run detail of a finished Run, whose files can't change). Elapsed timers tick client-side from `started_at`.
 - Kind detection on the Watch form calls a `previewTarget` Server Action (debounced 500 ms).
 - "Open" / "reveal" links for result files and transcripts go to a route handler `/files/run/[id]/[name]` and `/files/attempt/[name]` that only serves files inside `<dataDir>`, by whitelisted name.
 - Confirmation dialogs, disabled-with-tooltip actions and empty states as in the UI spec.
@@ -474,9 +475,9 @@ Prints a one-line result (`Watch #12 created`, `Run #43 queued`) or the error. E
 
 | Script | Command |
 | --- | --- |
-| `dev` | `concurrently "next dev -H 127.0.0.1" "tsx watch src/worker/main.ts"` |
+| `dev` | `node scripts/start.mjs dev`: `next dev -H 127.0.0.1 -p ${PORT:-3000}` + `node --watch --import tsx src/worker/main.ts` |
 | `build` | `next build` |
-| `start` | `concurrently -k "next start -H 127.0.0.1 -p 4317" "tsx src/worker/main.ts"` |
+| `start` | `node scripts/start.mjs`: `next start -H 127.0.0.1 -p ${PORT:-4317}` + `node --import tsx src/worker/main.ts` |
 | `automator` | `tsx src/cli/main.ts` (also `bin`) |
 | `test` | `vitest run` |
 | `e2e` | `playwright test` |
