@@ -2,7 +2,7 @@
 
 A small personal tool to automate work with Jira and Git (GitLab). It keeps track of outside items that need follow-up, such as merge requests waiting for review or Jira tickets. It checks them from time to time and runs Copilot CLI when something needs doing. A local dashboard shows the current state.
 
-> **Status:** design agreed, implementation not started. This README describes the agreed behavior, not a finished product.
+> **Status:** v1 implemented.
 
 See also:
 
@@ -10,6 +10,41 @@ See also:
 - [ADR 0001: Serialize Runs in configured Repository folders](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md)
 - [Architecture and implementation design](./docs/superpowers/specs/2026-10-21-architecture-design.md)
 - [Dashboard UI design](./docs/superpowers/specs/2026-10-21-dashboard-ui-design.md)
+
+## Getting started
+
+Prerequisites:
+
+- Node.js 24
+- GitHub Copilot CLI installed and logged in (`copilot` on your `PATH`)
+
+Set up and start:
+
+```sh
+npm install
+cp automator.config.example.json automator.config.json   # then edit Repositories, connections, Teams chat
+cp .env.example .env                                     # then fill in GITLAB_TOKEN (and Jira tokens if used)
+npm run build
+npm start
+```
+
+`npm start` runs the dashboard and the worker together. Open <http://127.0.0.1:4317>.
+
+CLI examples (the worker must be running for queued Runs to start):
+
+```sh
+npm run automator -- watch add <url> --repo <name>
+npm run automator -- watch list
+npm run automator -- run --repo <name> --prompt "Summarize open TODOs in src/"
+```
+
+Tests:
+
+```sh
+npm test        # unit and integration tests (Vitest)
+npm run e2e     # Playwright smoke tests; first run: npx playwright install chromium
+npm run check   # type check, lint, dependency rules and Vitest
+```
 
 ## Goals
 
