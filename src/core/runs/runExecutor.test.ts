@@ -346,6 +346,22 @@ describe('RunExecutor', () => {
     expect(s.executor.isBusy()).toBe(false);
   });
 
+  test('killActive SIGKILLs the running copilot process group', async () => {
+    const s = setup({ mode: 'hang' });
+    const watchId = addWatch(s.db);
+    const run = claim(s.db, s.clock.now(), watchId);
+    const pending = s.executor.execute(run);
+    await waitFor(() => runOf(s.db, run.id).pid !== null);
+    const { pid } = runOf(s.db, run.id);
+
+    s.executor.killActive();
+
+    const final = await pending;
+    expect(final.exitCode).toBeNull();
+    expect(() => process.kill(-pid!, 0)).toThrow();
+    s.executor.killActive();
+  });
+
   test('cancel request kills process and records interrupted cancelled', async () => {
     const s = setup({ mode: 'hang' });
     const watchId = addWatch(s.db);

@@ -28,7 +28,7 @@ The **CLI** (`automator`, `tsx src/cli/main.ts`, exposed via `package.json#bin`)
 
 ### Worker single-instance lock
 
-On startup the worker, in a `BEGIN IMMEDIATE` transaction, reads `worker_lock` (single row). If a row exists with `heartbeat_at` newer than 15 s and its `pid` is alive (`process.kill(pid, 0)`), the worker exits with code 1 and a clear message. Otherwise it writes its own `pid`, `started_at`, `heartbeat_at`. The heartbeat updates every loop iteration. The lock is cleared on graceful shutdown (SIGINT/SIGTERM).
+On startup the worker, in a `BEGIN IMMEDIATE` transaction, reads `worker_lock` (single row). If a row exists with `heartbeat_at` newer than 15 s and its `pid` is alive (`process.kill(pid, 0)`), the worker exits with code 1 and a clear message. Otherwise it writes its own `pid`, `started_at`, `heartbeat_at`. The heartbeat updates every loop iteration. The lock is cleared on graceful shutdown (SIGINT/SIGTERM): the worker stops claiming, waits for the active Run to finish, then exits. Signals within 1 s of the first count as the same Ctrl-C (one Ctrl-C reaches the worker from the terminal and from the start script); a later one SIGKILLs the active Copilot group and exits at once, leaving the Run to restart recovery. `scripts/start.mjs` replaces `concurrently`, whose tree-kill would also signal Copilot: it forwards signals to its two direct children only, stops the other process when one exits on its own, and runs the worker under plain `node --import tsx` because the tsx CLI SIGKILLs its child when several signals arrive at once.
 
 ### Worker loop
 
@@ -475,9 +475,9 @@ Prints a one-line result (`Watch #12 created`, `Run #43 queued`) or the error. E
 
 | Script | Command |
 | --- | --- |
-| `dev` | `concurrently "next dev -H 127.0.0.1" "tsx watch src/worker/main.ts"` |
+| `dev` | `node scripts/start.mjs dev`: `next dev -H 127.0.0.1 -p ${PORT:-3000}` + `node --watch --import tsx src/worker/main.ts` |
 | `build` | `next build` |
-| `start` | `concurrently -k "next start -H 127.0.0.1 -p 4317" "tsx src/worker/main.ts"` |
+| `start` | `node scripts/start.mjs`: `next start -H 127.0.0.1 -p ${PORT:-4317}` + `node --import tsx src/worker/main.ts` |
 | `automator` | `tsx src/cli/main.ts` (also `bin`) |
 | `test` | `vitest run` |
 | `e2e` | `playwright test` |

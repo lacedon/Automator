@@ -11,9 +11,9 @@
     "automator": "./bin/automator.mjs"
   },
   "scripts": {
-    "dev": "concurrently \"next dev -H 127.0.0.1\" \"tsx watch src/worker/main.ts\"",
+    "dev": "node scripts/start.mjs dev",
     "build": "next build",
-    "start": "concurrently -k \"next start -H 127.0.0.1 -p 4317\" \"tsx src/worker/main.ts\"",
+    "start": "node scripts/start.mjs",
     "automator": "node bin/automator.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
@@ -22,7 +22,6 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "commander": "^15.0.0",
-    "concurrently": "^10.0.6",
     "dotenv": "^18.0.8",
     "next": "^16.4.2",
     "react": "^19.3.1",

@@ -28,7 +28,9 @@ npm run build
 npm start
 ```
 
-`npm start` runs the dashboard and the worker together. Open <http://127.0.0.1:4317>.
+`npm start` runs the dashboard and the worker together. Open <http://127.0.0.1:4317> (set `PORT` to change the port).
+
+Ctrl-C stops the dashboard at once, but the worker first waits for the active Run to finish (up to `runs.timeoutMinutes`) and records its result. Press Ctrl-C again (a second or more later) to force it to stop: the active Copilot process is killed, and on the next start the Run is marked interrupted and its Watch moves to Needs you.
 
 CLI examples (the worker must be running for queued Runs to start):
 

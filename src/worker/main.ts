@@ -8,6 +8,7 @@ import {
   resolveJiraDoneNames,
 } from '@core/index';
 import { WorkerLoop } from './loop';
+import { createShutdownHandler } from './shutdownSignals';
 
 const ts = () => new Date().toISOString();
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -64,24 +65,28 @@ function main(): void {
     console.log(`${ts()} worker started (pid ${pid})`);
   })();
 
-  const shutdown = (signal: NodeJS.Signals) => {
-    if (shuttingDown) {
-      console.log(`${ts()} ${signal} again, exiting immediately`);
+  const shutdown = createShutdownHandler({
+    now: () => Date.now(),
+    onStop: (signal) => {
+      shuttingDown = true;
+      console.log(`${ts()} ${signal} received, waiting for the active run to finish (press Ctrl-C again to force)`);
+      void startup
+        .catch(() => {})
+        .then(() => loop.stop())
+        .catch((e: unknown) => console.error(`${ts()} shutdown failed: ${message(e)}`))
+        .finally(() => {
+          attempt('lock release', () => releaseWorkerLock(core.db, pid));
+          attempt('close', () => core.close());
+          console.log(`${ts()} worker stopped`);
+          process.exit(0);
+        });
+    },
+    onForce: (signal) => {
+      console.log(`${ts()} ${signal} again, killing the active run and exiting immediately`);
+      attempt('kill active run', () => core.executor.killActive());
       process.exit(1);
-    }
-    shuttingDown = true;
-    console.log(`${ts()} ${signal} received, waiting for the active run to finish`);
-    void startup
-      .catch(() => {})
-      .then(() => loop.stop())
-      .catch((e: unknown) => console.error(`${ts()} shutdown failed: ${message(e)}`))
-      .finally(() => {
-        attempt('lock release', () => releaseWorkerLock(core.db, pid));
-        attempt('close', () => core.close());
-        console.log(`${ts()} worker stopped`);
-        process.exit(0);
-      });
-  };
+    },
+  });
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 

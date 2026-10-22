@@ -207,6 +207,14 @@ export class RunExecutor {
     }
   }
 
+  // Last resort when the worker is forced to exit: never leave Copilot running in the checkout.
+  // If the worker exits before finalizing, restart recovery finalizes the Run as INTERRUPTED.
+  killActive(): void {
+    const a = this.active;
+    if (a === null || a.proc === null || a.exited) return;
+    a.proc.kill('SIGKILL');
+  }
+
   watchdog(): void {
     const a = this.active;
     if (a === null || a.proc === null || a.exited) return;
