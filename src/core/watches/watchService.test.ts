@@ -389,8 +389,18 @@ describe('WatchService state actions', () => {
     for (const id of [finished.id, pending.id, otherRun.id]) {
       fs.writeFileSync(path.join(dataDir.ensureRunDir(id), 'cli.log'), 'x');
     }
+    const insertEvent = db.prepare(
+      "INSERT INTO needs_you_events (watch_id, reason, created_at, teams_status) VALUES (?, 'r', 0, 'sent') RETURNING id",
+    );
+    const eventOf = (watchId: number) => (insertEvent.get(watchId) as { id: number }).id;
+    const [deletedEvent, otherEvent] = [eventOf(w.id), eventOf(other.id)];
+    fs.mkdirSync(dataDir.notifyDir, { recursive: true });
+    for (const id of [deletedEvent, otherEvent]) {
+      for (const file of [dataDir.notifyTranscriptPath(id), dataDir.notifyLogPath(id)]) fs.writeFileSync(file, 'x');
+    }
 
     expect(service.delete(w.id)).toEqual({ ok: true, value: undefined });
+    expect(fs.readdirSync(dataDir.notifyDir).sort()).toEqual([`${otherEvent}.log`, `${otherEvent}.md`]);
     expect(service.get(w.id)).toBeNull();
     expect(db.prepare('SELECT id FROM runs').all()).toEqual([{ id: otherRun.id }]);
     expect(fs.existsSync(dataDir.runDir(finished.id))).toBe(false);

@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
@@ -51,15 +50,14 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
       `Send exactly this message to the Microsoft Teams chat with id ${teams.chatId} using the available Teams tool, then stop. ` +
       `Message: ${message}`;
 
-    const notifyDir = path.join(dataDir.root, 'notify');
-    fs.mkdirSync(notifyDir, { recursive: true });
-    const logPath = path.join(notifyDir, `${event.id}.log`);
+    fs.mkdirSync(dataDir.notifyDir, { recursive: true });
+    const logPath = dataDir.notifyLogPath(event.id);
 
     const proc = launcher.start({
       cwd: dataDir.root,
       prompt,
       model: teams.model ?? config.runs.defaultModel,
-      transcriptPath: path.join(notifyDir, `${event.id}.md`),
+      transcriptPath: dataDir.notifyTranscriptPath(event.id),
       logPath,
       env: childEnv(process.env, secrets),
       extraArgs: ['--available-tools', teams.tool],

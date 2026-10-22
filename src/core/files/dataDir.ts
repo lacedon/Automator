@@ -5,11 +5,13 @@ export class DataDir {
   readonly root: string;
   readonly db: string;
   readonly attemptsDir: string;
+  readonly notifyDir: string;
 
   constructor(root: string) {
     this.root = path.resolve(root);
     this.db = path.join(this.root, 'automator.db');
     this.attemptsDir = path.join(this.root, 'attempts');
+    this.notifyDir = path.join(this.root, 'notify');
   }
 
   runDir(id: number): string {
@@ -44,6 +46,19 @@ export class DataDir {
 
   removeRunDir(id: number): void {
     fs.rmSync(this.runDir(id), { recursive: true, force: true });
+  }
+
+  notifyTranscriptPath(eventId: number): string {
+    return path.join(this.notifyDir, `${eventId}.md`);
+  }
+
+  notifyLogPath(eventId: number): string {
+    return path.join(this.notifyDir, `${eventId}.log`);
+  }
+
+  removeNotifyFiles(eventId: number): void {
+    fs.rmSync(this.notifyTranscriptPath(eventId), { force: true });
+    fs.rmSync(this.notifyLogPath(eventId), { force: true });
   }
 
   isInside(p: string): boolean {

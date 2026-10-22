@@ -32,27 +32,31 @@ export class CleanupService {
     const now = clock.now();
     const cutoff = now - config.cleanup.retainClosedDays * DAY_MS;
 
-    const { deletedWatches, runIds } = db
+    const { deletedWatches, runIds, eventIds } = db
       .transaction(() => {
         const watchIds = (
           db.prepare("SELECT id FROM watches WHERE state = 'closed' AND closed_at <= ?").all(cutoff) as { id: number }[]
         ).map((r) => r.id);
         const runIds: number[] = [];
+        const eventIds: number[] = [];
         const selectRuns = db.prepare('SELECT id FROM runs WHERE watch_id = ?');
+        const selectEvents = db.prepare('SELECT id FROM needs_you_events WHERE watch_id = ?');
         const deleteWatch = db.prepare('DELETE FROM watches WHERE id = ?');
         for (const id of watchIds) {
           for (const r of selectRuns.all(id) as { id: number }[]) runIds.push(r.id);
+          for (const e of selectEvents.all(id) as { id: number }[]) eventIds.push(e.id);
           deleteWatch.run(id);
         }
         db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
           LAST_CLEANUP_KEY,
           String(now),
         );
-        return { deletedWatches: watchIds.length, runIds };
+        return { deletedWatches: watchIds.length, runIds, eventIds };
       })
       .immediate();
 
     for (const id of runIds) dataDir.removeRunDir(id);
+    for (const id of eventIds) dataDir.removeNotifyFiles(id);
 
     return { deletedWatches, deletedAttempts: this.removeOldAttempts(cutoff) };
   }

@@ -55,11 +55,16 @@ describe('CleanupService', () => {
     const { db, clock, dataDir, service } = setup();
     const watchId = watchWithState(db, 'closed', clock.now() - 30 * DAY);
     const runId = insertRun(db, dataDir, watchId);
-    db.prepare(
-      "INSERT INTO needs_you_events (watch_id, run_id, reason, created_at, teams_status) VALUES (?, ?, 'r', 0, 'sent')",
-    ).run(watchId, runId);
+    const eventId = Number(
+      db
+        .prepare("INSERT INTO needs_you_events (watch_id, run_id, reason, created_at, teams_status) VALUES (?, ?, 'r', 0, 'sent')")
+        .run(watchId, runId).lastInsertRowid,
+    );
+    fs.mkdirSync(dataDir.notifyDir, { recursive: true });
+    for (const file of [dataDir.notifyTranscriptPath(eventId), dataDir.notifyLogPath(eventId)]) fs.writeFileSync(file, 'x');
 
     expect(service.run()).toEqual({ deletedWatches: 1, deletedAttempts: 0 });
+    expect(fs.readdirSync(dataDir.notifyDir)).toEqual([]);
     expect(count(db, 'watches')).toBe(0);
     expect(count(db, 'runs')).toBe(0);
     expect(count(db, 'needs_you_events')).toBe(0);

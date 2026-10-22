@@ -230,20 +230,23 @@ export class WatchService {
   delete(id: number): Result<void> {
     const { db } = this.deps;
     const result = db
-      .transaction((): Result<number[]> => {
+      .transaction((): Result<{ runIds: number[]; eventIds: number[] }> => {
         const watch = this.get(id);
         if (!watch) return err({ code: 'NOT_FOUND' });
         const running = db.prepare("SELECT id FROM runs WHERE watch_id = ? AND status = 'running'").get(id) as
           | { id: number }
           | undefined;
         if (running) return err({ code: 'RUN_IN_PROGRESS', runId: running.id });
-        const runIds = (db.prepare('SELECT id FROM runs WHERE watch_id = ?').all(id) as { id: number }[]).map((r) => r.id);
+        const ids = (sql: string) => (db.prepare(sql).all(id) as { id: number }[]).map((r) => r.id);
+        const runIds = ids('SELECT id FROM runs WHERE watch_id = ?');
+        const eventIds = ids('SELECT id FROM needs_you_events WHERE watch_id = ?');
         db.prepare('DELETE FROM watches WHERE id = ?').run(id);
-        return ok(runIds);
+        return ok({ runIds, eventIds });
       })
       .immediate();
     if (!result.ok) return result;
-    for (const runId of result.value) this.deps.dataDir.removeRunDir(runId);
+    for (const runId of result.value.runIds) this.deps.dataDir.removeRunDir(runId);
+    for (const eventId of result.value.eventIds) this.deps.dataDir.removeNotifyFiles(eventId);
     return ok(undefined);
   }
 
