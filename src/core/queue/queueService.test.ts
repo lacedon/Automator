@@ -171,6 +171,22 @@ describe('QueueService', () => {
     expect(queue.cancel(9999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
   });
 
+  test('cancelQueued deletes only queued rows and never touches a running one', () => {
+    const { db, queue } = setup();
+    const running = queue.enqueueAdhoc({ ...base, prompt: 'p1' });
+    const queued = queue.enqueueAdhoc({ ...base, prompt: 'p2' });
+    queue.claimNext();
+
+    expect(queue.cancelQueued(running.id)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'running', action: 'cancelQueued' },
+    });
+    expect(db.prepare('SELECT cancel_requested_at FROM runs WHERE id = ?').get(running.id)).toEqual({ cancel_requested_at: null });
+    expect(queue.cancelQueued(queued.id)).toEqual({ ok: true, value: undefined });
+    expect(statuses(db)).toEqual([{ id: running.id, status: 'running' }]);
+    expect(queue.cancelQueued(queued.id)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+
   test('deleteAdhoc removes finished adhoc row and its run dir; rejects watch runs and unfinished', () => {
     const { db, dataDir, queue } = setup();
     const w = insertWatch(db);

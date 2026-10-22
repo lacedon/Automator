@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { NextCheck, RunRow, WatchState } from '@core/index';
+import type { NextCheck, RunRow, Trigger, WatchState } from '@core/index';
 import { Elapsed } from './Elapsed';
 
 export type PillVariant = 'needs-you' | 'good' | 'running' | 'neutral' | 'paused' | 'closed' | 'info' | 'interrupted';
@@ -8,15 +8,28 @@ export function Pill({ variant, children }: { variant: PillVariant; children: Re
   return <span className={`pill pill-${variant}`}>{children}</span>;
 }
 
-const INTERRUPTED_LABEL = { timeout: 'timed out', cancelled: 'cancelled', 'worker-restart': 'interrupted' } as const;
+const INTERRUPTED_LABEL = { timeout: 'timed out', cancelled: 'cancelled', 'worker-restart': 'worker restart' } as const;
 const OUTCOME_VARIANT = { 'needs-you': 'needs-you', acted: 'good', nothing: 'neutral' } as const;
 
-export function RunPill({ run }: { run: Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrupted'> }) {
+export const PRIORITY_LABEL: Record<Trigger, string> = { schedule: 'scheduled', manual: 'manual', adhoc: 'ad-hoc' };
+
+// Manual and ad-hoc requests jump the queue (Info); scheduled ones wait their turn (Neutral).
+function queuedVariant(trigger: Trigger | undefined): PillVariant {
+  return trigger === 'schedule' ? 'neutral' : 'info';
+}
+
+export function PriorityPill({ trigger }: { trigger: Trigger }) {
+  return <Pill variant={queuedVariant(trigger)}>{PRIORITY_LABEL[trigger]}</Pill>;
+}
+
+type RunPillRun = Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrupted'> & Partial<Pick<RunRow, 'trigger'>>;
+
+export function RunPill({ run }: { run: RunPillRun }) {
   if (run.interrupted !== null) return <Pill variant="interrupted">{INTERRUPTED_LABEL[run.interrupted]}</Pill>;
   if (run.resultStatus === 'error') return <Pill variant="needs-you">error</Pill>;
   if (run.outcome !== null) return <Pill variant={OUTCOME_VARIANT[run.outcome]}>{run.outcome}</Pill>;
   if (run.status === 'running') return <Pill variant="running">running</Pill>;
-  if (run.status === 'queued') return <Pill variant="info">queued</Pill>;
+  if (run.status === 'queued') return <Pill variant={queuedVariant(run.trigger)}>queued</Pill>;
   return <Pill variant="neutral">—</Pill>;
 }
 

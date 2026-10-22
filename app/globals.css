@@ -730,3 +730,90 @@ textarea:focus {
   width: 0;
   height: 0;
 }
+
+/* Queue, Runs, Run detail, Ad-hoc */
+
+.btn-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.btn-link:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.card-running {
+  background: var(--notice-bg);
+  border-color: var(--notice-border);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.run-error {
+  margin: 8px 0;
+  color: var(--pill-needs-you-text);
+}
+
+.tabs {
+  display: flex;
+  margin: 12px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab.on {
+  color: var(--text);
+  border-bottom-color: #f78166;
+}
+
+.file-view {
+  margin: 0;
+  padding: 10px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #c9d1d9;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.success-box {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  background: var(--pill-good-bg);
+  border: 1px solid #238636;
+  border-radius: 6px;
+  color: var(--pill-good-text);
+}
+
+.field-narrow {
+  max-width: 260px;
+}
+
+.watch-form .actions {
+  align-items: center;
+}

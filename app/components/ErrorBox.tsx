@@ -28,11 +28,15 @@ function basename(file: string): string {
   return file.slice(Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\')) + 1);
 }
 
-function UnknownRepository({ error }: { error: Extract<AppError, { code: 'UNKNOWN_REPOSITORY' }> }) {
+type UnknownRepositoryProps = { error: Extract<AppError, { code: 'UNKNOWN_REPOSITORY' }>; outcome: string };
+
+function UnknownRepository({ error, outcome }: UnknownRepositoryProps) {
   return (
     <>
       <div className="error-title">Unknown Repository &quot;{error.name}&quot;</div>
-      <p>No Watch was created. Known Repositories: {error.known.join(', ')}.</p>
+      <p>
+        {outcome} Known Repositories: {error.known.join(', ')}.
+      </p>
       {error.attemptFile !== null && (
         <p className="muted">
           Result file: <code>{error.attemptFile}</code>{' '}
@@ -61,14 +65,20 @@ function Duplicate({ error }: { error: Extract<AppError, { code: 'DUPLICATE_WATC
   );
 }
 
+type Props = {
+  error: AppError | string;
+  // What did not happen because of an unknown Repository, e.g. "No Run was queued."
+  unknownRepositoryOutcome?: string;
+};
+
 // One red box for every action failure: a domain error, or the message of an unexpected throw.
-export function ErrorBox({ error }: { error: AppError | string }) {
+export function ErrorBox({ error, unknownRepositoryOutcome = 'No Watch was created.' }: Props) {
   return (
     <div className="error-box" role="alert">
       {typeof error === 'string' ? (
         <>Something went wrong: {error}</>
       ) : error.code === 'UNKNOWN_REPOSITORY' ? (
-        <UnknownRepository error={error} />
+        <UnknownRepository error={error} outcome={unknownRepositoryOutcome} />
       ) : error.code === 'DUPLICATE_WATCH' ? (
         <Duplicate error={error} />
       ) : (

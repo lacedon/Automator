@@ -138,6 +138,17 @@ export class QueueService {
     }).immediate();
   }
 
+  // Unlike cancel, never flags a Run that started in the meantime: stopping a running Run needs its own confirmation.
+  cancelQueued(runId: number): Result<void> {
+    return this.db.transaction((): Result<void> => {
+      const status = this.status(runId);
+      if (!status) return err({ code: 'NOT_FOUND' });
+      if (status !== 'queued') return err({ code: 'INVALID_STATE', state: status, action: 'cancelQueued' });
+      this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+      return ok(undefined);
+    }).immediate();
+  }
+
   deleteAdhoc(runId: number): Result<void> {
     const result = this.db.transaction((): Result<void> => {
       const row = this.db.prepare('SELECT watch_id, status FROM runs WHERE id = ?').get(runId) as

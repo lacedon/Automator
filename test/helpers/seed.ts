@@ -129,5 +129,67 @@ db.prepare(
    VALUES ('pages', 'running', 'adhoc', 0, 'ad-hoc', 'Summarize open TODOs in src/', 'claude-sonnet-4.5', ?, ?, 4243)`,
 ).run(now - 5 * MIN, now - 4 * MIN);
 
+// Queue, Runs and Ad-hoc pages: waiting rows of every priority, an error before start, a timeout and a finished ad-hoc Run.
+const insertRun = db.prepare(
+  `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at, ended_at,
+     pid, result_status, outcome, summary, error_json, interrupted)
+   VALUES (@watchId, 'pages', @status, @trigger, @priority, @reason, @prompt, 'claude-sonnet-4.5', @queuedAt, @startedAt, @endedAt,
+     @pid, @resultStatus, @outcome, @summary, @error, @interrupted)`,
+);
+const run = (fields: Partial<Record<string, unknown>>) =>
+  insertRun.run({
+    watchId: null,
+    status: 'finished',
+    trigger: 'schedule',
+    priority: 1,
+    reason: 'scheduled check',
+    prompt: null,
+    queuedAt: now - 30 * MIN,
+    startedAt: null,
+    endedAt: null,
+    pid: null,
+    resultStatus: null,
+    outcome: null,
+    summary: null,
+    error: null,
+    interrupted: null,
+    ...fields,
+  });
+const jiraActive = (db.prepare("SELECT id FROM watches WHERE normalized_target = 'jira:PROJ-1931'").get() as { id: number }).id;
+run({ watchId: jiraActive, status: 'queued', trigger: 'manual', priority: 0, reason: 'Resume & run now', queuedAt: now - 2 * MIN });
+run({ watchId: active, status: 'queued', reason: 'new comment by @anna', queuedAt: now - 3 * MIN });
+run({ status: 'queued', trigger: 'adhoc', priority: 0, reason: 'ad-hoc', prompt: 'Regenerate API types', queuedAt: now - MIN });
+run({
+  watchId: needsYou,
+  startedAt: now - 40 * MIN,
+  endedAt: now - 40 * MIN,
+  resultStatus: 'error',
+  error: JSON.stringify({ code: 'GITLAB_AUTH', message: "GitLab 401 — token can't access MR" }),
+});
+run({
+  watchId: active,
+  trigger: 'manual',
+  priority: 0,
+  reason: 'manual',
+  startedAt: now - 90 * MIN,
+  endedAt: now - 60 * MIN,
+  pid: 4100,
+  resultStatus: 'error',
+  error: JSON.stringify({ code: 'TIMEOUT', message: 'Run timed out after 30m' }),
+  interrupted: 'timeout',
+});
+run({
+  trigger: 'adhoc',
+  priority: 0,
+  reason: 'ad-hoc',
+  prompt: 'Update CHANGELOG for 4.2',
+  startedAt: now - 50 * MIN,
+  endedAt: now - 48 * MIN,
+  pid: 4101,
+  resultStatus: 'success',
+  outcome: 'acted',
+  summary: 'Committed CHANGELOG entry',
+});
+
 db.close();
 console.log(`Seeded ${dataDir.root}\nAUTOMATOR_CONFIG=${configPath}`);
