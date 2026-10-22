@@ -73,13 +73,21 @@ export function createConfigSchema(configDir: string) {
               start: clockTime.default('08:00'),
               end: clockTime.default('19:00'),
             })
+            .superRefine(({ days, start, end }, ctx) => {
+              if (days.length === 0) {
+                ctx.addIssue({ code: 'custom', path: ['days'], message: 'At least one working day is required' });
+              } else if (new Set(days).size !== days.length) {
+                ctx.addIssue({ code: 'custom', path: ['days'], message: 'Working days must not repeat' });
+              }
+              if (start >= end) ctx.addIssue({ code: 'custom', path: ['end'], message: `Must be later than start (${start})` });
+            })
             .prefault({}),
         })
         .prefault({}),
       runs: z
         .object({
           timeoutMinutes: positiveInt.default(30),
-          defaultModel: z.string().default('claude-sonnet-4.5'),
+          defaultModel: nonEmpty.default('claude-sonnet-4.5'),
           models: z.array(z.string()).default([]),
           initialReview: z.enum(['baseline-only', 'unresolved']).default('baseline-only'),
           denyTools: z.array(z.string()).default([]),

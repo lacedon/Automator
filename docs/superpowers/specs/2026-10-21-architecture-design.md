@@ -139,6 +139,7 @@ Rules:
 - `~` expands to the home directory; relative paths resolve against the config file's folder.
 - Every Repository's `gitlab`/`jira` must reference an existing connection (load error otherwise). A Repository folder that doesn't exist is **not** a load error; it is detected per Run/creation as described below.
 - `doneStatusIds`: absent ⇒ Done status category; `[]` ⇒ auto-close disabled.
+- `workingHours.days` must be non-empty without repeats and `start` must be earlier than `end` (no overnight windows); `runs.defaultModel` must be non-empty (load errors otherwise).
 - Secrets come only from the environment, loaded with `dotenv` from `.env` in the project root. The config holds env var **names**, never values. A missing token var makes that connection "no token": GitLab pre-checks then fail with an auth error (Watch → Needs you); Jira falls back to MCP-based checking as the README describes.
 - Config changes need a restart of both processes.
 

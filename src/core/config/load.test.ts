@@ -165,6 +165,28 @@ describe('loadConfig', () => {
     }
   });
 
+  test('rejects empty or duplicate working days, start >= end and empty default model', () => {
+    for (const [workingHours, issue] of [
+      [{ days: [] }, 'schedule.workingHours.days: At least one working day is required'],
+      [{ days: [1, 1] }, 'schedule.workingHours.days: Working days must not repeat'],
+      [{ start: '19:00', end: '08:00' }, 'schedule.workingHours.end: Must be later than start (19:00)'],
+      [{ start: '09:00', end: '09:00' }, 'schedule.workingHours.end: Must be later than start (09:00)'],
+    ] as const) {
+      const { file } = writeConfig({ repositories: {}, gitlab: {}, schedule: { workingHours } });
+      const error = captureError(() => loadConfig({ path: file, env: {} }));
+      expect(error).toBeInstanceOf(ConfigError);
+      expect(error.message).toContain(issue);
+    }
+
+    const { file } = writeConfig({ repositories: {}, gitlab: {}, runs: { defaultModel: '' } });
+    const error = captureError(() => loadConfig({ path: file, env: {} }));
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(error.message).toContain('runs.defaultModel');
+
+    const valid = writeConfig({ repositories: {}, gitlab: {}, schedule: { workingHours: { days: [0], start: '00:00', end: '00:01' } } });
+    expect(loadConfig({ path: valid.file, env: {} }).schedule.workingHours).toEqual({ days: [0], start: '00:00', end: '00:01' });
+  });
+
   test('missing folder is not a load error', () => {
     const { file } = writeConfig({
       ...fullConfig,

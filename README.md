@@ -150,7 +150,7 @@ Free-form Watches always run Copilot on their interval.
 ### Schedule
 
 - Default intervals: **15 min** for MRs and **2 h** for everything else. Each Watch can override its interval.
-- Working hours: **Mon–Fri 08:00–19:00** local time by default, configurable. Scheduled work outside these hours waits.
+- Working hours: **Mon–Fri 08:00–19:00** local time by default, configurable (`start` must be earlier than `end`; overnight windows aren't supported). Scheduled work outside these hours waits.
 - Manual and ad-hoc Runs ignore working hours and go ahead of queued scheduled work, but they never interrupt a Run that's already in progress.
 - Scheduled work runs first-in, first-out (FIFO), with at most one queued request per Watch. Repeated triggers are combined into one.
 - After sleep or a restart, each Watch that is due gets checked once. Missed intervals aren't replayed.
