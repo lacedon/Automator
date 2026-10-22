@@ -38,7 +38,11 @@ export function formatDateTime(at: number): string {
 
 // Client-safe twin of core's formatDuration (client components can't import @core/index values); a test keeps them equal.
 export function formatInterval(ms: number): string {
-  for (const [unit, size] of [['d', DAY], ['h', HOUR], ['m', MINUTE]] as const) {
+  for (const [unit, size] of [
+    ['d', DAY],
+    ['h', HOUR],
+    ['m', MINUTE],
+  ] as const) {
     if (ms !== 0 && ms % size === 0) return `${ms / size}${unit}`;
   }
   return `${Math.round(ms / SECOND)}s`;

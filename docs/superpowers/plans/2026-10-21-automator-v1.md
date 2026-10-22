@@ -83,11 +83,13 @@ Tests live next to code as `*.test.ts` except shared helpers, fixtures and e2e u
 ### Task 1: Project scaffold, Result and durations
 
 **Files:**
+
 - Create: `package.json` (replace placeholder), `tsconfig.json`, `vitest.config.ts`, `eslint.config.js`, `.dependency-cruiser.cjs`, `.env.example`
 - Modify: `.gitignore` (current content `.superpowers`, `.claude` stays)
 - Create: `src/core/domain/result.ts`, `src/core/domain/duration.ts`, `src/core/domain/duration.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type Result<T, E = AppError> = { ok: true; value: T } | { ok: false; error: E }`; `ok<T>(value: T)`, `err<E>(error: E)`.
   - `type AppError` exactly as the spec's "Core services" union, plus `{ code: 'JIRA_DISABLED' }` and `{ code: 'NOT_FOUND' }` (already in the spec).
@@ -125,8 +127,15 @@ test('parses units', () => {
   expect(parseDuration('2h')).toBe(7_200_000);
   expect(parseDuration('1d')).toBe(86_400_000);
 });
-test('rejects bad input', () => { expect(() => parseDuration('15')).toThrow('Invalid duration: 15'); expect(() => parseDuration('-1m')).toThrow(); });
-test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe('15m'); expect(formatDuration(7_200_000)).toBe('2h'); expect(formatDuration(90_000)).toBe('90s'); });
+test('rejects bad input', () => {
+  expect(() => parseDuration('15')).toThrow('Invalid duration: 15');
+  expect(() => parseDuration('-1m')).toThrow();
+});
+test('formats largest whole unit', () => {
+  expect(formatDuration(900_000)).toBe('15m');
+  expect(formatDuration(7_200_000)).toBe('2h');
+  expect(formatDuration(90_000)).toBe('90s');
+});
 ```
 
 - [ ] **Step 4: Run** `npx vitest run src/core/domain/duration.test.ts` — Expected: FAIL (module not found).
@@ -139,9 +148,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 2: Config schema and loader
 
 **Files:**
+
 - Create: `src/core/config/schema.ts`, `src/core/config/load.ts`, `src/core/config/load.test.ts`, `automator.config.example.json`
 
 **Interfaces:**
+
 - Consumes: `parseDuration` (Task 1).
 - Produces:
   - `type Config` (zod-inferred, after normalization) with: `dataDir: string` (absolute), `copilotBin: string`, `repositories: Record<string, { folder: string; gitlab: string; jira?: string; validate: string[] }>`, `gitlab: Record<string, { host: string; tokenEnv: string }>`, `jira: { enabled: boolean; connections: Record<string, { baseUrl: string; emailEnv?: string; tokenEnv?: string; doneStatusIds?: string[] }> }`, `schedule: { intervals: { mr: number; default: number }; workingHours: { days: number[]; start: string; end: string } }` (intervals in ms), `runs: { timeoutMs: number; defaultModel: string; models: string[]; initialReview: 'baseline-only' | 'unresolved'; denyTools: string[] }`, `prompts: { dir: string }`, `cleanup: { enabled: boolean; everyDays: number; retainClosedDays: number }`, `teams?: { chatId: string }`, `configDir: string`.
@@ -169,9 +180,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 3: Database, schema migration, row types
 
 **Files:**
+
 - Create: `src/core/domain/types.ts`, `src/core/db/open.ts`, `src/core/db/migrate.ts`, `src/core/db/migrations/001_init.sql`, `src/core/db/rows.ts`, `src/core/db/db.test.ts`, `test/helpers/db.ts`, `test/helpers/clock.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type WatchKind = 'mr' | 'jira' | 'free'`; `type WatchState = 'active' | 'paused' | 'needs_you' | 'closed'`; `type RunStatus = 'queued' | 'running' | 'finished'`; `type Trigger = 'schedule' | 'manual' | 'adhoc'`; `type Outcome = 'nothing' | 'acted' | 'needs-you'`; `type Interrupted = 'timeout' | 'cancelled' | 'worker-restart'`; `type ClosedReason = 'merged' | 'mr-closed' | 'jira-done' | 'user'`; `type InitialReview = 'baseline-only' | 'unresolved'`.
   - `type MrCursor = { lastNoteId: number; handledPipelineId: number | null; handledConflictSha: string | null }`; `type JiraCursor = { lastChangelogId: string | null; lastCommentId: string | null }`; `type Cursor = MrCursor | JiraCursor | Record<string, never>`.
@@ -199,9 +212,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 4: Target parsing
 
 **Files:**
+
 - Create: `src/core/domain/targets.ts`, `src/core/domain/targets.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Config`, `Result`, `AppError`.
 - Produces:
   - `type ParsedTarget = { kind: WatchKind; normalizedTarget: string; displayUrl: string; gitlab?: { conn: string; host: string; projectPath: string; iid: number; apiProjectId: string }; jira?: { conn: string; host: string; key: string } }` (`apiProjectId = encodeURIComponent(projectPath)`).
@@ -225,9 +240,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 5: Watch state machine and schedule math
 
 **Files:**
+
 - Create: `src/core/domain/watchState.ts`, `src/core/domain/watchState.test.ts`, `src/core/domain/schedule.ts`, `src/core/domain/schedule.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type WatchAction = 'pause' | 'resume' | 'resumeRunNow' | 'close' | 'reopen' | 'runNow' | 'delete'`.
   - `nextState(state: WatchState, action: WatchAction): WatchState | null` — `null` = invalid; `runNow` returns the unchanged state when valid; `delete` returns the unchanged state when valid (the running-Run check lives in WatchService).
@@ -249,9 +266,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 6: Data directory, atomic writes, attempt files
 
 **Files:**
+
 - Create: `src/core/files/dataDir.ts`, `src/core/files/atomic.ts`, `src/core/files/attempts.ts`, `src/core/files/files.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `class DataDir { constructor(root: string); db: string; runDir(id: number): string; promptPath(id); transcriptPath(id); copilotResultPath(id); resultPath(id); cliLogPath(id); attemptsDir: string; ensureRunDir(id: number): string; removeRunDir(id: number): void; isInside(p: string): boolean }` — file names exactly `prompt.md`, `transcript.md`, `copilot-result.json`, `result.json`, `cli.log`.
   - `writeJsonAtomic(file: string, value: unknown): void` and `writeTextAtomic(file: string, text: string): void`.
@@ -268,9 +287,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 7: QueueService
 
 **Files:**
+
 - Create: `src/core/queue/queueService.ts`, `src/core/queue/queueService.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Database`, `Clock`, `Run`, `toRun`, `DataDir`.
 - Produces `class QueueService`:
   - `constructor(db: Database, clock: Clock, dataDir: DataDir)`
@@ -300,9 +321,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 8: WatchService
 
 **Files:**
+
 - Create: `src/core/watches/watchService.ts`, `src/core/watches/watchService.test.ts`, `test/helpers/config.ts`
 
 **Interfaces:**
+
 - Consumes: `parseTarget`, `nextState`, `intervalFor`, `QueueService`, `writeAttemptError`, `DataDir`, `Config`, `Clock`.
 - Produces `class WatchService`:
   - `constructor(deps: { db: Database; clock: Clock; config: Config; queue: QueueService; dataDir: DataDir; preview?: (t: ParsedTarget, repository: string) => Promise<TargetPreview | null> })`
@@ -338,9 +361,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 9: HTTP retry and GitLab pre-check
 
 **Files:**
+
 - Create: `src/core/http/fetchWithRetry.ts`, `src/core/http/fetchWithRetry.test.ts`, `src/core/prechecks/types.ts`, `src/core/prechecks/gitlabClient.ts`, `src/core/prechecks/gitlab.ts`, `src/core/prechecks/gitlab.test.ts`, `test/fixtures/msw/gitlab.ts`
 
 **Interfaces:**
+
 - Produces:
   - `class HttpError extends Error { status: number | null; auth: boolean }`; `fetchWithRetry(url: string, init: RequestInit, opts?: { attempts?: 3; sleep?: (ms: number) => Promise<void> }): Promise<Response>` — backoff 1000, 4000 ms (capped 10 000); throws `HttpError` (`auth` true for 401/403/404).
   - `types.ts`: `PrecheckResult` and `Snapshot` exactly as in the spec; `type EventSummary = { at: number; author: string; text: string; url?: string }`; `interface Precheck { check(w: Watch): Promise<PrecheckResult>; snapshot(w: Watch, opts: { reviewUnresolved: boolean }): Promise<Snapshot> }`.
@@ -371,9 +396,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 10: Jira and free-form pre-checks
 
 **Files:**
+
 - Create: `src/core/prechecks/jiraClient.ts`, `src/core/prechecks/jira.ts`, `src/core/prechecks/jira.test.ts`, `src/core/prechecks/freeform.ts`, `src/core/prechecks/index.ts`, `test/fixtures/msw/jira.ts`
 
 **Interfaces:**
+
 - Consumes: `fetchWithRetry`, `Precheck`, `Secrets`.
 - Produces:
   - `interface JiraClient { myself(): Promise<{ accountId: string }>; issue(key: string): Promise<JiraIssue>; statuses(): Promise<{ id: string; name: string }[]> }`; `JiraIssue = { key; summary; status: { id: string; name: string; categoryKey: string }; comments: { id: string; authorId: string; authorName: string; body: string; created: string }[]; changelog: { id: string; authorId: string; created: string; items: { field: string; toString: string | null }[] }[] }`.
@@ -400,9 +427,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 11: Scheduler tick
 
 **Files:**
+
 - Create: `src/core/scheduler/scheduler.ts`, `src/core/scheduler/scheduler.test.ts`, `src/core/watches/needsYou.ts`, `src/core/watches/needsYou.test.ts` (tests: `enterNeedsYou on closed watch returns null`, `enterNeedsYou sets fields and inserts pending or disabled event`, `closeWatch removes queued row`)
 
 **Interfaces:**
+
 - Consumes: `Prechecks`, `QueueService`, `isWithinWorkingHours`, `intervalFor`, `Config`, `Clock`, `needsYou` helper from Task 14 — **to avoid a forward dependency, this task creates** `src/core/watches/needsYou.ts` with `enterNeedsYou(db: Database, input: { watchId: number; runId: number | null; reason: string; now: number; teamsEnabled: boolean }): NeedsYouEvent | null` (returns `null` if the Watch is closed; sets state `needs_you`, reason, since, run id, `next_check_at = NULL`, inserts the event with `pending` or `disabled`), and `closeWatch(db, watchId, reason: ClosedReason, now)` (also removes queued row).
 - Produces: `class Scheduler { constructor(deps: { db; clock; config; queue: QueueService; prechecks: Prechecks; onNeedsYou(e: NeedsYouEvent): void }); tick(): Promise<{ checked: number; enqueued: number }> }`.
 
@@ -427,9 +456,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 12: PromptBuilder and default prompts
 
 **Files:**
+
 - Create: `src/core/runs/promptBuilder.ts`, `src/core/runs/promptBuilder.test.ts`, `prompts/mr.md`, `prompts/jira.md`, `prompts/free.md`
 
 **Interfaces:**
+
 - Produces:
   - `buildWatchPrompt(input: { watch: Watch; run: Run; snapshot: Snapshot; recent: Pick<Run, 'id' | 'outcome' | 'summary' | 'endedAt'>[]; config: Config; resultPath: string }): string`
   - `buildAdhocPrompt(input: { run: Run; config: Config; resultPath: string }): string`
@@ -458,14 +489,16 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 13: CopilotLauncher and fake Copilot
 
 **Files:**
+
 - Create: `src/core/runs/copilotLauncher.ts`, `src/core/runs/copilotLauncher.test.ts`, `test/fixtures/fake-copilot.mjs`
 
 **Interfaces:**
+
 - Produces:
   - `interface CopilotLauncher { start(opts: { cwd: string; prompt: string; model: string; transcriptPath: string; logPath: string; env: NodeJS.ProcessEnv; extraArgs?: string[] }): RunningProcess }`; `interface RunningProcess { pid: number; exited: Promise<{ code: number | null; signal: string | null; spawnError?: string }>; kill(signal: 'SIGTERM' | 'SIGKILL'): void }`.
   - `createCopilotLauncher(config: Config, secrets: Secrets): CopilotLauncher` — args exactly as in the spec (`-p`, `--model`, `--allow-all-tools`, `--share`, `--no-color`, `--no-ask-user`, `--log-level error`, one `--deny-tool` per `runs.denyTools`, `--secret-env-vars` joined with `,` when non-empty); env = given env minus `secrets.envNames`; `detached: true`; stdout/stderr appended to `logPath`; `kill` uses `process.kill(-pid, sig)` and ignores `ESRCH`. Spawn `error` events resolve `exited` with `code: null, spawnError`.
   - `childEnv(env: NodeJS.ProcessEnv, secrets: Secrets): NodeJS.ProcessEnv` (exported).
-  - `fake-copilot.mjs`: parses `-p`, `--share`; reads mode from `FAKE_COPILOT_MODE` (`acted|nothing|needs-you|invalid-json|no-result|exit-1|hang|long-summary`); extracts the result path from the prompt line matching `/write exactly this JSON to `([^`]+)`/`; writes a transcript to the `--share` path (except `hang` before kill); writes `{ argv, cwd, env }` to `$FAKE_COPILOT_RECORD` when set.
+  - `fake-copilot.mjs`: parses `-p`, `--share`; reads mode from `FAKE_COPILOT_MODE` (`acted|nothing|needs-you|invalid-json|no-result|exit-1|hang|long-summary`); extracts the result path from the prompt line matching `/write exactly this JSON to `([^`]+)`/`; writes a transcript to the `--share`path (except`hang`before kill); writes`{ argv, cwd, env }`to`$FAKE_COPILOT_RECORD` when set.
 
 - [ ] **Step 1: Write failing tests**:
   - `passes required args and deny tools` (mode `nothing`, record file) — argv includes `--allow-all-tools`, `--share <path>`, `--model m1`, `--deny-tool gitlab(merge_merge_request)`; `cwd` equals the repo folder with a space in its name.
@@ -482,9 +515,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 14: OutcomeApplier
 
 **Files:**
+
 - Create: `src/core/runs/outcomeApplier.ts`, `src/core/runs/outcomeApplier.test.ts`
 
 **Interfaces:**
+
 - Consumes: `enterNeedsYou` (Task 11), `intervalFor`.
 - Produces:
   - `type RunFinal = { runId: number; endedAt: number; exitCode: number | null; resultStatus: 'success' | 'error'; outcome: Outcome | null; summary: string | null; error: RunError | null; interrupted: Interrupted | null; branch: string | null; promptPath: string | null; transcriptPath: string | null; resultPath: string }`
@@ -506,9 +541,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 15: RunExecutor and restart recovery
 
 **Files:**
+
 - Create: `src/core/runs/runExecutor.ts`, `src/core/runs/runExecutor.test.ts`, `src/core/runs/recovery.ts`, `src/core/runs/recovery.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CopilotLauncher`, `Prechecks`, `buildWatchPrompt`, `buildAdhocPrompt`, `applyOutcome`, `DataDir`, `writeJsonAtomic`, `closeWatch`.
 - Produces:
   - `class RunExecutor { constructor(deps: { db; clock; config; secrets: Secrets; dataDir: DataDir; launcher: CopilotLauncher; prechecks: Prechecks; currentBranch(cwd: string): Promise<string | null>; onNeedsYou(e: NeedsYouEvent): Promise<void> }); execute(run: Run): Promise<RunFinal>; watchdog(): void; isBusy(): boolean }`.
@@ -542,9 +579,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 16: TeamsNotifier
 
 **Files:**
+
 - Create: `src/core/notify/teamsNotifier.ts`, `src/core/notify/teamsNotifier.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CopilotLauncher`, `Config`, `NeedsYouEvent`, `Watch`.
 - Produces:
   - `config.teams` keys per the spec: `chatId`, `tool` (default `"teams-global(send_chat_message)"`), `model?`, `dashboardUrl` (default `"http://127.0.0.1:4317"`). Add `tool`, `model`, `dashboardUrl` to `config/schema.ts` and the example config in this task.
@@ -561,9 +600,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 17: CleanupService
 
 **Files:**
+
 - Create: `src/core/cleanup/cleanupService.ts`, `src/core/cleanup/cleanupService.test.ts`
 
 **Interfaces:**
+
 - Produces: `class CleanupService { constructor(deps: { db; clock; config; dataDir }); isDue(): boolean; run(): { deletedWatches: number; deletedAttempts: number } }` — uses `meta.last_cleanup_at`.
 
 - [ ] **Step 1: Write failing tests**: `deletes watches closed at least 30 days with runs, events and run dirs`; `keeps closed 29 days`; `never deletes active, paused, needs_you`; `keeps adhoc runs`; `removes attempt files older than retention`; `isDue after 7 days; disabled config is never due`.
@@ -577,9 +618,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 18: Composition root, worker lock and worker loop
 
 **Files:**
+
 - Create: `src/core/index.ts`, `src/core/worker/lock.ts`, `src/core/worker/lock.test.ts`, `src/core/worker/jiraDoneNames.ts`, `src/worker/loop.ts`, `src/worker/main.ts`, `src/worker/loop.test.ts`
 
 **Interfaces:**
+
 - Consumes: everything in core so far.
 - Produces:
   - `createCore(config: Config, deps?: Partial<Deps>): Core` where `Deps` is the spec's interface (`clock`, `gitlab(conn)`, `jira(conn)`, `copilot`, `notifier`) and `Core = { config; db; dataDir; watches: WatchService; queue: QueueService; scheduler: Scheduler; executor: RunExecutor; cleanup: CleanupService; notifier: Notifier; read: ReadModels; close(): void }` (`read` is filled by Task 20; until then export an empty object typed `ReadModels = {}`).
@@ -603,9 +646,11 @@ test('formats largest whole unit', () => { expect(formatDuration(900_000)).toBe(
 ### Task 19: CLI
 
 **Files:**
+
 - Create: `src/cli/main.ts`, `src/cli/main.test.ts`, `bin/automator.mjs`
 
 **Interfaces:**
+
 - Consumes: `bootstrap`, `Core`.
 - Produces: `runCli(argv: string[], io: { out(s: string): void; err(s: string): void }, core?: Core): Promise<number>` (exit code). `bin/automator.mjs`: `#!/usr/bin/env node` that registers `tsx` (`import { register } from 'tsx/esm/api'; register()`) and calls `runCli(process.argv.slice(2), console-like io)` then `process.exit(code)`.
 
@@ -622,10 +667,12 @@ Commands exactly as in the spec's CLI section; `@file` reads text from a file. O
 ### Task 20: Read models
 
 **Files:**
+
 - Create: `src/core/read-models/{home,watches,watchDetail,queue,runs,runDetail,adhoc,formOptions,nextCheck,index}.ts` and matching `*.test.ts` (one test file per model is fine: `readModels.test.ts`)
 - Modify: `src/core/index.ts` (fill `ReadModels`)
 
 **Interfaces:**
+
 - Produces `ReadModels` with these functions (all synchronous except `runDetail`):
   - `homeView(): { needsYou: NeedsYouCard[]; running: RunningCard | null; recent: RunRow[] }`
   - `watchList(f: { state?: WatchState; kind?: WatchKind; repository?: string; q?: string }): { counts: Record<'all' | WatchState, number>; jiraNotice: boolean; rows: WatchRow[] }` — order: needs_you, active, paused, closed; then title.
@@ -649,10 +696,12 @@ Commands exactly as in the spec's CLI section; `@file` reads text from a file. O
 ### Task 21: Dashboard shell, theme, Home page
 
 **Files:**
+
 - Create: `next.config.ts`, `app/layout.tsx`, `app/globals.css`, `app/page.tsx`, `app/lib/core.ts`, `app/components/{Sidebar,TopBar,Pill,AutoRefresh,ConfirmDialog,Elapsed,EmptyState,RelativeTime}.tsx`, `app/actions/runs.ts`, `app/actions/watches.ts` (resume actions only for now), `app/files/run/[id]/[name]/route.ts`, `app/files/attempt/[name]/route.ts`
 - Modify: `package.json` `check` script depcruise target → `src app`
 
 **Interfaces:**
+
 - Consumes: `bootstrap`, `ReadModels`, `WatchService`, `QueueService`.
 - Produces:
   - `getCore(): Core` (`app/lib/core.ts`, module-level singleton, `import 'server-only'`).
@@ -675,10 +724,12 @@ Commands exactly as in the spec's CLI section; `@file` reads text from a file. O
 ### Task 22: Watches list and Watch detail
 
 **Files:**
+
 - Create: `app/watches/page.tsx`, `app/watches/[id]/page.tsx`, `app/components/{WatchFilters,WatchRowMenu,RunNowPopover,NeedsYouCard,RunsTable}.tsx`
 - Modify: `app/actions/watches.ts`
 
 **Interfaces:**
+
 - Consumes: `watchList`, `watchDetail`, `WatchService`.
 - Produces Server Actions (each returns `ActionResult` and `revalidatePath('/', 'layout')`): `pauseWatch(id)`, `resumeWatch` (from Task 21), `closeWatch(id)`, `reopenWatch(id)`, `deleteWatch(id)` (redirects to `/watches`), `runWatchNow(prev, formData: { id, extraInstructions?, reviewUnresolved? })`.
 
@@ -692,10 +743,12 @@ Commands exactly as in the spec's CLI section; `@file` reads text from a file. O
 ### Task 23: Watch create/edit form
 
 **Files:**
+
 - Create: `app/watches/new/page.tsx`, `app/watches/[id]/edit/page.tsx`, `app/components/{WatchForm,ErrorBox,KindBadge}.tsx`
 - Modify: `app/actions/watches.ts`
 
 **Interfaces:**
+
 - Consumes: `formOptions`, `WatchService.create/update/previewTarget`.
 - Produces Server Actions: `createWatch(prev, formData)` → redirect to `/watches/<id>` on success, `ActionResult` with error and echoed values otherwise; `updateWatch(prev, formData)`; `previewTarget(target: string, repository: string)` → `{ kind; preview; previewError?; error? }`.
 - `<ErrorBox error={AppError}/>` renders: `UNKNOWN_REPOSITORY` — title `Unknown Repository "<name>"`, line `No Watch was created`, known names, result file path with **open** link to `/files/attempt/<basename>`, or `The result file could not be written: <error>`; `DUPLICATE_WATCH` — `Already watched`, existing state + interval, link `/watches/<id>`; others — the message. Reused by Task 24's ad-hoc form.
@@ -710,10 +763,12 @@ Commands exactly as in the spec's CLI section; `@file` reads text from a file. O
 ### Task 24: Queue, Runs, Run detail, Ad-hoc pages
 
 **Files:**
+
 - Create: `app/queue/page.tsx`, `app/runs/page.tsx`, `app/runs/[id]/page.tsx`, `app/adhoc/page.tsx`, `app/components/{RunTabs,RunMeta}.tsx`, `app/actions/adhoc.ts`
 - Modify: `app/actions/runs.ts`
 
 **Interfaces:**
+
 - Consumes: `queueView`, `runList`, `runDetail`, `adhocView`, `QueueService`, `WatchService.close`.
 - Produces Server Actions: `queueAdhoc(prev, formData: { repository, prompt, model })` (unknown Repository → same attempt-file behavior as Watch creation: **reuse** `writeAttemptError` via a new `QueueService.enqueueAdhocChecked(input, config): Result<Run>` added in this task with test `unknown repository writes attempt file and queues nothing` in `queueService.test.ts`), `cancelQueued(id)`, `closeWatchFromQueue(watchId)`, `deleteAdhocRun(id)`.
 
@@ -728,10 +783,12 @@ Commands exactly as in the spec's CLI section; `@file` reads text from a file. O
 ### Task 25: Playwright smoke tests and run instructions
 
 **Files:**
+
 - Create: `playwright.config.ts`, `test/e2e/smoke.spec.ts`, `test/e2e/global-setup.ts`
 - Modify: `README.md` (add "Getting started" section), `test/helpers/seed.ts` (export `seed(core)`)
 
 **Interfaces:**
+
 - Consumes: `seed`, `bootstrap`.
 
 - [ ] **Step 1: Configure** Playwright: `globalSetup` creates a temp data dir and config (`AUTOMATOR_CONFIG`), seeds it; `webServer` runs `next build && next start -H 127.0.0.1 -p 4399` with that env; worker not started.

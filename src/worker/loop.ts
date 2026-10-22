@@ -42,7 +42,10 @@ export class WorkerLoop {
     }
 
     // The tick runs in the background so slow pre-checks never stall the heartbeat or the watchdog.
-    if (this.ticking === null && (this.lastSchedulerAt === null || now - this.lastSchedulerAt >= this.schedulerEveryMs)) {
+    if (
+      this.ticking === null &&
+      (this.lastSchedulerAt === null || now - this.lastSchedulerAt >= this.schedulerEveryMs)
+    ) {
       this.lastSchedulerAt = now;
       let started: Promise<unknown>;
       try {

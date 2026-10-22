@@ -75,7 +75,10 @@ export interface Core {
 }
 
 function upsertMeta(db: Database, key: string, value: string): void {
-  db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(key, value);
+  db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(
+    key,
+    value,
+  );
 }
 
 // Keyed by a token hash too: a token of another user must not reuse the old identity.
@@ -83,9 +86,13 @@ function metaMeCache(db: Database, gitlab: Deps['gitlab'], secrets: Secrets): Gi
   return {
     async get(conn) {
       const key = `gitlab_me:${conn}`;
-      const tokenHash = createHash('sha256').update(secrets.gitlab[conn] ?? '').digest('hex').slice(0, 16);
+      const tokenHash = createHash('sha256')
+        .update(secrets.gitlab[conn] ?? '')
+        .digest('hex')
+        .slice(0, 16);
       const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
-      const cached = row === undefined ? null : (JSON.parse(row.value) as { id: number; username: string; tokenHash?: string });
+      const cached =
+        row === undefined ? null : (JSON.parse(row.value) as { id: number; username: string; tokenHash?: string });
       if (cached !== null && cached.tokenHash === tokenHash) return { id: cached.id, username: cached.username };
       const { id, username } = await gitlab(conn).me();
       upsertMeta(db, key, JSON.stringify({ id, username, tokenHash }));

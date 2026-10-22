@@ -3,7 +3,15 @@ import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../test/helpers/clock';
 import { testConfig } from '../../test/helpers/config';
-import { acquireWorkerLock, createCore, type CopilotExit, type CopilotLauncher, type NeedsYouEvent, type Outcome, type RunStatus } from '@core/index';
+import {
+  acquireWorkerLock,
+  createCore,
+  type CopilotExit,
+  type CopilotLauncher,
+  type NeedsYouEvent,
+  type Outcome,
+  type RunStatus,
+} from '@core/index';
 import { WorkerLoop } from './loop';
 
 const DAY = 86_400_000;
@@ -167,9 +175,19 @@ describe('WorkerLoop', () => {
 
   test('needs-you outcome notifies through the injected notifier', async () => {
     const { core, loop, procs, notified } = setup();
-    const watch = core.watches.create({ target: 'https://example.com/status', repository: 'pages', instructions: 'Check it' });
+    const watch = core.watches.create({
+      target: 'https://example.com/status',
+      repository: 'pages',
+      instructions: 'Check it',
+    });
     if (!watch.ok) throw new Error(JSON.stringify(watch.error));
-    core.queue.enqueueWatch({ watchId: watch.value.id, repository: 'pages', trigger: 'manual', reason: 'manual', model: 'm1' });
+    core.queue.enqueueWatch({
+      watchId: watch.value.id,
+      repository: 'pages',
+      trigger: 'manual',
+      reason: 'manual',
+      model: 'm1',
+    });
 
     await loop.iterate();
     await waitFor(() => procs.length === 1);
@@ -182,7 +200,8 @@ describe('WorkerLoop', () => {
     const { core, clock, loop } = setup();
     const tick = vi.spyOn(core.scheduler, 'tick').mockReturnValue(new Promise(() => {}));
     const watchdog = vi.spyOn(core.executor, 'watchdog');
-    const heartbeatAt = () => (core.db.prepare('SELECT heartbeat_at FROM worker_lock').get() as { heartbeat_at: number }).heartbeat_at;
+    const heartbeatAt = () =>
+      (core.db.prepare('SELECT heartbeat_at FROM worker_lock').get() as { heartbeat_at: number }).heartbeat_at;
 
     await loop.iterate();
     for (let i = 0; i < 3; i++) {

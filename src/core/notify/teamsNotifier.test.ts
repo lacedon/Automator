@@ -20,7 +20,11 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-const TEAMS = { chatId: '19:abc@thread.v2', tool: 'teams-global(send_chat_message)', dashboardUrl: 'http://127.0.0.1:4317' };
+const TEAMS = {
+  chatId: '19:abc@thread.v2',
+  tool: 'teams-global(send_chat_message)',
+  dashboardUrl: 'http://127.0.0.1:4317',
+};
 
 type SetupOpts = {
   mode?: string;
@@ -68,7 +72,8 @@ function needsYou(db: Database, teamsEnabled = true): { event: NeedsYouEvent; wa
   return { event, watchId };
 }
 
-const load = (db: Database, id: number) => toNeedsYouEvent(db.prepare('SELECT * FROM needs_you_events WHERE id = ?').get(id));
+const load = (db: Database, id: number) =>
+  toNeedsYouEvent(db.prepare('SELECT * FROM needs_you_events WHERE id = ?').get(id));
 
 const isAlive = (pid: number) => {
   try {

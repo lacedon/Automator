@@ -2,12 +2,18 @@ import { describe, expect, test } from 'vitest';
 import { isAllowedHost, isAllowedRequest } from './hostCheck';
 
 describe('isAllowedHost', () => {
-  test.each(['127.0.0.1:4317', 'localhost:4317', '[::1]:4317', 'LOCALHOST:4399', '127.0.0.1:3000', 'localhost', '127.0.0.1', '[::1]'])(
-    'allows loopback host %s',
-    (host) => {
-      expect(isAllowedHost(host)).toBe(true);
-    },
-  );
+  test.each([
+    '127.0.0.1:4317',
+    'localhost:4317',
+    '[::1]:4317',
+    'LOCALHOST:4399',
+    '127.0.0.1:3000',
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+  ])('allows loopback host %s', (host) => {
+    expect(isAllowedHost(host)).toBe(true);
+  });
 
   test.each([
     null,

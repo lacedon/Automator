@@ -42,7 +42,13 @@ test('closeWatchFromQueue closes the Watch and removes its queued request', asyn
   const watchId = insertWatch(core.db);
   const other = insertWatch(core.db);
   core.queue.enqueueWatch({ watchId, repository: 'pages', trigger: 'schedule', reason: 'new comment', model: 'm' });
-  const kept = core.queue.enqueueWatch({ watchId: other, repository: 'pages', trigger: 'schedule', reason: 'x', model: 'm' });
+  const kept = core.queue.enqueueWatch({
+    watchId: other,
+    repository: 'pages',
+    trigger: 'schedule',
+    reason: 'x',
+    model: 'm',
+  });
 
   expect(await closeWatchFromQueue(watchId)).toEqual({ ok: true });
   expect(core.watches.get(watchId)?.state).toBe('closed');

@@ -39,7 +39,14 @@ export function RunTabs({ transcript, result, prompt, noTranscript }: Props) {
     <div>
       <div className="tabs" role="tablist">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'tab on' : 'tab'} onClick={() => setTab(t)}>
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            className={tab === t ? 'tab on' : 'tab'}
+            onClick={() => setTab(t)}
+          >
             {TAB_LABEL[t]}
           </button>
         ))}

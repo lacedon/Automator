@@ -88,9 +88,13 @@ describe('WatchService.create', () => {
     const { db, service } = setup();
     const missing = { ok: false, error: { code: 'MISSING_INSTRUCTIONS' } };
     expect(service.create({ target: 'https://example.com/doc', repository: 'pages' })).toEqual(missing);
-    expect(service.create({ target: 'https://example.com/doc', repository: 'pages', instructions: '  ' })).toEqual(missing);
+    expect(service.create({ target: 'https://example.com/doc', repository: 'pages', instructions: '  ' })).toEqual(
+      missing,
+    );
     expect(count(db, 'watches')).toBe(0);
-    const w = value(service.create({ target: 'https://example.com/doc', repository: 'pages', instructions: 'Summarize' }));
+    const w = value(
+      service.create({ target: 'https://example.com/doc', repository: 'pages', instructions: 'Summarize' }),
+    );
     expect(w).toMatchObject({ kind: 'free', instructions: 'Summarize' });
   });
 
@@ -151,7 +155,10 @@ describe('WatchService.create', () => {
 
   test('index backstop maps unique violation to DUPLICATE_WATCH', () => {
     const { db, service, config } = setup();
-    const existing = insertWatch(db, { normalizedTarget: 'gitlab:gitlab.example.com/team/app!42', repository: 'pages' });
+    const existing = insertWatch(db, {
+      normalizedTarget: 'gitlab:gitlab.example.com/team/app!42',
+      repository: 'pages',
+    });
     // Blind the friendly pre-check (first lookup only) so the unique index catches the duplicate, as in a race.
     const prepare = db.prepare.bind(db);
     let blinded = false;
@@ -165,7 +172,10 @@ describe('WatchService.create', () => {
     expect(blinded).toBe(true);
     expect(r).toEqual({
       ok: false,
-      error: { code: 'DUPLICATE_WATCH', existing: { id: existing, state: 'active', intervalMs: config.schedule.intervals.mr } },
+      error: {
+        code: 'DUPLICATE_WATCH',
+        existing: { id: existing, state: 'active', intervalMs: config.schedule.intervals.mr },
+      },
     });
     expect(count(db, 'watches')).toBe(1);
   });
@@ -199,7 +209,9 @@ describe('WatchService.update', () => {
       initialReview: 'unresolved',
       updatedAt: clock.now(),
     });
-    const cleared = value(service.update(w.id, { intervalMs: null, model: null, instructions: null, initialReview: null }));
+    const cleared = value(
+      service.update(w.id, { intervalMs: null, model: null, instructions: null, initialReview: null }),
+    );
     expect(cleared).toMatchObject({ intervalMs: null, model: null, instructions: null, initialReview: null });
     expect(service.update(w.id, { intervalMs: 0 })).toMatchObject({
       ok: false,
@@ -224,7 +236,10 @@ describe('WatchService state actions', () => {
     const a = value(service.create({ target: MR, repository: 'pages' }));
     clock.advance(1000);
     expect(value(service.pause(a.id))).toMatchObject({ state: 'paused', nextCheckAt: null, updatedAt: clock.now() });
-    expect(service.pause(a.id)).toEqual({ ok: false, error: { code: 'INVALID_STATE', state: 'paused', action: 'pause' } });
+    expect(service.pause(a.id)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'paused', action: 'pause' },
+    });
 
     value(service.runNow(a.id, {}));
     expect(queued(db)).toHaveLength(1);
@@ -237,7 +252,10 @@ describe('WatchService state actions', () => {
       updatedAt: clock.now(),
     });
     expect(queued(db)).toHaveLength(0);
-    expect(service.close(a.id)).toEqual({ ok: false, error: { code: 'INVALID_STATE', state: 'closed', action: 'close' } });
+    expect(service.close(a.id)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'closed', action: 'close' },
+    });
     expect(service.pause(999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
   });
 
@@ -255,7 +273,10 @@ describe('WatchService state actions', () => {
       closedReason: null,
       closedAt: null,
     });
-    expect(service.reopen(w.id)).toEqual({ ok: false, error: { code: 'INVALID_STATE', state: 'active', action: 'reopen' } });
+    expect(service.reopen(w.id)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'active', action: 'reopen' },
+    });
   });
 
   test('reopen into duplicate is DUPLICATE_WATCH', () => {
@@ -292,7 +313,10 @@ describe('WatchService state actions', () => {
       nextCheckAt: clock.now(),
     });
     expect(queued(db)).toHaveLength(0);
-    expect(service.resume(w.id, {})).toEqual({ ok: false, error: { code: 'INVALID_STATE', state: 'active', action: 'resume' } });
+    expect(service.resume(w.id, {})).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'active', action: 'resume' },
+    });
 
     enterNeedsYou();
     expect(value(service.resume(w.id, { runNow: true }))).toMatchObject({ state: 'active', needsYouReason: null });
@@ -380,7 +404,9 @@ describe('WatchService state actions', () => {
   test('delete removes watch and its run dirs', () => {
     const { db, service, queue, dataDir } = setup();
     const w = value(service.create({ target: MR, repository: 'pages' }));
-    const other = value(service.create({ target: 'https://gitlab.example.com/team/app/-/merge_requests/43', repository: 'pages' }));
+    const other = value(
+      service.create({ target: 'https://gitlab.example.com/team/app/-/merge_requests/43', repository: 'pages' }),
+    );
     const finished = value(service.runNow(w.id, {}));
     queue.claimNext();
     db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(finished.id);

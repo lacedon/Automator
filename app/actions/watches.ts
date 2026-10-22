@@ -124,18 +124,28 @@ const editableFields = {
 const createSchema = z.object({ target: z.string(), repository: z.string(), ...editableFields });
 const updateSchema = z.object({ id: z.coerce.number().int().positive(), ...editableFields });
 
-export async function createWatch(_prev: FormResult<WatchFormValues>, formData: FormData): Promise<FormResult<WatchFormValues>> {
+export async function createWatch(
+  _prev: FormResult<WatchFormValues>,
+  formData: FormData,
+): Promise<FormResult<WatchFormValues>> {
   const values = formValues(formData);
   const input = parseInput(createSchema, values);
   if (!input.ok) return { ...input, values };
   const { interval, initialReview, ...rest } = input.value;
-  const result = getCore().watches.create({ ...rest, intervalMs: interval ?? undefined, initialReview: initialReview ?? undefined });
+  const result = getCore().watches.create({
+    ...rest,
+    intervalMs: interval ?? undefined,
+    initialReview: initialReview ?? undefined,
+  });
   if (!result.ok) return { ...result, values };
   revalidatePath('/', 'layout');
   redirect(`/watches/${result.value.id}`);
 }
 
-export async function updateWatch(_prev: FormResult<WatchFormValues>, formData: FormData): Promise<FormResult<WatchFormValues>> {
+export async function updateWatch(
+  _prev: FormResult<WatchFormValues>,
+  formData: FormData,
+): Promise<FormResult<WatchFormValues>> {
   const values = formValues(formData);
   const input = parseInput(updateSchema, values);
   if (!input.ok) return { ...input, values };

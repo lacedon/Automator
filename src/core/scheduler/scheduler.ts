@@ -33,7 +33,9 @@ export class Scheduler {
         totals.checked += 1;
         if (enqueued) totals.enqueued += 1;
       } catch (e) {
-        console.error(`${new Date().toISOString()} scheduler: Watch #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(
+          `${new Date().toISOString()} scheduler: Watch #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
         this.postpone(watch);
       }
     }
@@ -51,7 +53,9 @@ export class Scheduler {
         watch.id,
       );
     } catch (e) {
-      console.error(`${new Date().toISOString()} scheduler: cannot postpone Watch #${watch.id}: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(
+        `${new Date().toISOString()} scheduler: cannot postpone Watch #${watch.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -121,7 +125,13 @@ export class Scheduler {
         }
         db.prepare(
           `UPDATE watches SET check_failures = ?, cursor_json = ?, next_check_at = ?, updated_at = ? WHERE id = ?`,
-        ).run(failures, cursor === null ? null : JSON.stringify(cursor), now + intervalFor(watch, config), now, watchId);
+        ).run(
+          failures,
+          cursor === null ? null : JSON.stringify(cursor),
+          now + intervalFor(watch, config),
+          now,
+          watchId,
+        );
         return result.kind === 'changed';
       })
       .immediate();

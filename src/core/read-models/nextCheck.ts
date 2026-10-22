@@ -2,7 +2,8 @@ import type { Config } from '../config/schema';
 import { isWithinWorkingHours, nextWindowStart } from '../domain/schedule';
 import type { Run, Watch } from '../domain/types';
 
-export type NextCheckKind = 'in' | 'running' | 'queued' | 'after-hours' | 'stopped' | 'jira-off' | 'cleanup' | 'closed' | 'paused';
+export type NextCheckKind =
+  'in' | 'running' | 'queued' | 'after-hours' | 'stopped' | 'jira-off' | 'cleanup' | 'closed' | 'paused';
 export type NextCheck = { kind: NextCheckKind; text: string; since?: number };
 
 export interface NextCheckContext {
@@ -32,7 +33,8 @@ function windowText(t: number): string {
 
 export function nextCheckText(w: Watch, ctx: NextCheckContext): NextCheck {
   const { now, running, queuedPos, config } = ctx;
-  if (running !== null && running.watchId === w.id) return { kind: 'running', text: 'running', since: running.startedAt ?? now };
+  if (running !== null && running.watchId === w.id)
+    return { kind: 'running', text: 'running', since: running.startedAt ?? now };
   if (queuedPos !== null) return { kind: 'queued', text: `queued #${queuedPos}` };
   switch (w.state) {
     case 'needs_you':
@@ -48,7 +50,8 @@ export function nextCheckText(w: Watch, ctx: NextCheckContext): NextCheck {
       if (w.kind === 'jira' && !config.jira.enabled) return { kind: 'jira-off', text: 'Jira off' };
       const due = Math.max(w.nextCheckAt ?? now, now);
       const hours = config.schedule.workingHours;
-      if (!isWithinWorkingHours(due, hours)) return { kind: 'after-hours', text: `after hours · ${windowText(nextWindowStart(due, hours))}` };
+      if (!isWithinWorkingHours(due, hours))
+        return { kind: 'after-hours', text: `after hours · ${windowText(nextWindowStart(due, hours))}` };
       return { kind: 'in', text: inText(due - now) };
     }
   }

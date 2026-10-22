@@ -37,7 +37,10 @@ describe('fetchWithRetry', () => {
     expect(res.status).toBe(200);
     expect(sleeps).toEqual([1000, 4000]);
     expect(spy).toHaveBeenCalledTimes(3);
-    expect(spy).toHaveBeenCalledWith('https://x.test/a', expect.objectContaining({ headers: { a: 'b' }, signal: expect.any(AbortSignal) }));
+    expect(spy).toHaveBeenCalledWith(
+      'https://x.test/a',
+      expect.objectContaining({ headers: { a: 'b' }, signal: expect.any(AbortSignal) }),
+    );
   });
 
   test('does not retry 401 and marks auth', async () => {
@@ -106,7 +109,8 @@ describe('fetchWithRetry', () => {
   test('times out a stalled request and retries', async () => {
     const spy = vi.spyOn(globalThis, 'fetch');
     spy.mockImplementationOnce(
-      (_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
+      (_url, init) =>
+        new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
     );
     spy.mockResolvedValueOnce(new Response('ok', { status: 200 }));
     const { sleeps, sleep } = recordingSleep();
@@ -118,7 +122,8 @@ describe('fetchWithRetry', () => {
 
   test('reports a timeout as a network error after all attempts', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(
-      (_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
+      (_url, init) =>
+        new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
     );
     const e = await caught(fetchWithRetry('https://x.test/a', {}, { ...recordingSleep(), timeoutMs: 10 }));
     expect(e).toMatchObject({ status: null, auth: false });

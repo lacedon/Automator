@@ -44,13 +44,14 @@ export class QueueService {
   ) {}
 
   enqueueWatch(input: EnqueueWatchInput): Run {
-    return this.db.transaction(() => {
-      const existing = this.db
-        .prepare("SELECT extra_instructions FROM runs WHERE watch_id = ? AND status = 'queued'")
-        .get(input.watchId) as { extra_instructions: string | null } | undefined;
-      const row = this.db
-        .prepare(
-          `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, extra_instructions, review_unresolved, model, queued_at)
+    return this.db
+      .transaction(() => {
+        const existing = this.db
+          .prepare("SELECT extra_instructions FROM runs WHERE watch_id = ? AND status = 'queued'")
+          .get(input.watchId) as { extra_instructions: string | null } | undefined;
+        const row = this.db
+          .prepare(
+            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, extra_instructions, review_unresolved, model, queued_at)
            VALUES (@watchId, @repository, 'queued', @trigger, @priority, @reason, @extra, @reviewUnresolved, @model, @now)
            ON CONFLICT (watch_id) WHERE status = 'queued' DO UPDATE SET
              priority = min(priority, excluded.priority),
@@ -60,20 +61,21 @@ export class QueueService {
              review_unresolved = max(review_unresolved, excluded.review_unresolved),
              model = excluded.model
            RETURNING *`,
-        )
-        .get({
-          watchId: input.watchId,
-          repository: input.repository,
-          trigger: input.trigger,
-          priority: input.trigger === 'schedule' ? 1 : 0,
-          reason: input.reason,
-          extra: mergeInstructions(existing?.extra_instructions ?? null, input.extraInstructions),
-          reviewUnresolved: input.reviewUnresolved ? 1 : 0,
-          model: input.model,
-          now: this.clock.now(),
-        });
-      return toRun(row);
-    }).immediate();
+          )
+          .get({
+            watchId: input.watchId,
+            repository: input.repository,
+            trigger: input.trigger,
+            priority: input.trigger === 'schedule' ? 1 : 0,
+            reason: input.reason,
+            extra: mergeInstructions(existing?.extra_instructions ?? null, input.extraInstructions),
+            reviewUnresolved: input.reviewUnresolved ? 1 : 0,
+            model: input.model,
+            now: this.clock.now(),
+          });
+        return toRun(row);
+      })
+      .immediate();
   }
 
   enqueueAdhoc(input: EnqueueAdhocInput): Run {
@@ -94,73 +96,80 @@ export class QueueService {
   }
 
   claimNext(): Run | null {
-    return this.db.transaction((): Run | null => {
-      if (this.db.prepare("SELECT 1 FROM runs WHERE status = 'running'").get()) return null;
-      const next = this.db.prepare(
-        `SELECT r.id, r.trigger, w.state AS watch_state FROM runs r
+    return this.db
+      .transaction((): Run | null => {
+        if (this.db.prepare("SELECT 1 FROM runs WHERE status = 'running'").get()) return null;
+        const next = this.db.prepare(
+          `SELECT r.id, r.trigger, w.state AS watch_state FROM runs r
          LEFT JOIN watches w ON w.id = r.watch_id
          WHERE r.status = 'queued'
          ORDER BY r.priority, r.queued_at, r.id
          LIMIT 1`,
-      );
-      for (;;) {
-        const row = next.get() as { id: number; trigger: string; watch_state: WatchState | null } | undefined;
-        if (!row) return null;
-        const state = row.watch_state;
-        if (state === 'closed' || state === 'needs_you' || (state === 'paused' && row.trigger === 'schedule')) {
-          this.db.prepare('DELETE FROM runs WHERE id = ?').run(row.id);
-          continue;
-        }
-        return toRun(
-          this.db
-            .prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ? RETURNING *")
-            .get(this.clock.now(), row.id),
         );
-      }
-    }).immediate();
+        for (;;) {
+          const row = next.get() as { id: number; trigger: string; watch_state: WatchState | null } | undefined;
+          if (!row) return null;
+          const state = row.watch_state;
+          if (state === 'closed' || state === 'needs_you' || (state === 'paused' && row.trigger === 'schedule')) {
+            this.db.prepare('DELETE FROM runs WHERE id = ?').run(row.id);
+            continue;
+          }
+          return toRun(
+            this.db
+              .prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ? RETURNING *")
+              .get(this.clock.now(), row.id),
+          );
+        }
+      })
+      .immediate();
   }
 
   cancel(runId: number): Result<'deleted' | 'cancel-requested'> {
-    return this.db.transaction((): Result<'deleted' | 'cancel-requested'> => {
-      const status = this.status(runId);
-      if (!status) return err({ code: 'NOT_FOUND' });
-      if (status === 'queued') {
-        this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-        return ok('deleted');
-      }
-      if (status === 'running') {
-        this.db
-          .prepare('UPDATE runs SET cancel_requested_at = coalesce(cancel_requested_at, ?) WHERE id = ?')
-          .run(this.clock.now(), runId);
-        return ok('cancel-requested');
-      }
-      return err({ code: 'INVALID_STATE', state: status, action: 'cancel' });
-    }).immediate();
+    return this.db
+      .transaction((): Result<'deleted' | 'cancel-requested'> => {
+        const status = this.status(runId);
+        if (!status) return err({ code: 'NOT_FOUND' });
+        if (status === 'queued') {
+          this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+          return ok('deleted');
+        }
+        if (status === 'running') {
+          this.db
+            .prepare('UPDATE runs SET cancel_requested_at = coalesce(cancel_requested_at, ?) WHERE id = ?')
+            .run(this.clock.now(), runId);
+          return ok('cancel-requested');
+        }
+        return err({ code: 'INVALID_STATE', state: status, action: 'cancel' });
+      })
+      .immediate();
   }
 
   // Unlike cancel, never flags a Run that started in the meantime: stopping a running Run needs its own confirmation.
   cancelQueued(runId: number): Result<void> {
-    return this.db.transaction((): Result<void> => {
-      const status = this.status(runId);
-      if (!status) return err({ code: 'NOT_FOUND' });
-      if (status !== 'queued') return err({ code: 'INVALID_STATE', state: status, action: 'cancelQueued' });
-      this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-      return ok(undefined);
-    }).immediate();
+    return this.db
+      .transaction((): Result<void> => {
+        const status = this.status(runId);
+        if (!status) return err({ code: 'NOT_FOUND' });
+        if (status !== 'queued') return err({ code: 'INVALID_STATE', state: status, action: 'cancelQueued' });
+        this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+        return ok(undefined);
+      })
+      .immediate();
   }
 
   deleteAdhoc(runId: number): Result<void> {
-    const result = this.db.transaction((): Result<void> => {
-      const row = this.db.prepare('SELECT watch_id, status FROM runs WHERE id = ?').get(runId) as
-        | { watch_id: number | null; status: RunStatus }
-        | undefined;
-      if (!row) return err({ code: 'NOT_FOUND' });
-      if (row.watch_id !== null || row.status !== 'finished') {
-        return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
-      }
-      this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-      return ok(undefined);
-    }).immediate();
+    const result = this.db
+      .transaction((): Result<void> => {
+        const row = this.db.prepare('SELECT watch_id, status FROM runs WHERE id = ?').get(runId) as
+          { watch_id: number | null; status: RunStatus } | undefined;
+        if (!row) return err({ code: 'NOT_FOUND' });
+        if (row.watch_id !== null || row.status !== 'finished') {
+          return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
+        }
+        this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+        return ok(undefined);
+      })
+      .immediate();
     if (result.ok) this.dataDir.removeRunDir(runId);
     return result;
   }

@@ -32,14 +32,29 @@ async function cli(core: Core, ...argv: string[]) {
 
 function queuedRuns(core: Core) {
   return core.db
-    .prepare("SELECT watch_id, repository, adhoc_prompt, extra_instructions, review_unresolved FROM runs WHERE status = 'queued'")
+    .prepare(
+      "SELECT watch_id, repository, adhoc_prompt, extra_instructions, review_unresolved FROM runs WHERE status = 'queued'",
+    )
     .all();
 }
 
 describe('runCli', () => {
   test('watch add success exits 0', async () => {
     const core = setup();
-    const r = await cli(core, 'watch', 'add', MR, '--repo', 'pages', '--interval', '30m', '--model', 'm1', '--initial-review', 'unresolved');
+    const r = await cli(
+      core,
+      'watch',
+      'add',
+      MR,
+      '--repo',
+      'pages',
+      '--interval',
+      '30m',
+      '--model',
+      'm1',
+      '--initial-review',
+      'unresolved',
+    );
     expect(r).toEqual({ code: 0, out: ['Watch #1 created (mr, pages)'], err: [] });
     expect(core.watches.get(1)).toMatchObject({ intervalMs: 30 * 60_000, model: 'm1', initialReview: 'unresolved' });
   });
@@ -51,7 +66,9 @@ describe('runCli', () => {
     expect(r.out).toEqual([]);
     const [file] = fs.readdirSync(core.dataDir.attemptsDir);
     const attemptFile = path.join(core.dataDir.attemptsDir, file!);
-    expect(r.err).toEqual([`Unknown Repository "nope". No Watch was created. Known: api, pages. Result file: ${attemptFile}`]);
+    expect(r.err).toEqual([
+      `Unknown Repository "nope". No Watch was created. Known: api, pages. Result file: ${attemptFile}`,
+    ]);
     expect(core.watches.list()).toEqual([]);
   });
 
@@ -61,7 +78,9 @@ describe('runCli', () => {
     const r = await cli(core, 'watch', 'add', MR, '--repo', 'nope');
     expect(r.code).toBe(1);
     expect(r.err).toEqual([
-      expect.stringMatching(/^Unknown Repository "nope"\. No Watch was created\. Known: api, pages\. Result file could not be written: .+/),
+      expect.stringMatching(
+        /^Unknown Repository "nope"\. No Watch was created\. Known: api, pages\. Result file could not be written: .+/,
+      ),
     ]);
   });
 
@@ -103,7 +122,9 @@ describe('runCli', () => {
     expect(queuedRuns(core)).toContainEqual(
       expect.objectContaining({ watch_id: null, repository: 'api', adhoc_prompt: 'Do the thing' }),
     );
-    expect(core.db.prepare('SELECT model FROM runs WHERE id = 2').get()).toEqual({ model: core.config.runs.defaultModel });
+    expect(core.db.prepare('SELECT model FROM runs WHERE id = 2').get()).toEqual({
+      model: core.config.runs.defaultModel,
+    });
   });
 
   test('unknown repository for run exits 1', async () => {
@@ -111,7 +132,9 @@ describe('runCli', () => {
     const r = await cli(core, 'run', '--repo', 'nope', '--prompt', 'x');
     expect(r.code).toBe(1);
     expect(r.err).toEqual([
-      expect.stringMatching(/^Unknown Repository "nope"\. No Run was queued\. Known: api, pages\. Result file: .+\.json$/),
+      expect.stringMatching(
+        /^Unknown Repository "nope"\. No Run was queued\. Known: api, pages\. Result file: .+\.json$/,
+      ),
     ]);
     expect(queuedRuns(core)).toEqual([]);
   });
@@ -122,7 +145,13 @@ describe('runCli', () => {
     const r = await cli(core, 'run-now', '1', '--review-unresolved', '--instructions', 'Look at the tests');
     expect(r).toEqual({ code: 0, out: ['Run #1 queued (position 1)'], err: [] });
     expect(queuedRuns(core)).toEqual([
-      { watch_id: 1, repository: 'pages', adhoc_prompt: null, extra_instructions: 'Look at the tests', review_unresolved: 1 },
+      {
+        watch_id: 1,
+        repository: 'pages',
+        adhoc_prompt: null,
+        extra_instructions: 'Look at the tests',
+        review_unresolved: 1,
+      },
     ]);
   });
 
@@ -153,7 +182,18 @@ describe('runCli', () => {
   test('watch list filters by state', async () => {
     const core = setup();
     await cli(core, 'watch', 'add', MR, '--repo', 'pages');
-    await cli(core, 'watch', 'add', 'https://example.com/page', '--repo', 'api', '--instructions', 'Check it', '--interval', '1h');
+    await cli(
+      core,
+      'watch',
+      'add',
+      'https://example.com/page',
+      '--repo',
+      'api',
+      '--instructions',
+      'Check it',
+      '--interval',
+      '1h',
+    );
     core.watches.pause(1);
     const all = await cli(core, 'watch', 'list');
     expect(all.code).toBe(0);
@@ -170,7 +210,16 @@ describe('runCli', () => {
     const core = setup();
     const file = path.join(core.config.configDir, 'instructions.md');
     fs.writeFileSync(file, 'Summarize new posts\n');
-    const r = await cli(core, 'watch', 'add', 'https://example.com/page', '--repo', 'pages', '--instructions', `@${file}`);
+    const r = await cli(
+      core,
+      'watch',
+      'add',
+      'https://example.com/page',
+      '--repo',
+      'pages',
+      '--instructions',
+      `@${file}`,
+    );
     expect(r).toEqual({ code: 0, out: ['Watch #1 created (free, pages)'], err: [] });
     expect(core.watches.get(1)!.instructions).toBe('Summarize new posts');
   });

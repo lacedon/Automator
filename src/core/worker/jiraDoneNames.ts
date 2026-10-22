@@ -21,7 +21,9 @@ export async function resolveJiraDoneNames(core: DoneNamesCore): Promise<void> {
         .prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value')
         .run(`jira_done_names:${conn}`, JSON.stringify(names));
     } catch (e) {
-      console.error(`${ts()} jira: cannot resolve Done status names for "${conn}": ${e instanceof Error ? e.message : String(e)}`);
+      console.error(
+        `${ts()} jira: cannot resolve Done status names for "${conn}": ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 }

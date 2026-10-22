@@ -137,7 +137,10 @@ describe('Scheduler.tick', () => {
     const id = dueWatch(db, clock.now() - MIN);
     db.prepare('UPDATE watches SET check_failures = 1 WHERE id = ?').run(id);
     const keep = dueWatch(db, clock.now() - MIN);
-    db.prepare("UPDATE watches SET title = title || '-keep', cursor_json = ? WHERE id = ?").run(JSON.stringify(kept), keep);
+    db.prepare("UPDATE watches SET title = title || '-keep', cursor_json = ? WHERE id = ?").run(
+      JSON.stringify(kept),
+      keep,
+    );
 
     expect(await scheduler.tick()).toEqual({ checked: 2, enqueued: 0 });
     expect(watch(db, id)).toMatchObject({ cursor, checkFailures: 0 });
@@ -149,7 +152,12 @@ describe('Scheduler.tick', () => {
     const { db, clock, scheduler } = setup({ script: () => ({ kind: 'close', reason: 'merged' }) });
     const id = dueWatch(db, clock.now() - MIN);
     expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
-    expect(watch(db, id)).toMatchObject({ state: 'closed', closedReason: 'merged', closedAt: clock.now(), nextCheckAt: null });
+    expect(watch(db, id)).toMatchObject({
+      state: 'closed',
+      closedReason: 'merged',
+      closedAt: clock.now(),
+      nextCheckAt: null,
+    });
     expect(runsOf(db, id)).toEqual([]);
   });
 
@@ -282,7 +290,8 @@ describe('Scheduler.tick', () => {
       script: (w) => {
         if (w.id === ids.checkThrows) throw new Error('check exploded');
         // A BigInt in the cursor makes JSON.stringify throw inside apply.
-        if (w.id === ids.applyThrows) return { kind: 'unchanged', cursor: { lastNoteId: 1n } as unknown as typeof good };
+        if (w.id === ids.applyThrows)
+          return { kind: 'unchanged', cursor: { lastNoteId: 1n } as unknown as typeof good };
         return { kind: 'unchanged', cursor: good };
       },
     });
@@ -297,7 +306,9 @@ describe('Scheduler.tick', () => {
       expect(watch(db, id)).toMatchObject({ state: 'active', nextCheckAt: clock.now() + interval, cursor: null });
     }
     expect(errors).toHaveBeenCalledTimes(2);
-    expect(errors).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^\\S+Z .*Watch #${ids.checkThrows}.*check exploded`)));
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringMatching(new RegExp(`^\\S+Z .*Watch #${ids.checkThrows}.*check exploded`)),
+    );
     errors.mockRestore();
   });
 });

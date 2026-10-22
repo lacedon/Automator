@@ -20,7 +20,13 @@ export function nextWindowStart(t: number, wh: WorkingHours): number {
   if (start >= minutesOf(wh.end)) throw new Error(`Working hours ${wh.start}-${wh.end} define no window`);
   const from = new Date(t);
   for (let offset = 0; offset <= 7; offset++) {
-    const candidate = new Date(from.getFullYear(), from.getMonth(), from.getDate() + offset, Math.floor(start / 60), start % 60);
+    const candidate = new Date(
+      from.getFullYear(),
+      from.getMonth(),
+      from.getDate() + offset,
+      Math.floor(start / 60),
+      start % 60,
+    );
     if (wh.days.includes(candidate.getDay()) && candidate.getTime() > t) return candidate.getTime();
   }
   throw new Error('Working hours define no working days');

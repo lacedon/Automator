@@ -22,8 +22,7 @@ export class CleanupService {
     const { enabled, everyDays } = this.deps.config.cleanup;
     if (!enabled) return false;
     const row = this.deps.db.prepare('SELECT value FROM meta WHERE key = ?').get(LAST_CLEANUP_KEY) as
-      | { value: string }
-      | undefined;
+      { value: string } | undefined;
     return row === undefined || this.deps.clock.now() - Number(row.value) >= everyDays * DAY_MS;
   }
 
@@ -47,10 +46,9 @@ export class CleanupService {
           for (const e of selectEvents.all(id) as { id: number }[]) eventIds.push(e.id);
           deleteWatch.run(id);
         }
-        db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
-          LAST_CLEANUP_KEY,
-          String(now),
-        );
+        db.prepare(
+          'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ).run(LAST_CLEANUP_KEY, String(now));
         return { deletedWatches: watchIds.length, runIds, eventIds };
       })
       .immediate();

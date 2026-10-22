@@ -8,14 +8,14 @@ Someone can build v1 from the README, the UI spec and this document without maki
 
 ## Decisions summary
 
-| Topic | Decision |
-| --- | --- |
-| Copilot invocation | Spawn `copilot -p` as a child process in the Repository folder |
-| Run result channel | Prompt tells Copilot to write `{outcome, summary}` to a per-Run file; the worker validates it |
-| Process coordination | SQLite only; no network port between dashboard, CLI and worker |
-| Repo layout | Single npm package; `src/core` shared by `app/`, `src/worker`, `src/cli` |
-| Dashboard freshness | Visibility-aware `router.refresh()` every ~3 s |
-| Testing | Vitest + temp SQLite + fake clock, `msw` for HTTP, fake `copilot` script, Playwright smoke |
+| Topic                | Decision                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| Copilot invocation   | Spawn `copilot -p` as a child process in the Repository folder                                |
+| Run result channel   | Prompt tells Copilot to write `{outcome, summary}` to a per-Run file; the worker validates it |
+| Process coordination | SQLite only; no network port between dashboard, CLI and worker                                |
+| Repo layout          | Single npm package; `src/core` shared by `app/`, `src/worker`, `src/cli`                      |
+| Dashboard freshness  | Visibility-aware `router.refresh()` every ~3 s                                                |
+| Testing              | Vitest + temp SQLite + fake clock, `msw` for HTTP, fake `copilot` script, Playwright smoke    |
 
 ## Processes
 
@@ -78,12 +78,12 @@ automator.config.example.json
 
 ```ts
 interface Deps {
-  clock: Clock;                // now(): number
+  clock: Clock; // now(): number
   gitlab: (conn: string) => GitLabClient;
   jira: (conn: string) => JiraClient;
-  copilot: CopilotLauncher;    // spawn + kill, returns a handle
-  notifier: Notifier;          // notifyNeedsYou(event)
-  fs?: FileStore;              // defaults to node:fs implementation
+  copilot: CopilotLauncher; // spawn + kill, returns a handle
+  notifier: Notifier; // notifyNeedsYou(event)
+  fs?: FileStore; // defaults to node:fs implementation
 }
 ```
 
@@ -97,40 +97,46 @@ Config file: `automator.config.json` in the project root (gitignored), overridab
 ```jsonc
 {
   "dataDir": "~/.automator",
-  "copilotBin": "copilot",                       // tests point this at the fake script
+  "copilotBin": "copilot", // tests point this at the fake script
   "repositories": {
     "pages": {
       "folder": "~/work/pages",
-      "gitlab": "corp",                          // gitlab connection name
-      "jira": "corp",                            // optional jira connection name
-      "validate": ["npm run lint", "npm test"]   // empty ⇒ Copilot must escalate before pushing
-    }
+      "gitlab": "corp", // gitlab connection name
+      "jira": "corp", // optional jira connection name
+      "validate": ["npm run lint", "npm test"], // empty ⇒ Copilot must escalate before pushing
+    },
   },
   "gitlab": { "corp": { "host": "https://gitlab.example.com", "tokenEnv": "GITLAB_TOKEN" } },
   "jira": {
     "enabled": false,
     "connections": {
-      "corp": { "baseUrl": "https://jira.example.com", "emailEnv": "JIRA_EMAIL", "tokenEnv": "JIRA_TOKEN", "doneStatusIds": ["10001"] }
-    }
+      "corp": {
+        "baseUrl": "https://jira.example.com",
+        "emailEnv": "JIRA_EMAIL",
+        "tokenEnv": "JIRA_TOKEN",
+        "doneStatusIds": ["10001"],
+      },
+    },
   },
   "schedule": {
     "intervals": { "mr": "15m", "default": "2h" },
-    "workingHours": { "days": [1, 2, 3, 4, 5], "start": "08:00", "end": "19:00" }
+    "workingHours": { "days": [1, 2, 3, 4, 5], "start": "08:00", "end": "19:00" },
   },
   "runs": {
     "timeoutMinutes": 30,
     "defaultModel": "claude-sonnet-4.5",
     "models": ["claude-sonnet-4.5", "gpt-5"],
     "initialReview": "baseline-only",
-    "denyTools": []                               // Copilot CLI permission patterns, see CopilotLauncher
+    "denyTools": [], // Copilot CLI permission patterns, see CopilotLauncher
   },
   "prompts": { "dir": "./prompts" },
   "cleanup": { "enabled": true, "everyDays": 7, "retainClosedDays": 30 },
-  "teams": {                                      // omit ⇒ notifications disabled
+  "teams": {
+    // omit ⇒ notifications disabled
     "chatId": "19:abc@thread.v2",
-    "tool": "teams-global(send_chat_message)",    // MCP permission pattern for the send tool (default shown)
-    "dashboardUrl": "http://127.0.0.1:4317"       // used in the message link (default shown); optional "model"
-  }
+    "tool": "teams-global(send_chat_message)", // MCP permission pattern for the send tool (default shown)
+    "dashboardUrl": "http://127.0.0.1:4317", // used in the message link (default shown); optional "model"
+  },
 }
 ```
 
@@ -149,54 +155,54 @@ SQLite at `<dataDir>/automator.db`. Connection pragmas: `journal_mode=WAL`, `bus
 
 ### `watches`
 
-| Column | Notes |
-| --- | --- |
-| id | PK |
-| kind | `mr` \| `jira` \| `free` |
-| target_url | as entered (normalized display form) |
-| normalized_target | `gitlab:<host>/<project path>!<iid>`, `jira:<host>/<KEY>`, or the normalized URL for free-form |
-| repository | Repository name from config |
-| title | from GitLab/Jira preview when available, else target |
-| state | `active` \| `paused` \| `needs_you` \| `closed` |
-| instructions | extra instructions; required for `free` |
-| interval_ms, model, initial_review | NULL ⇒ config default |
-| mr_source_branch | refreshed on every MR snapshot |
-| cursor_json | last handled point (see Pre-checks); NULL until first check |
-| next_check_at | NULL while not scheduled (paused, needs_you, closed) |
-| check_failures | consecutive failed pre-checks |
-| needs_you_reason, needs_you_since, needs_you_run_id | set on entering Needs you, cleared on resume |
-| resolution_note | set on resume; cleared after the next Run with result `success` |
-| closed_reason | `merged` \| `mr-closed` \| `jira-done` \| `user` |
-| closed_at, created_at, updated_at | |
+| Column                                              | Notes                                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| id                                                  | PK                                                                                             |
+| kind                                                | `mr` \| `jira` \| `free`                                                                       |
+| target_url                                          | as entered (normalized display form)                                                           |
+| normalized_target                                   | `gitlab:<host>/<project path>!<iid>`, `jira:<host>/<KEY>`, or the normalized URL for free-form |
+| repository                                          | Repository name from config                                                                    |
+| title                                               | from GitLab/Jira preview when available, else target                                           |
+| state                                               | `active` \| `paused` \| `needs_you` \| `closed`                                                |
+| instructions                                        | extra instructions; required for `free`                                                        |
+| interval_ms, model, initial_review                  | NULL ⇒ config default                                                                          |
+| mr_source_branch                                    | refreshed on every MR snapshot                                                                 |
+| cursor_json                                         | last handled point (see Pre-checks); NULL until first check                                    |
+| next_check_at                                       | NULL while not scheduled (paused, needs_you, closed)                                           |
+| check_failures                                      | consecutive failed pre-checks                                                                  |
+| needs_you_reason, needs_you_since, needs_you_run_id | set on entering Needs you, cleared on resume                                                   |
+| resolution_note                                     | set on resume; cleared after the next Run with result `success`                                |
+| closed_reason                                       | `merged` \| `mr-closed` \| `jira-done` \| `user`                                               |
+| closed_at, created_at, updated_at                   |                                                                                                |
 
 Partial unique index `ux_watch_target ON watches(normalized_target, repository) WHERE state <> 'closed'` enforces "one non-Closed Watch per target and Repository" for every writer, including reopen. Services also check before insert so they can return a friendly `DUPLICATE_WATCH` with the existing Watch; the index is the backstop for races.
 
 ### `runs` (also the queue)
 
-| Column | Notes |
-| --- | --- |
-| id | PK, display `#n` |
-| watch_id | FK → watches, NULL for ad-hoc, `ON DELETE CASCADE` |
-| repository | |
-| status | `queued` \| `running` \| `finished` |
-| trigger | `schedule` \| `manual` \| `adhoc` |
-| priority | 0 = manual/ad-hoc, 1 = scheduled |
-| reason | short text shown in the Queue page, e.g. "new comment by @anna" |
-| adhoc_prompt, extra_instructions | |
-| review_unresolved | 0/1 |
-| model | resolved at enqueue |
-| queued_at, started_at, ended_at | |
-| pid | process group id of the Copilot child |
-| cancel_requested_at | set by dashboard/CLI |
-| exit_code | |
-| result_status | `success` \| `error` |
-| outcome | `nothing` \| `acted` \| `needs-you` (NULL on error) |
-| summary | |
-| error_json | structured error `{code, message, detail?}` |
-| interrupted | `timeout` \| `cancelled` \| `worker-restart` \| NULL |
-| cursor_candidate_json | snapshot cursor taken at Run start |
-| branch | current branch of the checkout after the Run (`git rev-parse --abbrev-ref HEAD`) |
-| prompt_path, transcript_path, result_path | |
+| Column                                    | Notes                                                                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------- |
+| id                                        | PK, display `#n`                                                                 |
+| watch_id                                  | FK → watches, NULL for ad-hoc, `ON DELETE CASCADE`                               |
+| repository                                |                                                                                  |
+| status                                    | `queued` \| `running` \| `finished`                                              |
+| trigger                                   | `schedule` \| `manual` \| `adhoc`                                                |
+| priority                                  | 0 = manual/ad-hoc, 1 = scheduled                                                 |
+| reason                                    | short text shown in the Queue page, e.g. "new comment by @anna"                  |
+| adhoc_prompt, extra_instructions          |                                                                                  |
+| review_unresolved                         | 0/1                                                                              |
+| model                                     | resolved at enqueue                                                              |
+| queued_at, started_at, ended_at           |                                                                                  |
+| pid                                       | process group id of the Copilot child                                            |
+| cancel_requested_at                       | set by dashboard/CLI                                                             |
+| exit_code                                 |                                                                                  |
+| result_status                             | `success` \| `error`                                                             |
+| outcome                                   | `nothing` \| `acted` \| `needs-you` (NULL on error)                              |
+| summary                                   |                                                                                  |
+| error_json                                | structured error `{code, message, detail?}`                                      |
+| interrupted                               | `timeout` \| `cancelled` \| `worker-restart` \| NULL                             |
+| cursor_candidate_json                     | snapshot cursor taken at Run start                                               |
+| branch                                    | current branch of the checkout after the Run (`git rev-parse --abbrev-ref HEAD`) |
+| prompt_path, transcript_path, result_path |                                                                                  |
 
 Indexes:
 
@@ -243,12 +249,12 @@ All worker-written JSON is written atomically (write `*.tmp`, `fsync`, `rename`)
 
 ### Watch state machine
 
-| From \ action | pause | resume | resume & run now | close | reopen | run now | delete |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| active | paused | – | – | closed | – | enqueue manual | if no running Run |
-| paused | – | active | – | closed | – | enqueue manual | if no running Run |
-| needs_you | paused | active | active + enqueue manual | closed | – | – | if no running Run |
-| closed | – | – | – | – | active (dup check) | – | if no running Run |
+| From \ action | pause  | resume | resume & run now        | close  | reopen             | run now        | delete            |
+| ------------- | ------ | ------ | ----------------------- | ------ | ------------------ | -------------- | ----------------- |
+| active        | paused | –      | –                       | closed | –                  | enqueue manual | if no running Run |
+| paused        | –      | active | –                       | closed | –                  | enqueue manual | if no running Run |
+| needs_you     | paused | active | active + enqueue manual | closed | –                  | –              | if no running Run |
+| closed        | –      | –      | –                       | –      | active (dup check) | –              | if no running Run |
 
 - Invalid combinations return `INVALID_STATE`; the UI hides or disables them per the UI spec.
 - **(new rule)** Run now is allowed on Paused Watches (a one-off manual Run; the Watch stays Paused). Scheduled queue rows of a Watch that becomes Paused are dropped at claim time.
@@ -295,15 +301,21 @@ type AppError =
 
 ```ts
 interface Precheck {
-  check(watch: Watch): Promise<PrecheckResult>;   // scheduler: decide whether to enqueue
+  check(watch: Watch): Promise<PrecheckResult>; // scheduler: decide whether to enqueue
   snapshot(watch: Watch, opts: { reviewUnresolved: boolean }): Promise<Snapshot>; // Run start
 }
 type PrecheckResult =
   | { kind: 'changed'; reason: string }
-  | { kind: 'unchanged'; cursor?: Cursor }          // cursor set only for the baseline-only first check
+  | { kind: 'unchanged'; cursor?: Cursor } // cursor set only for the baseline-only first check
   | { kind: 'close'; reason: 'merged' | 'mr-closed' | 'jira-done' }
   | { kind: 'failed'; auth: boolean; message: string };
-type Snapshot = { events: EventSummary[]; cursorCandidate: Cursor; title: string; sourceBranch?: string; close?: ClosedReason };
+type Snapshot = {
+  events: EventSummary[];
+  cursorCandidate: Cursor;
+  title: string;
+  sourceBranch?: string;
+  close?: ClosedReason;
+};
 ```
 
 **GitLab** (REST v4, `PRIVATE-TOKEN` header):
@@ -367,9 +379,20 @@ Secrets are never put into prompts. **(new rule)** The events section is capped 
 
 ```ts
 interface CopilotLauncher {
-  start(opts: { cwd: string; prompt: string; model: string; transcriptPath: string; logPath: string; env: NodeJS.ProcessEnv }): RunningProcess;
+  start(opts: {
+    cwd: string;
+    prompt: string;
+    model: string;
+    transcriptPath: string;
+    logPath: string;
+    env: NodeJS.ProcessEnv;
+  }): RunningProcess;
 }
-interface RunningProcess { pid: number; exited: Promise<{ code: number | null; signal: string | null }>; kill(signal: 'SIGTERM' | 'SIGKILL'): void; }
+interface RunningProcess {
+  pid: number;
+  exited: Promise<{ code: number | null; signal: string | null }>;
+  kill(signal: 'SIGTERM' | 'SIGKILL'): void;
+}
 ```
 
 Real implementation: `spawn(config.copilotBin, args, { cwd, detached: true, env, stdio: ['ignore', log, log] })`, kill via `process.kill(-pid, signal)`. Arguments:
@@ -393,7 +416,7 @@ The child env is `process.env` minus all configured `tokenEnv`/`emailEnv` variab
    - the Repository is missing from config or its folder doesn't exist (`REPOSITORY_UNAVAILABLE`),
    - the Watch is Jira and Jira is disabled (`JIRA_DISABLED`),
    - the snapshot fails (`PRECHECK_FAILED`).
-   If the snapshot reports the MR merged/closed or the ticket done, close the Watch, finish the Run as `success`/`nothing` with summary "Closed: <reason>", and don't start Copilot.
+     If the snapshot reports the MR merged/closed or the ticket done, close the Watch, finish the Run as `success`/`nothing` with summary "Closed: <reason>", and don't start Copilot.
 2. Update `title`, `mr_source_branch`; store `cursor_candidate_json`.
 3. Build and save the prompt; `start()` Copilot; store `pid`.
 4. **Watchdog** (called by the loop every second): if `cancel_requested_at` is set ⇒ `interrupted = cancelled`; if `now - started_at > timeoutMinutes` ⇒ `interrupted = timeout`. Send SIGTERM to the group, SIGKILL after 10 s if still alive.
@@ -473,15 +496,15 @@ Prints a one-line result (`Watch #12 created`, `Run #43 queued`) or the error. E
 
 ## Scripts
 
-| Script | Command |
-| --- | --- |
-| `dev` | `node scripts/start.mjs dev`: `next dev -H 127.0.0.1 -p ${PORT:-3000}` + `node --watch --import tsx src/worker/main.ts` |
-| `build` | `next build` |
-| `start` | `node scripts/start.mjs`: `next start -H 127.0.0.1 -p ${PORT:-4317}` + `node --import tsx src/worker/main.ts` |
-| `automator` | `tsx src/cli/main.ts` (also `bin`) |
-| `test` | `vitest run` |
-| `e2e` | `playwright test` |
-| `check` | `tsc --noEmit && eslint . && depcruise src app && vitest run` |
+| Script      | Command                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `dev`       | `node scripts/start.mjs dev`: `next dev -H 127.0.0.1 -p ${PORT:-3000}` + `node --watch --import tsx src/worker/main.ts` |
+| `build`     | `next build`                                                                                                            |
+| `start`     | `node scripts/start.mjs`: `next start -H 127.0.0.1 -p ${PORT:-4317}` + `node --import tsx src/worker/main.ts`           |
+| `automator` | `tsx src/cli/main.ts` (also `bin`)                                                                                      |
+| `test`      | `vitest run`                                                                                                            |
+| `e2e`       | `playwright test`                                                                                                       |
+| `check`     | `tsc --noEmit && eslint . && depcruise src app && vitest run`                                                           |
 
 ## Testing
 

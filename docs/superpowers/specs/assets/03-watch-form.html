@@ -1,87 +1,303 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>03-watch-form</title>
-<style>body{background:#0d1117;color:#e6edf3;font-family:-apple-system,system-ui,sans-serif;padding:24px;max-width:1100px;margin:auto}.subtitle{color:#8d96a0}.options{display:grid;gap:20px}.letter{display:none}</style></head><body>
-<h2>Create / edit Watch form and its errors</h2>
-<p class="subtitle">One form for create and edit. The kind is detected from the URL. In edit mode the target and Repository are locked, because changing either one needs a new Watch.</p>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>03-watch-form</title>
+    <style>
+      body {
+        background: #0d1117;
+        color: #e6edf3;
+        font-family: -apple-system, system-ui, sans-serif;
+        padding: 24px;
+        max-width: 1100px;
+        margin: auto;
+      }
+      .subtitle {
+        color: #8d96a0;
+      }
+      .options {
+        display: grid;
+        gap: 20px;
+      }
+      .letter {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Create / edit Watch form and its errors</h2>
+    <p class="subtitle">
+      One form for create and edit. The kind is detected from the URL. In edit mode the target and Repository are
+      locked, because changing either one needs a new Watch.
+    </p>
 
-<style>
-  .m { font: 12px/1.45 -apple-system, system-ui, sans-serif; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:8px; overflow:hidden; margin-bottom:22px; }
-  .m .bar { display:flex; gap:10px; align-items:center; padding:9px 14px; font-weight:600; background:#010409; border-bottom:1px solid #30363d; }
-  .m .sp { flex:1 }
-  .m .btn { border-radius:5px; padding:4px 10px; font-weight:600; font-size:11px; background:#238636; color:#fff; white-space:nowrap; display:inline-block; }
-  .m .btn.g { background:#21262d; color:#e6edf3; border:1px solid #30363d; }
-  .m .side { width:140px; padding:10px 0; background:#010409; border-right:1px solid #30363d; color:#8d96a0; flex-shrink:0; }
-  .m .side div { padding:6px 14px; display:flex; justify-content:space-between; }
-  .m .side .on { background:#1f2937; color:#e6edf3; box-shadow: inset 3px 0 #2f81f7; }
-  .m .main { flex:1; padding:14px 18px; min-width:0; max-width:620px; }
-  .m .mut { color:#8d96a0; font-size:11px; }
-  .m code { font-size:11px; padding:0 4px; border-radius:3px; background:#262c36; }
-  .m a { color:#58a6ff; }
-  .f { margin-bottom:12px; }
-  .f label { display:block; font-weight:600; margin-bottom:4px; }
-  .f .in { background:#010409; border:1px solid #30363d; border-radius:5px; padding:6px 9px; color:#e6edf3; }
-  .f .in.ph { color:#6e7681; }
-  .f .in.lock { background:#161b22; color:#8d96a0; }
-  .f .in.err { border-color:#f85149; }
-  .f .ta { height:54px; }
-  .row2 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-  .seg { display:inline-flex; border:1px solid #30363d; border-radius:5px; overflow:hidden; }
-  .seg span { padding:4px 10px; color:#8d96a0; }
-  .seg .on { background:#1f2937; color:#e6edf3; }
-  .badge { font-size:10px; padding:1px 7px; border-radius:10px; font-weight:600; background:#0c2d6b; color:#79c0ff; margin-left:6px; }
-  .errbox { background:#2d1517; border:1px solid #6e2a2e; border-radius:6px; padding:9px 12px; margin-bottom:12px; }
-  .errbox b { color:#ff9492; }
-  .lbl { font-weight:600; color:#c9d1d9; margin:4px 0 6px; }
-  .split { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-</style>
+    <style>
+      .m {
+        font:
+          12px/1.45 -apple-system,
+          system-ui,
+          sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 22px;
+      }
+      .m .bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 9px 14px;
+        font-weight: 600;
+        background: #010409;
+        border-bottom: 1px solid #30363d;
+      }
+      .m .sp {
+        flex: 1;
+      }
+      .m .btn {
+        border-radius: 5px;
+        padding: 4px 10px;
+        font-weight: 600;
+        font-size: 11px;
+        background: #238636;
+        color: #fff;
+        white-space: nowrap;
+        display: inline-block;
+      }
+      .m .btn.g {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+      }
+      .m .side {
+        width: 140px;
+        padding: 10px 0;
+        background: #010409;
+        border-right: 1px solid #30363d;
+        color: #8d96a0;
+        flex-shrink: 0;
+      }
+      .m .side div {
+        padding: 6px 14px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .m .side .on {
+        background: #1f2937;
+        color: #e6edf3;
+        box-shadow: inset 3px 0 #2f81f7;
+      }
+      .m .main {
+        flex: 1;
+        padding: 14px 18px;
+        min-width: 0;
+        max-width: 620px;
+      }
+      .m .mut {
+        color: #8d96a0;
+        font-size: 11px;
+      }
+      .m code {
+        font-size: 11px;
+        padding: 0 4px;
+        border-radius: 3px;
+        background: #262c36;
+      }
+      .m a {
+        color: #58a6ff;
+      }
+      .f {
+        margin-bottom: 12px;
+      }
+      .f label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .f .in {
+        background: #010409;
+        border: 1px solid #30363d;
+        border-radius: 5px;
+        padding: 6px 9px;
+        color: #e6edf3;
+      }
+      .f .in.ph {
+        color: #6e7681;
+      }
+      .f .in.lock {
+        background: #161b22;
+        color: #8d96a0;
+      }
+      .f .in.err {
+        border-color: #f85149;
+      }
+      .f .ta {
+        height: 54px;
+      }
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+      .seg {
+        display: inline-flex;
+        border: 1px solid #30363d;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      .seg span {
+        padding: 4px 10px;
+        color: #8d96a0;
+      }
+      .seg .on {
+        background: #1f2937;
+        color: #e6edf3;
+      }
+      .badge {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+        background: #0c2d6b;
+        color: #79c0ff;
+        margin-left: 6px;
+      }
+      .errbox {
+        background: #2d1517;
+        border: 1px solid #6e2a2e;
+        border-radius: 6px;
+        padding: 9px 12px;
+        margin-bottom: 12px;
+      }
+      .errbox b {
+        color: #ff9492;
+      }
+      .lbl {
+        font-weight: 600;
+        color: #c9d1d9;
+        margin: 4px 0 6px;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+    </style>
 
-<div class="lbl">Screen 3 — New Watch</div>
-<div class="m">
-  <div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-  <div style="display:flex">
-    <div class="side"><div>Home</div><div class="on">Watches <span>12</span></div><div>Queue <span>3</span></div><div>Runs</div><div>Ad-hoc</div></div>
-    <div class="main">
-      <div style="font-size:16px; font-weight:700; margin-bottom:12px">New Watch</div>
-      <div class="f"><label>Target URL or Jira key</label><div class="in">https://gitlab.example.com/inspire/web/-/merge_requests/63</div>
-        <div class="mut" style="margin-top:4px">Detected kind: <span class="badge">GitLab MR</span> · “Retry flaky upload” · open · source <code>fix/upload-retry</code></div></div>
-      <div class="f"><label>Repository</label><div class="in">inspire-web ▾ <span class="mut">&nbsp;~/work/inspire-web · gitlab.example.com</span></div></div>
-      <div class="f"><label>Extra instructions <span class="mut">(optional for MR/Jira, required for free-form)</span></label><div class="in ta ph">Added to the default MR prompt…</div>
-        <div class="mut" style="margin-top:4px">Default prompt: <code>prompts/gitlab-mr.md</code></div></div>
-      <div class="row2">
-        <div class="f"><label>Interval</label><div class="in">15 min <span class="mut">(default)</span></div></div>
-        <div class="f"><label>Model</label><div class="in">default (gpt-5) ▾</div></div>
-        <div class="f"><label>Initial review</label><div class="seg"><span class="on">baseline-only</span><span>unresolved</span></div></div>
+    <div class="lbl">Screen 3 — New Watch</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
       </div>
-      <div class="mut" style="margin:-4px 0 12px">baseline-only ignores existing comments. unresolved reviews open discussions once. Failed pipelines and conflicts count in both modes.</div>
-      <span class="btn">Create Watch</span> <span class="btn g">Cancel</span>
+      <div style="display: flex">
+        <div class="side">
+          <div>Home</div>
+          <div class="on">Watches <span>12</span></div>
+          <div>Queue <span>3</span></div>
+          <div>Runs</div>
+          <div>Ad-hoc</div>
+        </div>
+        <div class="main">
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 12px">New Watch</div>
+          <div class="f">
+            <label>Target URL or Jira key</label>
+            <div class="in">https://gitlab.example.com/inspire/web/-/merge_requests/63</div>
+            <div class="mut" style="margin-top: 4px">
+              Detected kind: <span class="badge">GitLab MR</span> · “Retry flaky upload” · open · source
+              <code>fix/upload-retry</code>
+            </div>
+          </div>
+          <div class="f">
+            <label>Repository</label>
+            <div class="in">inspire-web ▾ <span class="mut">&nbsp;~/work/inspire-web · gitlab.example.com</span></div>
+          </div>
+          <div class="f">
+            <label>Extra instructions <span class="mut">(optional for MR/Jira, required for free-form)</span></label>
+            <div class="in ta ph">Added to the default MR prompt…</div>
+            <div class="mut" style="margin-top: 4px">Default prompt: <code>prompts/gitlab-mr.md</code></div>
+          </div>
+          <div class="row2">
+            <div class="f">
+              <label>Interval</label>
+              <div class="in">15 min <span class="mut">(default)</span></div>
+            </div>
+            <div class="f">
+              <label>Model</label>
+              <div class="in">default (gpt-5) ▾</div>
+            </div>
+            <div class="f">
+              <label>Initial review</label>
+              <div class="seg"><span class="on">baseline-only</span><span>unresolved</span></div>
+            </div>
+          </div>
+          <div class="mut" style="margin: -4px 0 12px">
+            baseline-only ignores existing comments. unresolved reviews open discussions once. Failed pipelines and
+            conflicts count in both modes.
+          </div>
+          <span class="btn">Create Watch</span> <span class="btn g">Cancel</span>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<div class="lbl">Error states (shown above the form, the form keeps its values)</div>
-<div class="split">
-  <div class="m"><div class="main">
-    <div class="errbox"><b>Unknown Repository “inspire-mobile”</b><br>No Watch was created. Known Repositories: inspire-web, mbdp-pages.<br>
-      <span class="mut">Result file: <code>~/.automator/results/attempt-7f3c…json</code> <a>open</a></span></div>
-    <div class="f"><label>Repository</label><div class="in err">inspire-mobile</div></div>
-    <div class="mut">If the result file can't be written: “Couldn't write the result file: EACCES …” is shown on its own line.</div>
-  </div></div>
-  <div class="m"><div class="main">
-    <div class="errbox"><b>Already watched</b><br>!63 in inspire-web already has a Watch (Active, every 15m).<br><a>Open existing Watch →</a></div>
-    <div class="f"><label>Target URL or Jira key</label><div class="in err">…/merge_requests/63</div></div>
-    <div class="mut">The same message appears when you reopen a Closed Watch while a non-Closed duplicate exists.</div>
-  </div></div>
-</div>
+    <div class="lbl">Error states (shown above the form, the form keeps its values)</div>
+    <div class="split">
+      <div class="m">
+        <div class="main">
+          <div class="errbox">
+            <b>Unknown Repository “inspire-mobile”</b><br />No Watch was created. Known Repositories: inspire-web,
+            mbdp-pages.<br />
+            <span class="mut">Result file: <code>~/.automator/results/attempt-7f3c…json</code> <a>open</a></span>
+          </div>
+          <div class="f">
+            <label>Repository</label>
+            <div class="in err">inspire-mobile</div>
+          </div>
+          <div class="mut">
+            If the result file can't be written: “Couldn't write the result file: EACCES …” is shown on its own line.
+          </div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="main">
+          <div class="errbox">
+            <b>Already watched</b><br />!63 in inspire-web already has a Watch (Active, every 15m).<br /><a
+              >Open existing Watch →</a
+            >
+          </div>
+          <div class="f">
+            <label>Target URL or Jira key</label>
+            <div class="in err">…/merge_requests/63</div>
+          </div>
+          <div class="mut">
+            The same message appears when you reopen a Closed Watch while a non-Closed duplicate exists.
+          </div>
+        </div>
+      </div>
+    </div>
 
-<div class="lbl">Edit mode</div>
-<div class="m"><div class="main">
-  <div style="font-size:16px; font-weight:700; margin-bottom:12px">Edit Watch · !42 Add retry to export job</div>
-  <div class="split">
-    <div class="f"><label>Target 🔒</label><div class="in lock">…/merge_requests/42</div></div>
-    <div class="f"><label>Repository 🔒</label><div class="in lock">inspire-web</div></div>
-  </div>
-  <div class="mut" style="margin:-6px 0 12px">To change the target or Repository, close this Watch and create a new one.</div>
-  <div class="mut">Instructions, interval, model and initial review are editable as above.</div>
-</div></div>
-
-</body></html>
+    <div class="lbl">Edit mode</div>
+    <div class="m">
+      <div class="main">
+        <div style="font-size: 16px; font-weight: 700; margin-bottom: 12px">
+          Edit Watch · !42 Add retry to export job
+        </div>
+        <div class="split">
+          <div class="f">
+            <label>Target 🔒</label>
+            <div class="in lock">…/merge_requests/42</div>
+          </div>
+          <div class="f">
+            <label>Repository 🔒</label>
+            <div class="in lock">inspire-web</div>
+          </div>
+        </div>
+        <div class="mut" style="margin: -6px 0 12px">
+          To change the target or Repository, close this Watch and create a new one.
+        </div>
+        <div class="mut">Instructions, interval, model and initial review are editable as above.</div>
+      </div>
+    </div>
+  </body>
+</html>

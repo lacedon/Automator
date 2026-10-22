@@ -30,7 +30,8 @@ function form(fields: Record<string, string>): FormData {
   return data;
 }
 
-const queuedRuns = () => core.db.prepare("SELECT repository, adhoc_prompt AS prompt, model FROM runs WHERE status = 'queued'").all();
+const queuedRuns = () =>
+  core.db.prepare("SELECT repository, adhoc_prompt AS prompt, model FROM runs WHERE status = 'queued'").all();
 
 test('queueAdhoc reports an unknown Repository with the attempt file and queues nothing', async () => {
   const fields = { repository: 'nope', prompt: 'Update CHANGELOG', model: '' };
@@ -55,7 +56,9 @@ test('queueAdhoc queues the Run and reports its number and position', async () =
   ]);
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
 
-  expect(await queueAdhoc(null, form({ repository: 'pages', prompt: 'p', model: 'other-model' }))).toMatchObject({ ok: true });
+  expect(await queueAdhoc(null, form({ repository: 'pages', prompt: 'p', model: 'other-model' }))).toMatchObject({
+    ok: true,
+  });
   expect(queuedRuns()).toContainEqual({ repository: 'pages', prompt: 'p', model: 'other-model' });
 });
 

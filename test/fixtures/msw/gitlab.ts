@@ -77,13 +77,17 @@ export function gitlabHandlers(fixture: GitLabFixture = {}, calls: string[] = []
   const record = (request: Request) => {
     const url = new URL(request.url);
     calls.push(`${request.method} ${url.pathname}${url.search}`);
-    if (request.headers.get('PRIVATE-TOKEN') !== 'test-token') return HttpResponse.json({ message: '401 Unauthorized' }, { status: 401 });
+    if (request.headers.get('PRIVATE-TOKEN') !== 'test-token')
+      return HttpResponse.json({ message: '401 Unauthorized' }, { status: 401 });
     if (fixture.status !== undefined) return HttpResponse.json({ message: 'boom' }, { status: fixture.status });
     return null;
   };
   return [
     http.get(`${api}/user`, ({ request }) => record(request) ?? HttpResponse.json(USERS.me)),
-    http.get(`${api}/projects/${projectId}/merge_requests/${MR_IID}`, ({ request }) => record(request) ?? HttpResponse.json(fixture.mr ?? mrJson())),
+    http.get(
+      `${api}/projects/${projectId}/merge_requests/${MR_IID}`,
+      ({ request }) => record(request) ?? HttpResponse.json(fixture.mr ?? mrJson()),
+    ),
     http.get(`${api}/projects/${projectId}/merge_requests/${MR_IID}/discussions`, ({ request }) => {
       const failure = record(request);
       if (failure) return failure;

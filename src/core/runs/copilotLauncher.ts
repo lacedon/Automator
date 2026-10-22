@@ -33,13 +33,17 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
   return {
     start(opts) {
       const args = [
-        '-p', opts.prompt,
-        '--model', opts.model,
+        '-p',
+        opts.prompt,
+        '--model',
+        opts.model,
         '--allow-all-tools',
-        '--share', opts.transcriptPath,
+        '--share',
+        opts.transcriptPath,
         '--no-color',
         '--no-ask-user',
-        '--log-level', 'error',
+        '--log-level',
+        'error',
         ...config.runs.denyTools.flatMap((pattern) => ['--deny-tool', pattern]),
         ...(secrets.envNames.length > 0 ? ['--secret-env-vars', secrets.envNames.join(',')] : []),
         ...(opts.extraArgs ?? []),

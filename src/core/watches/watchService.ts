@@ -53,7 +53,11 @@ function blankToNull(value: string | null | undefined): string | null {
 
 function invalidInterval(intervalMs: number | null | undefined): AppError | null {
   if (intervalMs === null || intervalMs === undefined || (Number.isInteger(intervalMs) && intervalMs > 0)) return null;
-  return { code: 'INVALID_INPUT', field: 'intervalMs', message: `Interval must be a positive whole number of milliseconds, got ${intervalMs}` };
+  return {
+    code: 'INVALID_INPUT',
+    field: 'intervalMs',
+    message: `Interval must be a positive whole number of milliseconds, got ${intervalMs}`,
+  };
 }
 
 function isUniqueViolation(e: unknown): boolean {
@@ -155,7 +159,9 @@ export class WatchService {
           params.initialReview = input.initialReview;
         }
         sets.push('updated_at = @now');
-        return ok(toWatch(this.deps.db.prepare(`UPDATE watches SET ${sets.join(', ')} WHERE id = @id RETURNING *`).get(params)));
+        return ok(
+          toWatch(this.deps.db.prepare(`UPDATE watches SET ${sets.join(', ')} WHERE id = @id RETURNING *`).get(params)),
+        );
       })
       .immediate();
   }
@@ -234,8 +240,7 @@ export class WatchService {
         const watch = this.get(id);
         if (!watch) return err({ code: 'NOT_FOUND' });
         const running = db.prepare("SELECT id FROM runs WHERE watch_id = ? AND status = 'running'").get(id) as
-          | { id: number }
-          | undefined;
+          { id: number } | undefined;
         if (running) return err({ code: 'RUN_IN_PROGRESS', runId: running.id });
         const ids = (sql: string) => (db.prepare(sql).all(id) as { id: number }[]).map((r) => r.id);
         const runIds = ids('SELECT id FROM runs WHERE watch_id = ?');
@@ -276,7 +281,11 @@ export class WatchService {
       .immediate();
   }
 
-  private enqueueManual(watch: Watch, reason: string, opts: { extraInstructions?: string; reviewUnresolved?: boolean }): Run {
+  private enqueueManual(
+    watch: Watch,
+    reason: string,
+    opts: { extraInstructions?: string; reviewUnresolved?: boolean },
+  ): Run {
     return this.deps.queue.enqueueWatch({
       watchId: watch.id,
       repository: watch.repository,

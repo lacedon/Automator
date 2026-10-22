@@ -110,7 +110,11 @@ export function WatchRowMenu(props: Props) {
         ⋯
       </summary>
       <div className="menu-pop">
-        <WatchActionItems {...props} itemClass={(v) => (v === 'danger' ? 'menu-item menu-item-danger' : 'menu-item')} onDone={close} />
+        <WatchActionItems
+          {...props}
+          itemClass={(v) => (v === 'danger' ? 'menu-item menu-item-danger' : 'menu-item')}
+          onDone={close}
+        />
       </div>
     </details>
   );
@@ -118,8 +122,17 @@ export function WatchRowMenu(props: Props) {
 
 // Header buttons on the Watch detail page; Run now and Resume live in their own components there.
 export function WatchActionBar(props: Props) {
-  const omit: WatchAction[] = ['runNow', ...(props.watch.state === 'needs_you' ? (['resume', 'resumeRunNow'] as const) : [])];
-  return <WatchActionItems {...props} omit={omit} itemClass={(v) => (v === 'danger' ? 'btn btn-danger' : 'btn btn-secondary')} />;
+  const omit: WatchAction[] = [
+    'runNow',
+    ...(props.watch.state === 'needs_you' ? (['resume', 'resumeRunNow'] as const) : []),
+  ];
+  return (
+    <WatchActionItems
+      {...props}
+      omit={omit}
+      itemClass={(v) => (v === 'danger' ? 'btn btn-danger' : 'btn btn-secondary')}
+    />
+  );
 }
 
 export function ResumeButton({ watchId }: { watchId: number }) {

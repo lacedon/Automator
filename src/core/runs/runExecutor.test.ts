@@ -59,7 +59,8 @@ function setup(opts: SetupOpts = {}) {
     },
   };
   const snapshot: SnapshotFn =
-    opts.snapshot ?? (async () => ({ events: [], cursorCandidate: candidate, title: 'New title', sourceBranch: 'feat/x' }));
+    opts.snapshot ??
+    (async () => ({ events: [], cursorCandidate: candidate, title: 'New title', sourceBranch: 'feat/x' }));
   const stub: Precheck = { check: () => Promise.reject(new Error('not used')), snapshot };
   const prechecks: Prechecks = {
     mr: stub,
@@ -86,11 +87,20 @@ function setup(opts: SetupOpts = {}) {
 
 function addWatch(db: Database, kind: WatchKind = 'mr', repository = 'pages'): number {
   const id = insertWatch(db, { kind, repository });
-  db.prepare('UPDATE watches SET cursor_json = ?, next_check_at = ? WHERE id = ?').run(JSON.stringify(oldCursor), 1, id);
+  db.prepare('UPDATE watches SET cursor_json = ?, next_check_at = ? WHERE id = ?').run(
+    JSON.stringify(oldCursor),
+    1,
+    id,
+  );
   return id;
 }
 
-function claim(db: Database, startedAt: number, watchId: number | null, extra: { adhocPrompt?: string; repository?: string } = {}): Run {
+function claim(
+  db: Database,
+  startedAt: number,
+  watchId: number | null,
+  extra: { adhocPrompt?: string; repository?: string } = {},
+): Run {
   return toRun(
     db
       .prepare(
@@ -184,7 +194,11 @@ describe('RunExecutor', () => {
     const watchId = addWatch(s.db);
     const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
     expect(final).toMatchObject({ resultStatus: 'success', outcome: 'needs-you' });
-    expect(watchOf(s.db, watchId)).toMatchObject({ state: 'needs_you', needsYouReason: 'fake needs-you', cursor: oldCursor });
+    expect(watchOf(s.db, watchId)).toMatchObject({
+      state: 'needs_you',
+      needsYouReason: 'fake needs-you',
+      cursor: oldCursor,
+    });
     expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
     expect(s.events[0]).toMatchObject({ watchId, runId: final.runId });
   });
@@ -193,7 +207,9 @@ describe('RunExecutor', () => {
     const s = setup({ mode: 'needs-you' });
     s.onNeedsYou.mockRejectedValueOnce(new Error('teams down'));
     const watchId = addWatch(s.db);
-    await expect(s.executor.execute(claim(s.db, s.clock.now(), watchId))).resolves.toMatchObject({ outcome: 'needs-you' });
+    await expect(s.executor.execute(claim(s.db, s.clock.now(), watchId))).resolves.toMatchObject({
+      outcome: 'needs-you',
+    });
   });
 
   test.each([
@@ -210,7 +226,11 @@ describe('RunExecutor', () => {
     const result = readResult(final.resultPath);
     expect(result).toMatchObject({ status: 'error', outcome: null, error: final.error, exitCode });
     expect(result.transcriptPath).toBe(s.dataDir.transcriptPath(final.runId));
-    expect(watchOf(s.db, watchId)).toMatchObject({ state: 'needs_you', needsYouReason: final.error?.message, cursor: oldCursor });
+    expect(watchOf(s.db, watchId)).toMatchObject({
+      state: 'needs_you',
+      needsYouReason: final.error?.message,
+      cursor: oldCursor,
+    });
     expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
   });
 
@@ -295,7 +315,9 @@ describe('RunExecutor', () => {
       const logged = silenceErrors();
       const s = setup({ mode: 'acted' });
       const watchId = addWatch(s.db);
-      s.db.exec("CREATE TRIGGER no_watch_update BEFORE UPDATE ON watches BEGIN SELECT RAISE(ABORT, 'watch locked'); END");
+      s.db.exec(
+        "CREATE TRIGGER no_watch_update BEFORE UPDATE ON watches BEGIN SELECT RAISE(ABORT, 'watch locked'); END",
+      );
       const run = claim(s.db, s.clock.now(), watchId);
 
       const final = await s.executor.execute(run);
@@ -481,14 +503,25 @@ describe('RunExecutor', () => {
   });
 
   test("snapshot reporting merged closes watch and finishes success nothing 'Closed: merged' without Copilot", async () => {
-    const s = setup({ snapshot: async () => ({ events: [], cursorCandidate: candidate, title: 't', close: 'merged' }) });
+    const s = setup({
+      snapshot: async () => ({ events: [], cursorCandidate: candidate, title: 't', close: 'merged' }),
+    });
     const watchId = addWatch(s.db);
     const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
-    expect(final).toMatchObject({ resultStatus: 'success', outcome: 'nothing', summary: 'Closed: merged', transcriptPath: null });
+    expect(final).toMatchObject({
+      resultStatus: 'success',
+      outcome: 'nothing',
+      summary: 'Closed: merged',
+      transcriptPath: null,
+    });
     expect(watchOf(s.db, watchId)).toMatchObject({ state: 'closed', closedReason: 'merged' });
     expect(s.starts).toHaveLength(0);
     expect(s.onNeedsYou).not.toHaveBeenCalled();
-    expect(readResult(final.resultPath)).toMatchObject({ status: 'success', outcome: 'nothing', summary: 'Closed: merged' });
+    expect(readResult(final.resultPath)).toMatchObject({
+      status: 'success',
+      outcome: 'nothing',
+      summary: 'Closed: merged',
+    });
   });
 
   test('missing default prompt file is PROMPT_FAILED', async () => {

@@ -47,7 +47,11 @@ export async function fetchWithRetry(
     }
     if (res.ok) return res;
     await res.body?.cancel();
-    const error = new HttpError(`Request to ${url} failed with HTTP ${res.status}`, res.status, AUTH_STATUSES.has(res.status));
+    const error = new HttpError(
+      `Request to ${url} failed with HTTP ${res.status}`,
+      res.status,
+      AUTH_STATUSES.has(res.status),
+    );
     if (!isRetryable(res.status)) throw error;
     lastError = error;
   }

@@ -96,7 +96,10 @@ function watchSection(watch: Watch): string {
     `- Kind: ${watch.kind}`,
   ];
   if (watch.kind === 'jira') {
-    lines.push('', 'By default only read the ticket and reply; change code only if the Watch instructions below explicitly allow it.');
+    lines.push(
+      '',
+      'By default only read the ticket and reply; change code only if the Watch instructions below explicitly allow it.',
+    );
   }
   lines.push('', '### Watch instructions', '', watch.instructions?.trim() || '(none)');
   return lines.join('\n');
@@ -112,7 +115,10 @@ function runSection(watch: Watch, run: Run, snapshot: Snapshot, hasJiraToken: bo
     lines.push('', '### Resolution note from the user', '', watch.resolutionNote.trim());
   }
   if (watch.kind === 'jira' && !hasJiraToken) {
-    lines.push('', 'No Jira REST token is configured, so nothing was pre-checked: check the ticket through MCP for new changes and comments.');
+    lines.push(
+      '',
+      'No Jira REST token is configured, so nothing was pre-checked: check the ticket through MCP for new changes and comments.',
+    );
   }
   lines.push('', '### Events', '', renderEvents(snapshot.events));
   return lines.join('\n');

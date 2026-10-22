@@ -22,7 +22,8 @@ export function PriorityPill({ trigger }: { trigger: Trigger }) {
   return <Pill variant={queuedVariant(trigger)}>{PRIORITY_LABEL[trigger]}</Pill>;
 }
 
-type RunPillRun = Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrupted'> & Partial<Pick<RunRow, 'trigger'>>;
+type RunPillRun = Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrupted'> &
+  Partial<Pick<RunRow, 'trigger'>>;
 
 export function RunPill({ run }: { run: RunPillRun }) {
   if (run.interrupted !== null) return <Pill variant="interrupted">{INTERRUPTED_LABEL[run.interrupted]}</Pill>;

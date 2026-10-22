@@ -1,135 +1,499 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>02-watches-list-and-detail</title>
-<style>body{background:#0d1117;color:#e6edf3;font-family:-apple-system,system-ui,sans-serif;padding:24px;max-width:1100px;margin:auto}.subtitle{color:#8d96a0}.options{display:grid;gap:20px}.letter{display:none}</style></head><body>
-<h2>Watches list and Watch detail</h2>
-<p class="subtitle">Graphite palette, layout A. Please check what each screen shows and what you can do from it. Tell me what's missing or should go.</p>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>02-watches-list-and-detail</title>
+    <style>
+      body {
+        background: #0d1117;
+        color: #e6edf3;
+        font-family: -apple-system, system-ui, sans-serif;
+        padding: 24px;
+        max-width: 1100px;
+        margin: auto;
+      }
+      .subtitle {
+        color: #8d96a0;
+      }
+      .options {
+        display: grid;
+        gap: 20px;
+      }
+      .letter {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Watches list and Watch detail</h2>
+    <p class="subtitle">
+      Graphite palette, layout A. Please check what each screen shows and what you can do from it. Tell me what's
+      missing or should go.
+    </p>
 
-<style>
-  .m { font: 12px/1.45 -apple-system, system-ui, sans-serif; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:8px; overflow:hidden; margin-bottom:22px; }
-  .m .bar { display:flex; gap:10px; align-items:center; padding:9px 14px; font-weight:600; background:#010409; border-bottom:1px solid #30363d; }
-  .m .sp { flex:1 }
-  .m .btn { border-radius:5px; padding:3px 9px; font-weight:600; font-size:11px; background:#238636; color:#fff; white-space:nowrap; display:inline-block; }
-  .m .btn.g { background:#21262d; color:#e6edf3; border:1px solid #30363d; }
-  .m .btn.d { background:#21262d; color:#ff7b72; border:1px solid #30363d; }
-  .m .btn.off { opacity:.4; }
-  .m .side { width:140px; padding:10px 0; background:#010409; border-right:1px solid #30363d; color:#8d96a0; flex-shrink:0; }
-  .m .side div { padding:6px 14px; display:flex; justify-content:space-between; }
-  .m .side .on { background:#1f2937; color:#e6edf3; box-shadow: inset 3px 0 #2f81f7; }
-  .m .main { flex:1; padding:12px 16px; min-width:0; }
-  .m .h { font-weight:700; font-size:11px; letter-spacing:.04em; text-transform:uppercase; margin:14px 0 6px; color:#8d96a0; display:flex; gap:6px; align-items:center; }
-  .m .mut { color:#8d96a0; font-size:11px; }
-  .m .pill { font-size:10px; padding:1px 7px; border-radius:10px; font-weight:600; white-space:nowrap; }
-  .pill.needs { background:#5a1e22; color:#ff9492; } .pill.act { background:#12361f; color:#56d364; }
-  .pill.no { background:#262c36; color:#8d96a0; } .pill.run { background:#3b2e0a; color:#e3b341; }
-  .pill.pau { background:#262c36; color:#c9d1d9; } .pill.cl { background:#1c2128; color:#6e7681; } .pill.blue { background:#0c2d6b; color:#79c0ff; }
-  .m code { font-size:11px; padding:0 4px; border-radius:3px; background:#262c36; }
-  .m table { width:100%; border-collapse:collapse; }
-  .m th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#8d96a0; font-weight:600; padding:6px 8px; border-bottom:1px solid #30363d; }
-  .m td { padding:7px 8px; border-bottom:1px solid #21262d; vertical-align:middle; }
-  .m tr.nr td { background:#1d1214; }
-  .m .filters { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-  .m .chip { border:1px solid #30363d; border-radius:12px; padding:2px 9px; font-size:11px; color:#c9d1d9; }
-  .m .chip.on { background:#1f2937; border-color:#2f81f7; color:#e6edf3; }
-  .m .inp { background:#010409; border:1px solid #30363d; border-radius:5px; padding:4px 8px; color:#8d96a0; }
-  .m .note { background:#1c1a10; border:1px solid #5c4813; color:#e3b341; border-radius:6px; padding:6px 10px; margin:8px 0; font-size:11px; }
-  .m .card { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px 12px; }
-  .m .card.needs { background:#2d1517; border-color:#6e2a2e; }
-  .m .kv { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; }
-  .m .kv div:nth-child(odd) { color:#8d96a0; }
-  .m a { color:#58a6ff; text-decoration:none; }
-  .m .cols { display:grid; grid-template-columns: 1.6fr 1fr; gap:12px; }
-  .m textarea { width:100%; box-sizing:border-box; background:#010409; border:1px solid #30363d; border-radius:5px; color:#8d96a0; padding:6px; font:inherit; height:38px; resize:none; }
-  .lbl { font-weight:600; color:#c9d1d9; margin:4px 0 6px; }
-</style>
+    <style>
+      .m {
+        font:
+          12px/1.45 -apple-system,
+          system-ui,
+          sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 22px;
+      }
+      .m .bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 9px 14px;
+        font-weight: 600;
+        background: #010409;
+        border-bottom: 1px solid #30363d;
+      }
+      .m .sp {
+        flex: 1;
+      }
+      .m .btn {
+        border-radius: 5px;
+        padding: 3px 9px;
+        font-weight: 600;
+        font-size: 11px;
+        background: #238636;
+        color: #fff;
+        white-space: nowrap;
+        display: inline-block;
+      }
+      .m .btn.g {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+      }
+      .m .btn.d {
+        background: #21262d;
+        color: #ff7b72;
+        border: 1px solid #30363d;
+      }
+      .m .btn.off {
+        opacity: 0.4;
+      }
+      .m .side {
+        width: 140px;
+        padding: 10px 0;
+        background: #010409;
+        border-right: 1px solid #30363d;
+        color: #8d96a0;
+        flex-shrink: 0;
+      }
+      .m .side div {
+        padding: 6px 14px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .m .side .on {
+        background: #1f2937;
+        color: #e6edf3;
+        box-shadow: inset 3px 0 #2f81f7;
+      }
+      .m .main {
+        flex: 1;
+        padding: 12px 16px;
+        min-width: 0;
+      }
+      .m .h {
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin: 14px 0 6px;
+        color: #8d96a0;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .m .mut {
+        color: #8d96a0;
+        font-size: 11px;
+      }
+      .m .pill {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .pill.needs {
+        background: #5a1e22;
+        color: #ff9492;
+      }
+      .pill.act {
+        background: #12361f;
+        color: #56d364;
+      }
+      .pill.no {
+        background: #262c36;
+        color: #8d96a0;
+      }
+      .pill.run {
+        background: #3b2e0a;
+        color: #e3b341;
+      }
+      .pill.pau {
+        background: #262c36;
+        color: #c9d1d9;
+      }
+      .pill.cl {
+        background: #1c2128;
+        color: #6e7681;
+      }
+      .pill.blue {
+        background: #0c2d6b;
+        color: #79c0ff;
+      }
+      .m code {
+        font-size: 11px;
+        padding: 0 4px;
+        border-radius: 3px;
+        background: #262c36;
+      }
+      .m table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .m th {
+        text-align: left;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #8d96a0;
+        font-weight: 600;
+        padding: 6px 8px;
+        border-bottom: 1px solid #30363d;
+      }
+      .m td {
+        padding: 7px 8px;
+        border-bottom: 1px solid #21262d;
+        vertical-align: middle;
+      }
+      .m tr.nr td {
+        background: #1d1214;
+      }
+      .m .filters {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .m .chip {
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        padding: 2px 9px;
+        font-size: 11px;
+        color: #c9d1d9;
+      }
+      .m .chip.on {
+        background: #1f2937;
+        border-color: #2f81f7;
+        color: #e6edf3;
+      }
+      .m .inp {
+        background: #010409;
+        border: 1px solid #30363d;
+        border-radius: 5px;
+        padding: 4px 8px;
+        color: #8d96a0;
+      }
+      .m .note {
+        background: #1c1a10;
+        border: 1px solid #5c4813;
+        color: #e3b341;
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 8px 0;
+        font-size: 11px;
+      }
+      .m .card {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px 12px;
+      }
+      .m .card.needs {
+        background: #2d1517;
+        border-color: #6e2a2e;
+      }
+      .m .kv {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 4px 10px;
+      }
+      .m .kv div:nth-child(odd) {
+        color: #8d96a0;
+      }
+      .m a {
+        color: #58a6ff;
+        text-decoration: none;
+      }
+      .m .cols {
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 12px;
+      }
+      .m textarea {
+        width: 100%;
+        box-sizing: border-box;
+        background: #010409;
+        border: 1px solid #30363d;
+        border-radius: 5px;
+        color: #8d96a0;
+        padding: 6px;
+        font: inherit;
+        height: 38px;
+        resize: none;
+      }
+      .lbl {
+        font-weight: 600;
+        color: #c9d1d9;
+        margin: 4px 0 6px;
+      }
+    </style>
 
-<div class="lbl">Screen 1 — Watches list</div>
-<div class="m">
-  <div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-  <div style="display:flex; min-height:300px">
-    <div class="side"><div>Home</div><div class="on">Watches <span>12</span></div><div>Queue <span>3</span></div><div>Runs</div><div>Ad-hoc</div></div>
-    <div class="main">
-      <div class="filters">
-        <span class="chip on">All 12</span><span class="chip">Needs you 2</span><span class="chip">Active 7</span><span class="chip">Paused 1</span><span class="chip">Closed 2</span>
-        <span class="sp"></span>
-        <span class="inp">Kind: any ▾</span><span class="inp">Repository: any ▾</span><span class="inp" style="width:140px">Search target…</span>
+    <div class="lbl">Screen 1 — Watches list</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
       </div>
-      <div class="note">Jira checking is off (<code>jira.enabled = false</code>). 3 Jira Watches are kept but won't run on schedule or with Run now.</div>
-      <table>
-        <tr><th>State</th><th>Kind</th><th>Target</th><th>Repository</th><th>Every</th><th>Next check</th><th>Last run</th><th></th></tr>
-        <tr class="nr"><td><span class="pill needs">Needs you</span></td><td>MR</td><td><b>!42 Add retry to export job</b></td><td>inspire-web</td><td>15m</td><td class="mut">stopped</td><td><span class="pill needs">needs-you</span> <span class="mut">8m</span></td><td><span class="btn g">Resume</span></td></tr>
-        <tr class="nr"><td><span class="pill needs">Needs you</span></td><td>Jira</td><td><b>PROJ-1931 Clarify SSO timeout</b></td><td>mbdp-pages</td><td>2h</td><td class="mut">stopped</td><td><span class="pill needs">needs-you</span> <span class="mut">1h</span></td><td><span class="btn g">Resume</span></td></tr>
-        <tr><td><span class="pill act">Active</span></td><td>MR</td><td>!57 Bump eslint config</td><td>inspire-web</td><td>15m</td><td><span class="pill run">● running 04:12</span></td><td><span class="pill act">acted</span> <span class="mut">2h</span></td><td><span class="btn g">⋯</span></td></tr>
-        <tr><td><span class="pill act">Active</span></td><td>MR</td><td>!51 Pagination for reports</td><td>inspire-web</td><td>15m</td><td>in 9m <span class="mut">· queued #1</span></td><td><span class="pill act">acted</span> <span class="mut">12m</span></td><td><span class="btn g">⋯</span></td></tr>
-        <tr><td><span class="pill act">Active</span></td><td>Free</td><td>docs-sync — wiki.example.com/release</td><td>mbdp-pages</td><td>2h</td><td>after hours <span class="mut">· Mon 08:00</span></td><td><span class="pill no">nothing</span> <span class="mut">3h</span></td><td><span class="btn g">⋯</span></td></tr>
-        <tr><td><span class="pill pau">Paused</span></td><td>Jira</td><td>PROJ-1880 Report export perf</td><td>inspire-web</td><td>2h</td><td class="mut">Jira off</td><td><span class="pill no">nothing</span> <span class="mut">1d</span></td><td><span class="btn g">⋯</span></td></tr>
-        <tr><td><span class="pill cl">Closed</span></td><td>MR</td><td class="mut">!38 Remove legacy auth (merged)</td><td class="mut">inspire-web</td><td class="mut">—</td><td class="mut">cleanup in 24d</td><td><span class="pill act">acted</span> <span class="mut">6d</span></td><td><span class="btn g">⋯</span></td></tr>
-      </table>
-      <div class="mut" style="margin-top:6px">⋯ menu: Run now · Pause/Resume · Close/Reopen · Edit · Delete</div>
-    </div>
-  </div>
-</div>
-
-<div class="lbl">Screen 2 — Watch detail (shown in the Needs you state)</div>
-<div class="m">
-  <div class="bar">⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span></div>
-  <div style="display:flex; min-height:420px">
-    <div class="side"><div>Home</div><div class="on">Watches <span>12</span></div><div>Queue <span>3</span></div><div>Runs</div><div>Ad-hoc</div></div>
-    <div class="main">
-      <div class="mut">Watches / inspire-web</div>
-      <div style="display:flex; align-items:center; gap:8px; margin:4px 0 2px">
-        <span style="font-size:16px; font-weight:700">!42 Add retry to export job</span><span class="pill needs">Needs you</span>
-        <span class="sp"></span>
-        <span class="btn">Run now ▾</span><span class="btn g">Pause</span><span class="btn g">Close</span><span class="btn g">Edit</span><span class="btn d">Delete</span>
-      </div>
-      <div class="mut">GitLab MR · <a>gitlab.example.com/inspire/web/-/merge_requests/42</a> · source branch <code>feature/export-retry</code></div>
-
-      <div class="cols" style="margin-top:12px">
-        <div>
-          <div class="card needs">
-            <b>Why it needs you</b> <span class="mut">· since 15:16 · run #318</span><br>
-            Validation command <code>npm test</code> failed (exit 1) after applying the reviewer's requested change. Nothing was pushed.
-            <div class="mut" style="margin:6px 0">Teams notification: sent 15:16 ✓</div>
-            <textarea placeholder="Resolution note for the next run (optional)…"></textarea>
-            <div style="margin-top:6px"><span class="btn g">Resume</span> <span class="btn">Resume &amp; run now</span></div>
+      <div style="display: flex; min-height: 300px">
+        <div class="side">
+          <div>Home</div>
+          <div class="on">Watches <span>12</span></div>
+          <div>Queue <span>3</span></div>
+          <div>Runs</div>
+          <div>Ad-hoc</div>
+        </div>
+        <div class="main">
+          <div class="filters">
+            <span class="chip on">All 12</span><span class="chip">Needs you 2</span><span class="chip">Active 7</span
+            ><span class="chip">Paused 1</span><span class="chip">Closed 2</span>
+            <span class="sp"></span>
+            <span class="inp">Kind: any ▾</span><span class="inp">Repository: any ▾</span
+            ><span class="inp" style="width: 140px">Search target…</span>
           </div>
-
-          <div class="h">Runs</div>
+          <div class="note">
+            Jira checking is off (<code>jira.enabled = false</code>). 3 Jira Watches are kept but won't run on schedule
+            or with Run now.
+          </div>
           <table>
-            <tr><th>#</th><th>Trigger</th><th>Started</th><th>Took</th><th>Outcome</th><th>Summary</th><th></th></tr>
-            <tr><td>318</td><td>schedule</td><td>15:02</td><td>14m</td><td><span class="pill needs">needs-you</span></td><td>Applied rename, tests fail in export.spec</td><td><a>transcript</a> · <a>result</a></td></tr>
-            <tr><td>301</td><td>manual</td><td>12:40</td><td>6m</td><td><span class="pill act">acted</span></td><td>Replied to 2 comments, pushed a1b2c3d</td><td><a>transcript</a> · <a>result</a></td></tr>
-            <tr><td>288</td><td>schedule</td><td>10:15</td><td>3m</td><td><span class="pill no">nothing</span></td><td>Only own comments since last check</td><td><a>transcript</a> · <a>result</a></td></tr>
+            <tr>
+              <th>State</th>
+              <th>Kind</th>
+              <th>Target</th>
+              <th>Repository</th>
+              <th>Every</th>
+              <th>Next check</th>
+              <th>Last run</th>
+              <th></th>
+            </tr>
+            <tr class="nr">
+              <td><span class="pill needs">Needs you</span></td>
+              <td>MR</td>
+              <td><b>!42 Add retry to export job</b></td>
+              <td>inspire-web</td>
+              <td>15m</td>
+              <td class="mut">stopped</td>
+              <td><span class="pill needs">needs-you</span> <span class="mut">8m</span></td>
+              <td><span class="btn g">Resume</span></td>
+            </tr>
+            <tr class="nr">
+              <td><span class="pill needs">Needs you</span></td>
+              <td>Jira</td>
+              <td><b>PROJ-1931 Clarify SSO timeout</b></td>
+              <td>mbdp-pages</td>
+              <td>2h</td>
+              <td class="mut">stopped</td>
+              <td><span class="pill needs">needs-you</span> <span class="mut">1h</span></td>
+              <td><span class="btn g">Resume</span></td>
+            </tr>
+            <tr>
+              <td><span class="pill act">Active</span></td>
+              <td>MR</td>
+              <td>!57 Bump eslint config</td>
+              <td>inspire-web</td>
+              <td>15m</td>
+              <td><span class="pill run">● running 04:12</span></td>
+              <td><span class="pill act">acted</span> <span class="mut">2h</span></td>
+              <td><span class="btn g">⋯</span></td>
+            </tr>
+            <tr>
+              <td><span class="pill act">Active</span></td>
+              <td>MR</td>
+              <td>!51 Pagination for reports</td>
+              <td>inspire-web</td>
+              <td>15m</td>
+              <td>in 9m <span class="mut">· queued #1</span></td>
+              <td><span class="pill act">acted</span> <span class="mut">12m</span></td>
+              <td><span class="btn g">⋯</span></td>
+            </tr>
+            <tr>
+              <td><span class="pill act">Active</span></td>
+              <td>Free</td>
+              <td>docs-sync — wiki.example.com/release</td>
+              <td>mbdp-pages</td>
+              <td>2h</td>
+              <td>after hours <span class="mut">· Mon 08:00</span></td>
+              <td><span class="pill no">nothing</span> <span class="mut">3h</span></td>
+              <td><span class="btn g">⋯</span></td>
+            </tr>
+            <tr>
+              <td><span class="pill pau">Paused</span></td>
+              <td>Jira</td>
+              <td>PROJ-1880 Report export perf</td>
+              <td>inspire-web</td>
+              <td>2h</td>
+              <td class="mut">Jira off</td>
+              <td><span class="pill no">nothing</span> <span class="mut">1d</span></td>
+              <td><span class="btn g">⋯</span></td>
+            </tr>
+            <tr>
+              <td><span class="pill cl">Closed</span></td>
+              <td>MR</td>
+              <td class="mut">!38 Remove legacy auth (merged)</td>
+              <td class="mut">inspire-web</td>
+              <td class="mut">—</td>
+              <td class="mut">cleanup in 24d</td>
+              <td><span class="pill act">acted</span> <span class="mut">6d</span></td>
+              <td><span class="btn g">⋯</span></td>
+            </tr>
           </table>
+          <div class="mut" style="margin-top: 6px">⋯ menu: Run now · Pause/Resume · Close/Reopen · Edit · Delete</div>
         </div>
+      </div>
+    </div>
 
-        <div>
-          <div class="card">
-            <div class="h" style="margin-top:0">Settings</div>
-            <div class="kv">
-              <div>Repository</div><div>inspire-web <span class="mut">~/work/inspire-web</span></div>
-              <div>Interval</div><div>15 min</div>
-              <div>Model</div><div>default (gpt-5)</div>
-              <div>Initial review</div><div>baseline-only</div>
-              <div>Created</div><div>Oct 18, 09:12</div>
+    <div class="lbl">Screen 2 — Watch detail (shown in the Needs you state)</div>
+    <div class="m">
+      <div class="bar">
+        ⚙ Automator <span class="sp"></span><span class="btn g">+ Watch</span><span class="btn">Ad-hoc run</span>
+      </div>
+      <div style="display: flex; min-height: 420px">
+        <div class="side">
+          <div>Home</div>
+          <div class="on">Watches <span>12</span></div>
+          <div>Queue <span>3</span></div>
+          <div>Runs</div>
+          <div>Ad-hoc</div>
+        </div>
+        <div class="main">
+          <div class="mut">Watches / inspire-web</div>
+          <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 2px">
+            <span style="font-size: 16px; font-weight: 700">!42 Add retry to export job</span
+            ><span class="pill needs">Needs you</span>
+            <span class="sp"></span>
+            <span class="btn">Run now ▾</span><span class="btn g">Pause</span><span class="btn g">Close</span
+            ><span class="btn g">Edit</span><span class="btn d">Delete</span>
+          </div>
+          <div class="mut">
+            GitLab MR · <a>gitlab.example.com/inspire/web/-/merge_requests/42</a> · source branch
+            <code>feature/export-retry</code>
+          </div>
+
+          <div class="cols" style="margin-top: 12px">
+            <div>
+              <div class="card needs">
+                <b>Why it needs you</b> <span class="mut">· since 15:16 · run #318</span><br />
+                Validation command <code>npm test</code> failed (exit 1) after applying the reviewer's requested change.
+                Nothing was pushed.
+                <div class="mut" style="margin: 6px 0">Teams notification: sent 15:16 ✓</div>
+                <textarea placeholder="Resolution note for the next run (optional)…"></textarea>
+                <div style="margin-top: 6px">
+                  <span class="btn g">Resume</span> <span class="btn">Resume &amp; run now</span>
+                </div>
+              </div>
+
+              <div class="h">Runs</div>
+              <table>
+                <tr>
+                  <th>#</th>
+                  <th>Trigger</th>
+                  <th>Started</th>
+                  <th>Took</th>
+                  <th>Outcome</th>
+                  <th>Summary</th>
+                  <th></th>
+                </tr>
+                <tr>
+                  <td>318</td>
+                  <td>schedule</td>
+                  <td>15:02</td>
+                  <td>14m</td>
+                  <td><span class="pill needs">needs-you</span></td>
+                  <td>Applied rename, tests fail in export.spec</td>
+                  <td><a>transcript</a> · <a>result</a></td>
+                </tr>
+                <tr>
+                  <td>301</td>
+                  <td>manual</td>
+                  <td>12:40</td>
+                  <td>6m</td>
+                  <td><span class="pill act">acted</span></td>
+                  <td>Replied to 2 comments, pushed a1b2c3d</td>
+                  <td><a>transcript</a> · <a>result</a></td>
+                </tr>
+                <tr>
+                  <td>288</td>
+                  <td>schedule</td>
+                  <td>10:15</td>
+                  <td>3m</td>
+                  <td><span class="pill no">nothing</span></td>
+                  <td>Only own comments since last check</td>
+                  <td><a>transcript</a> · <a>result</a></td>
+                </tr>
+              </table>
+            </div>
+
+            <div>
+              <div class="card">
+                <div class="h" style="margin-top: 0">Settings</div>
+                <div class="kv">
+                  <div>Repository</div>
+                  <div>inspire-web <span class="mut">~/work/inspire-web</span></div>
+                  <div>Interval</div>
+                  <div>15 min</div>
+                  <div>Model</div>
+                  <div>default (gpt-5)</div>
+                  <div>Initial review</div>
+                  <div>baseline-only</div>
+                  <div>Created</div>
+                  <div>Oct 18, 09:12</div>
+                </div>
+              </div>
+              <div class="card" style="margin-top: 10px">
+                <div class="h" style="margin-top: 0">Extra instructions</div>
+                <div class="mut">
+                  Keep changes minimal. Ask before touching the public API of <code>ExportService</code>.
+                </div>
+              </div>
+              <div class="card" style="margin-top: 10px">
+                <div class="h" style="margin-top: 0">Last handled point</div>
+                <div class="kv">
+                  <div>Comment</div>
+                  <div>note #9921 · 12:38</div>
+                  <div>Pipeline</div>
+                  <div>#55102 passed</div>
+                  <div>Conflicts</div>
+                  <div>none</div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="card" style="margin-top:10px">
-            <div class="h" style="margin-top:0">Extra instructions</div>
-            <div class="mut">Keep changes minimal. Ask before touching the public API of <code>ExportService</code>.</div>
-          </div>
-          <div class="card" style="margin-top:10px">
-            <div class="h" style="margin-top:0">Last handled point</div>
-            <div class="kv">
-              <div>Comment</div><div>note #9921 · 12:38</div>
-              <div>Pipeline</div><div>#55102 passed</div>
-              <div>Conflicts</div><div>none</div>
-            </div>
+          <div class="mut" style="margin-top: 8px">
+            Run now ▾ opens a popover with optional extra instructions and a checkbox: “Review existing unresolved
+            discussions”.
           </div>
         </div>
       </div>
-      <div class="mut" style="margin-top:8px">Run now ▾ opens a popover with optional extra instructions and a checkbox: “Review existing unresolved discussions”.</div>
     </div>
-  </div>
-</div>
-
-</body></html>
+  </body>
+</html>

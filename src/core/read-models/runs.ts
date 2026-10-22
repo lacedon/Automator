@@ -26,7 +26,8 @@ export type RunRow = {
 
 export type RunFilter = { outcome?: Outcome | 'error'; trigger?: Trigger; repository?: string };
 
-export const RUNS_WITH_TITLE = 'SELECT r.*, w.title AS watch_title FROM runs r LEFT JOIN watches w ON w.id = r.watch_id';
+export const RUNS_WITH_TITLE =
+  'SELECT r.*, w.title AS watch_title FROM runs r LEFT JOIN watches w ON w.id = r.watch_id';
 
 export type RunWithTitle = Run & { watchTitle: string | null };
 

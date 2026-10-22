@@ -103,9 +103,42 @@ export function seed(core: Core): void {
        created_at, updated_at)
      VALUES (?, ?, ?, 'pages', ?, ?, ?, ?, ?, ?, ?)`,
   );
-  insertOther.run('jira', 'https://jira.example.com/browse/PROJ-1880', 'jira:jira.example.com/PROJ-1880', 'PROJ-1880 Report export perf', 'paused', null, null, null, now, now);
-  insertOther.run('jira', 'https://jira.example.com/browse/PROJ-1931', 'jira:jira.example.com/PROJ-1931', 'PROJ-1931 Clarify SSO timeout', 'active', null, null, null, now, now);
-  insertOther.run('free', 'https://wiki.example.com/release', 'https://wiki.example.com/release', 'docs-sync — wiki.example.com/release', 'active', 'Sync release notes into docs/.', null, null, now, now);
+  insertOther.run(
+    'jira',
+    'https://jira.example.com/browse/PROJ-1880',
+    'jira:jira.example.com/PROJ-1880',
+    'PROJ-1880 Report export perf',
+    'paused',
+    null,
+    null,
+    null,
+    now,
+    now,
+  );
+  insertOther.run(
+    'jira',
+    'https://jira.example.com/browse/PROJ-1931',
+    'jira:jira.example.com/PROJ-1931',
+    'PROJ-1931 Clarify SSO timeout',
+    'active',
+    null,
+    null,
+    null,
+    now,
+    now,
+  );
+  insertOther.run(
+    'free',
+    'https://wiki.example.com/release',
+    'https://wiki.example.com/release',
+    'docs-sync — wiki.example.com/release',
+    'active',
+    'Sync release notes into docs/.',
+    null,
+    null,
+    now,
+    now,
+  );
   const closed = Number(
     insertOther.run(
       'mr',
@@ -153,10 +186,28 @@ export function seed(core: Core): void {
       interrupted: null,
       ...fields,
     });
-  const jiraActive = (db.prepare("SELECT id FROM watches WHERE normalized_target = 'jira:jira.example.com/PROJ-1931'").get() as { id: number }).id;
-  run({ watchId: jiraActive, status: 'queued', trigger: 'manual', priority: 0, reason: 'Resume & run now', queuedAt: now - 2 * MIN });
+  const jiraActive = (
+    db.prepare("SELECT id FROM watches WHERE normalized_target = 'jira:jira.example.com/PROJ-1931'").get() as {
+      id: number;
+    }
+  ).id;
+  run({
+    watchId: jiraActive,
+    status: 'queued',
+    trigger: 'manual',
+    priority: 0,
+    reason: 'Resume & run now',
+    queuedAt: now - 2 * MIN,
+  });
   run({ watchId: active, status: 'queued', reason: 'new comment by @anna', queuedAt: now - 3 * MIN });
-  run({ status: 'queued', trigger: 'adhoc', priority: 0, reason: 'ad-hoc', prompt: 'Regenerate API types', queuedAt: now - MIN });
+  run({
+    status: 'queued',
+    trigger: 'adhoc',
+    priority: 0,
+    reason: 'ad-hoc',
+    prompt: 'Regenerate API types',
+    queuedAt: now - MIN,
+  });
   run({
     watchId: needsYou,
     startedAt: now - 40 * MIN,

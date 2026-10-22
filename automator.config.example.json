@@ -13,7 +13,12 @@
   "jira": {
     "enabled": false,
     "connections": {
-      "corp": { "baseUrl": "https://jira.example.com", "emailEnv": "JIRA_EMAIL", "tokenEnv": "JIRA_TOKEN", "doneStatusIds": ["10001"] }
+      "corp": {
+        "baseUrl": "https://jira.example.com",
+        "emailEnv": "JIRA_EMAIL",
+        "tokenEnv": "JIRA_TOKEN",
+        "doneStatusIds": ["10001"]
+      }
     }
   },
   "schedule": {

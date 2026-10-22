@@ -20,9 +20,15 @@ describe('isWithinWorkingHours', () => {
 });
 
 describe('nextWindowStart', () => {
-  it('Fri 19:30 → Mon 08:00', () => { expect(nextWindowStart(at(23, 19, 30), wh)).toBe(at(26, 8, 0)); });
-  it('Tue 06:00 → Tue 08:00', () => { expect(nextWindowStart(at(20, 6, 0), wh)).toBe(at(20, 8, 0)); });
-  it('returns t itself inside working hours', () => { expect(nextWindowStart(at(21, 10, 15), wh)).toBe(at(21, 10, 15)); });
+  it('Fri 19:30 → Mon 08:00', () => {
+    expect(nextWindowStart(at(23, 19, 30), wh)).toBe(at(26, 8, 0));
+  });
+  it('Tue 06:00 → Tue 08:00', () => {
+    expect(nextWindowStart(at(20, 6, 0), wh)).toBe(at(20, 8, 0));
+  });
+  it('returns t itself inside working hours', () => {
+    expect(nextWindowStart(at(21, 10, 15), wh)).toBe(at(21, 10, 15));
+  });
   it('throws when working hours define no window', () => {
     expect(() => nextWindowStart(at(21, 6, 0), { ...wh, days: [] })).toThrow('no working days');
     expect(() => nextWindowStart(at(21, 6, 0), { ...wh, start: '19:00', end: '08:00' })).toThrow('define no window');

@@ -34,7 +34,9 @@ const cells: [WatchState, WatchAction, WatchState | null][] = [
 ];
 
 describe('nextState', () => {
-  it('covers all 28 cells', () => { expect(cells).toHaveLength(28); });
+  it('covers all 28 cells', () => {
+    expect(cells).toHaveLength(28);
+  });
   it.each(cells)('%s + %s → %s', (from, action, expected) => {
     expect(nextState(from, action)).toBe(expected);
   });

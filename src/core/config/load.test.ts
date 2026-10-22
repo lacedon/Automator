@@ -183,8 +183,16 @@ describe('loadConfig', () => {
     expect(error).toBeInstanceOf(ConfigError);
     expect(error.message).toContain('runs.defaultModel');
 
-    const valid = writeConfig({ repositories: {}, gitlab: {}, schedule: { workingHours: { days: [0], start: '00:00', end: '00:01' } } });
-    expect(loadConfig({ path: valid.file, env: {} }).schedule.workingHours).toEqual({ days: [0], start: '00:00', end: '00:01' });
+    const valid = writeConfig({
+      repositories: {},
+      gitlab: {},
+      schedule: { workingHours: { days: [0], start: '00:00', end: '00:01' } },
+    });
+    expect(loadConfig({ path: valid.file, env: {} }).schedule.workingHours).toEqual({
+      days: [0],
+      start: '00:00',
+      end: '00:01',
+    });
   });
 
   test('missing folder is not a load error', () => {

@@ -18,7 +18,8 @@ import { formatDateTime } from '../../lib/format';
 export const dynamic = 'force-dynamic';
 
 function runNowDisabledReason(view: WatchDetailView, jiraEnabled: boolean): string | undefined {
-  if (!view.actions.includes('runNow')) return view.watch.state === 'closed' ? 'Reopen the Watch first' : 'Resume the Watch first';
+  if (!view.actions.includes('runNow'))
+    return view.watch.state === 'closed' ? 'Reopen the Watch first' : 'Resume the Watch first';
   if (view.watch.kind === 'jira' && !jiraEnabled) return 'Jira checking is off';
   return undefined;
 }
@@ -116,14 +117,19 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
   return (
     <ActionErrorProvider>
       <div className="muted">
-        <Link href="/watches">Watches</Link> / <Link href={`/watches?repo=${encodeURIComponent(watch.repository)}`}>{watch.repository}</Link>
+        <Link href="/watches">Watches</Link> /{' '}
+        <Link href={`/watches?repo=${encodeURIComponent(watch.repository)}`}>{watch.repository}</Link>
       </div>
       <div className="detail-head">
         <h1 className="detail-title">{watch.title}</h1>
         <WatchStatePill state={watch.state} />
         <span className="spacer" />
         <div className="actions">
-          <RunNowPopover watchId={watch.id} isMr={watch.kind === 'mr'} disabledReason={runNowDisabledReason(view, jiraEnabled)} />
+          <RunNowPopover
+            watchId={watch.id}
+            isMr={watch.kind === 'mr'}
+            disabledReason={runNowDisabledReason(view, jiraEnabled)}
+          />
           <WatchActionBar
             watch={{ id: watch.id, kind: watch.kind, state: watch.state, running: running !== null }}
             actions={view.actions}
@@ -162,7 +168,11 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
           <SettingsCard view={view} />
           <div className="card">
             <h3 className="section-h">{watch.kind === 'free' ? 'Instructions' : 'Extra instructions'}</h3>
-            {watch.instructions ? <p className="pre-wrap">{watch.instructions}</p> : <p className="muted">Uses default prompt</p>}
+            {watch.instructions ? (
+              <p className="pre-wrap">{watch.instructions}</p>
+            ) : (
+              <p className="muted">Uses default prompt</p>
+            )}
           </div>
           <LastHandledCard lines={view.lastHandled} />
         </div>

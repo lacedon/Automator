@@ -194,7 +194,10 @@ describe('JiraPrecheck.check', () => {
     const { precheck } = setup({
       issue: issueJson({
         comments: [...baselineComments, comment(102, bob, 'Ping')],
-        histories: [...baselineHistories, history(201, anna, [{ field: 'priority', fromString: 'Low', toString: 'High' }])],
+        histories: [
+          ...baselineHistories,
+          history(201, anna, [{ field: 'priority', fromString: 'Low', toString: 'High' }]),
+        ],
       }),
     });
     expect(
@@ -214,7 +217,10 @@ describe('JiraPrecheck.check', () => {
       issue: issueJson({
         status: STATUSES.inReview,
         comments: [...baselineComments, comment(102, me, 'Pushed a fix')],
-        histories: [...baselineHistories, history(201, me, [{ field: 'status', fromString: 'To Do', toString: 'In Review' }])],
+        histories: [
+          ...baselineHistories,
+          history(201, me, [{ field: 'status', fromString: 'To Do', toString: 'In Review' }]),
+        ],
       }),
     });
     expect(
@@ -250,7 +256,10 @@ describe('JiraPrecheck.check', () => {
         comments: [...baselineComments, comment(102, anna, 'Closing')],
       }),
     });
-    expect(await precheck.check(watch({ cursor: cursor({ lastCommentId: '101' }) }))).toEqual({ kind: 'close', reason: 'jira-done' });
+    expect(await precheck.check(watch({ cursor: cursor({ lastCommentId: '101' }) }))).toEqual({
+      kind: 'close',
+      reason: 'jira-done',
+    });
   });
 
   test('empty id list never closes', async () => {

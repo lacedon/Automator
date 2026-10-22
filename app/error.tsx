@@ -6,7 +6,9 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
     <div className="error-box" role="alert">
       <div className="error-title">Something went wrong</div>
       <p>{error.message || 'Unexpected error.'}</p>
-      {error.digest !== undefined && <p className="muted">Error digest {error.digest}: see the dashboard log for details.</p>}
+      {error.digest !== undefined && (
+        <p className="muted">Error digest {error.digest}: see the dashboard log for details.</p>
+      )}
       <p>
         <button type="button" className="btn btn-secondary" onClick={() => retry()}>
           Try again

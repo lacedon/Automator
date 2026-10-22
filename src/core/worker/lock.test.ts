@@ -18,8 +18,7 @@ function setup() {
 
 const lockRow = (db: Database) =>
   db.prepare('SELECT pid, started_at, heartbeat_at FROM worker_lock').get() as
-    | { pid: number; started_at: number; heartbeat_at: number }
-    | undefined;
+    { pid: number; started_at: number; heartbeat_at: number } | undefined;
 
 const alive = () => true;
 
@@ -30,7 +29,10 @@ describe('worker lock', () => {
     clock.advance(5_000);
     heartbeat(db, clock, 100);
     clock.advance(14_000);
-    expect(acquireWorkerLock(db, clock, 200, alive)).toEqual({ ok: false, error: { code: 'WORKER_RUNNING', pid: 100 } });
+    expect(acquireWorkerLock(db, clock, 200, alive)).toEqual({
+      ok: false,
+      error: { code: 'WORKER_RUNNING', pid: 100 },
+    });
     expect(lockRow(db)?.pid).toBe(100);
   });
 
