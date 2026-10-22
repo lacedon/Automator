@@ -357,6 +357,16 @@ describe('WatchService state actions', () => {
     expect(value(enabled.service.runNow(j.id, {})).trigger).toBe('manual');
   });
 
+  test('resume & run now on jira watch with jira disabled is JIRA_DISABLED and leaves state unchanged', () => {
+    const { db, service } = setup();
+    const id = insertWatch(db, { kind: 'jira', normalizedTarget: 'jira:jira.example.com/ABC-1', state: 'needs_you' });
+    const before = service.get(id);
+    expect(service.resume(id, { runNow: true, note: 'x' })).toEqual({ ok: false, error: { code: 'JIRA_DISABLED' } });
+    expect(service.get(id)).toEqual(before);
+    expect(queued(db)).toHaveLength(0);
+    expect(value(service.resume(id, {}))).toMatchObject({ state: 'active' });
+  });
+
   test('delete while running is RUN_IN_PROGRESS', () => {
     const { db, service, queue } = setup();
     const w = value(service.create({ target: MR, repository: 'pages' }));

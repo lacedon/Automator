@@ -199,6 +199,7 @@ export class WatchService {
 
   resume(id: number, opts: { note?: string; runNow?: boolean }): Result<Watch> {
     return this.act(id, opts.runNow ? 'resumeRunNow' : 'resume', (watch) => {
+      if (opts.runNow && watch.kind === 'jira' && !this.deps.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
       const now = this.deps.clock.now();
       this.deps.db
         .prepare(
