@@ -62,3 +62,24 @@ test('run detail shows transcript, result json and prompt tabs', async ({ page }
   await page.getByRole('tab', { name: 'Prompt' }).click();
   await expect(panel).toContainText('# Prompt for Run #');
 });
+
+test('run detail auto-refreshes only while the run is not finished', async ({ page }) => {
+  const refreshes: string[] = [];
+  page.on('request', (req) => {
+    if (req.headers()['rsc'] === '1') refreshes.push(req.url());
+  });
+
+  await page.goto('/queue');
+  await page.getByRole('link', { name: /^run #\d+$/ }).click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
+  refreshes.length = 0;
+  await page.waitForTimeout(4000);
+  expect(refreshes.length).toBeGreaterThan(0);
+
+  await page.goto('/');
+  await page.getByRole('link', { name: /Replied to 2 comments, pushed fix/ }).click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
+  refreshes.length = 0;
+  await page.waitForTimeout(4000);
+  expect(refreshes).toEqual([]);
+});

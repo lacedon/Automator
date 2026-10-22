@@ -454,7 +454,7 @@ Plain query functions returning view-model objects shaped for the UI spec: `home
 - Routes and contents exactly as the UI spec: `/`, `/watches`, `/watches/new`, `/watches/[id]`, `/watches/[id]/edit`, `/queue`, `/runs`, `/runs/[id]`, `/adhoc`.
 - Pages are dynamic Server Components (`export const dynamic = 'force-dynamic'`) calling read models. A single `createCore()` instance per server process is cached in a module-level singleton.
 - Mutations are Server Actions in `app/actions/*` that parse `FormData` with zod, call a service, `revalidatePath` the affected routes and return `{ ok: true } | { ok: false; error: AppError }`. Forms use `useActionState` to render the red error boxes while keeping entered values.
-- `<AutoRefresh intervalMs={3000}/>` in the layout calls `router.refresh()` while `document.visibilityState === 'visible'` and pauses while a form field is focused or a dialog is open. Elapsed timers tick client-side from `started_at`.
+- `<AutoRefresh intervalMs={3000}/>` in the layout calls `router.refresh()` while `document.visibilityState === 'visible'` and pauses while a form field is focused, a dialog is open, or the page renders `<NoAutoRefresh/>` (Run detail of a finished Run, whose files can't change). Elapsed timers tick client-side from `started_at`.
 - Kind detection on the Watch form calls a `previewTarget` Server Action (debounced 500 ms).
 - "Open" / "reveal" links for result files and transcripts go to a route handler `/files/run/[id]/[name]` and `/files/attempt/[name]` that only serves files inside `<dataDir>`, by whitelisted name.
 - Confirmation dialogs, disabled-with-tooltip actions and empty states as in the UI spec.

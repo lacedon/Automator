@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 
 function userIsBusy(): boolean {
   if (document.visibilityState !== 'visible') return true;
+  if (document.querySelector('[data-no-auto-refresh]') !== null) return true;
   if (document.querySelector('dialog[open]') !== null) return true;
   return document.activeElement?.matches('input, textarea, select') ?? false;
 }
