@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { loadConfig, loadDotenv, resolveSecrets } from './config/load';
+import { loadConfig, loadDotenv, resolveSecrets, type Secrets } from './config/load';
 import type { Config } from './config/schema';
 import { migrate } from './db/migrate';
 import { openDb, type Database } from './db/open';
@@ -77,14 +78,17 @@ function upsertMeta(db: Database, key: string, value: string): void {
   db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(key, value);
 }
 
-function metaMeCache(db: Database, gitlab: Deps['gitlab']): GitLabPrecheckDeps['meCache'] {
+// Keyed by a token hash too: a token of another user must not reuse the old identity.
+function metaMeCache(db: Database, gitlab: Deps['gitlab'], secrets: Secrets): GitLabPrecheckDeps['meCache'] {
   return {
     async get(conn) {
       const key = `gitlab_me:${conn}`;
+      const tokenHash = createHash('sha256').update(secrets.gitlab[conn] ?? '').digest('hex').slice(0, 16);
       const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
-      if (row !== undefined) return JSON.parse(row.value) as { id: number; username: string };
+      const cached = row === undefined ? null : (JSON.parse(row.value) as { id: number; username: string; tokenHash?: string });
+      if (cached !== null && cached.tokenHash === tokenHash) return { id: cached.id, username: cached.username };
       const { id, username } = await gitlab(conn).me();
-      upsertMeta(db, key, JSON.stringify({ id, username }));
+      upsertMeta(db, key, JSON.stringify({ id, username, tokenHash }));
       return { id, username };
     },
   };
@@ -120,7 +124,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     secrets,
     gitlabClientFor: deps.gitlab,
     jiraClientFor: deps.jira,
-    gitlabMeCache: metaMeCache(db, deps.gitlab),
+    gitlabMeCache: metaMeCache(db, deps.gitlab, secrets),
   });
   const queue = new QueueService(db, clock, dataDir, config);
   const executorDeps: RunExecutorDeps = { db, clock, config, dataDir, launcher: copilot, prechecks, onNeedsYou };

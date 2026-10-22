@@ -61,13 +61,32 @@ describe('createCore', () => {
     await core.scheduler.tick();
     expect(gitlab.me).toHaveBeenCalledOnce();
     const row = core.db.prepare("SELECT value FROM meta WHERE key = 'gitlab_me:corp'").get() as { value: string };
-    expect(JSON.parse(row.value)).toEqual({ id: 42, username: 'me' });
+    expect(JSON.parse(row.value)).toMatchObject({ id: 42, username: 'me', tokenHash: expect.any(String) });
 
     const second = open();
     cleanups.unshift(() => second.close());
     core.db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(clock.now() - 1, id);
     await second.scheduler.tick();
     expect(gitlab.me).toHaveBeenCalledOnce();
+  });
+
+  test('refetches the cached GitLab user when the token changes', async () => {
+    vi.stubEnv('GITLAB_TOKEN', 'token-a');
+    cleanups.push(() => vi.unstubAllEnvs());
+    const { core, clock, gitlab, open } = setup();
+    const id = insertWatch(core.db, { kind: 'mr', targetUrl: MR_URL, normalizedTarget: 'gitlab:gitlab.example.com/g/p!7' });
+    const due = () => core.db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(clock.now() - 1, id);
+    due();
+    await core.scheduler.tick();
+    expect(gitlab.me).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(core.db.prepare("SELECT value FROM meta WHERE key = 'gitlab_me:corp'").get())).not.toContain('token-a');
+
+    vi.stubEnv('GITLAB_TOKEN', 'token-b');
+    const second = open();
+    cleanups.unshift(() => second.close());
+    due();
+    await second.scheduler.tick();
+    expect(gitlab.me).toHaveBeenCalledTimes(2);
   });
 
   test('exposes read models over the core database and clock', () => {
