@@ -20,3 +20,18 @@ export function formatRelative(at: number, now: number): string {
   if (diff < 2 * DAY) return 'yesterday';
   return `${Math.floor(diff / DAY)}d ago`;
 }
+
+export function formatTook(ms: number): string {
+  if (ms < MINUTE) return `${Math.round(ms / SECOND)}s`;
+  if (ms < HOUR) return `${Math.floor(ms / MINUTE)}m`;
+  return `${Math.floor(ms / HOUR)}h ${Math.floor((ms % HOUR) / MINUTE)}m`;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Local time of the dashboard host (the server and the browser are the same machine).
+export function formatDateTime(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

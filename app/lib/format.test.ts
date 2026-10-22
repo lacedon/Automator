@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { formatElapsed, formatRelative } from './format';
+import { formatDateTime, formatElapsed, formatRelative, formatTook } from './format';
 
 const S = 1000;
 const M = 60 * S;
@@ -24,4 +24,14 @@ test('formats relative time', () => {
   expect(formatRelative(now - 30 * H, now)).toBe('yesterday');
   expect(formatRelative(now - 5 * 24 * H, now)).toBe('5d ago');
   expect(formatRelative(now + 10 * S, now)).toBe('just now');
+});
+
+test('formats how long a Run took', () => {
+  expect(formatTook(42 * S)).toBe('42s');
+  expect(formatTook(14 * M + 30 * S)).toBe('14m');
+  expect(formatTook(2 * H + 5 * M)).toBe('2h 5m');
+});
+
+test('formats a date with time of day', () => {
+  expect(formatDateTime(Date.parse('2026-10-18T09:12:00'))).toBe('Oct 18, 09:12');
 });

@@ -30,3 +30,15 @@ export function InlineError({ error }: { error: AppError }) {
     </div>
   );
 }
+
+export function UnexpectedError({ message }: { message: string }) {
+  return (
+    <div className="error-box" role="alert">
+      Something went wrong: {message}
+    </div>
+  );
+}
+
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}

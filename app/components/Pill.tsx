@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { RunRow } from '@core/index';
+import type { NextCheck, RunRow, WatchState } from '@core/index';
+import { Elapsed } from './Elapsed';
 
 export type PillVariant = 'needs-you' | 'good' | 'running' | 'neutral' | 'paused' | 'closed' | 'info' | 'interrupted';
 
@@ -17,4 +18,36 @@ export function RunPill({ run }: { run: Pick<RunRow, 'status' | 'outcome' | 'res
   if (run.status === 'running') return <Pill variant="running">running</Pill>;
   if (run.status === 'queued') return <Pill variant="info">queued</Pill>;
   return <Pill variant="neutral">—</Pill>;
+}
+
+const STATE_PILL: Record<WatchState, { variant: PillVariant; label: string }> = {
+  needs_you: { variant: 'needs-you', label: 'Needs you' },
+  active: { variant: 'good', label: 'Active' },
+  paused: { variant: 'paused', label: 'Paused' },
+  closed: { variant: 'closed', label: 'Closed' },
+};
+
+export function WatchStatePill({ state }: { state: WatchState }) {
+  const { variant, label } = STATE_PILL[state];
+  return <Pill variant={variant}>{label}</Pill>;
+}
+
+export function NextCheckLabel({ next }: { next: NextCheck }) {
+  if (next.kind === 'running' && next.since !== undefined) {
+    return (
+      <Pill variant="running">
+        ● running <Elapsed since={next.since} />
+      </Pill>
+    );
+  }
+  if (next.kind === 'in' || next.kind === 'queued') return <>{next.text}</>;
+  if (next.kind === 'after-hours') {
+    const [head, window] = next.text.split(' · ');
+    return (
+      <>
+        {head} <span className="muted">· {window}</span>
+      </>
+    );
+  }
+  return <span className="muted">{next.text}</span>;
 }

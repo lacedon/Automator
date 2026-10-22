@@ -92,6 +92,39 @@ db.prepare(
 ).run(now - 3 * MIN, failed, needsYou);
 
 db.prepare(
+  `INSERT INTO needs_you_events (watch_id, run_id, reason, created_at, teams_status) VALUES (?, ?, 'Validation failed: npm test', ?, 'sent')`,
+).run(needsYou, failed, now - 3 * MIN);
+db.prepare(
+  `UPDATE watches SET mr_source_branch = 'feature/export-retry', instructions = 'Keep changes minimal.',
+     cursor_json = '{"lastNoteId":9921,"handledPipelineId":55102,"handledConflictSha":null}' WHERE id = ?`,
+).run(needsYou);
+
+// One Watch per remaining state/kind so every Next check text and row menu variant shows up.
+const insertOther = db.prepare(
+  `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, instructions, closed_reason, closed_at,
+     created_at, updated_at)
+   VALUES (?, ?, ?, 'pages', ?, ?, ?, ?, ?, ?, ?)`,
+);
+insertOther.run('jira', 'https://jira.example.com/browse/PROJ-1880', 'jira:PROJ-1880', 'PROJ-1880 Report export perf', 'paused', null, null, null, now, now);
+insertOther.run('jira', 'https://jira.example.com/browse/PROJ-1931', 'jira:PROJ-1931', 'PROJ-1931 Clarify SSO timeout', 'active', null, null, null, now, now);
+insertOther.run('free', 'https://wiki.example.com/release', 'free:wiki.example.com/release', 'docs-sync — wiki.example.com/release', 'active', 'Sync release notes into docs/.', null, null, now, now);
+const closed = Number(
+  insertOther.run(
+    'mr',
+    'https://gitlab.example.com/web/pages/-/merge_requests/38',
+    'gitlab:gitlab.example.com/web/pages!38',
+    '!38 Remove legacy auth',
+    'closed',
+    null,
+    'merged',
+    now - 6 * 24 * 60 * MIN,
+    now - 10 * 24 * 60 * MIN,
+    now,
+  ).lastInsertRowid,
+);
+insertFinishedRun(closed, 6 * 24 * 60, 'acted', 'Merged after final review');
+
+db.prepare(
   `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at, pid)
    VALUES ('pages', 'running', 'adhoc', 0, 'ad-hoc', 'Summarize open TODOs in src/', 'claude-sonnet-4.5', ?, ?, 4243)`,
 ).run(now - 5 * MIN, now - 4 * MIN);
