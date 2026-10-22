@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { runWatchNow } from '../actions/watches';
-import { InlineError } from './InlineError';
+import { ErrorBox } from './ErrorBox';
 
 type Props = { watchId: number; isMr: boolean; disabledReason?: string };
 
@@ -36,7 +36,7 @@ export function RunNowPopover({ watchId, isMr, disabledReason }: Props) {
             <input type="checkbox" name="reviewUnresolved" /> Review existing unresolved discussions
           </label>
         )}
-        {state && !state.ok && <InlineError error={state.error} />}
+        {state && !state.ok && <ErrorBox error={state.error} />}
         <div className="actions">
           <button type="submit" className="btn btn-primary" disabled={pending}>
             Queue Run

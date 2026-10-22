@@ -4,7 +4,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import type { AppError } from '@core/index';
 import type { ActionResult } from '../actions/types';
-import { errorMessage, InlineError, UnexpectedError } from './InlineError';
+import { ErrorBox, errorMessage } from './ErrorBox';
 
 type Props = {
   label: string;
@@ -59,8 +59,7 @@ export function ConfirmDialog({ label, message, confirmLabel, dismissLabel = 'Ba
         onClose={() => setError(null)}
       >
         <p>{message}</p>
-        {typeof error === 'string' && <UnexpectedError message={error} />}
-        {error !== null && typeof error !== 'string' && <InlineError error={error} />}
+        {error !== null && <ErrorBox error={error} />}
         <div className="actions">
           <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => dialog.current?.close()}>
             {dismissLabel}

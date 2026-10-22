@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { resumeWatch } from '../actions/watches';
-import { InlineError } from './InlineError';
+import { ErrorBox } from './ErrorBox';
 
 export function ResumeForm({ watchId, withNote }: { watchId: number; withNote?: boolean }) {
   const [state, formAction, pending] = useActionState(resumeWatch, null);
@@ -18,7 +18,7 @@ export function ResumeForm({ watchId, withNote }: { watchId: number; withNote?: 
           Resume &amp; run now
         </button>
       </div>
-      {state && !state.ok && <InlineError error={state.error} />}
+      {state && !state.ok && <ErrorBox error={state.error} />}
     </form>
   );
 }

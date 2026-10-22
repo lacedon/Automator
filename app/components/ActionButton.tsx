@@ -4,7 +4,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { createContext, useContext, useState, useTransition, type ReactNode } from 'react';
 import type { AppError } from '@core/index';
 import type { ActionResult } from '../actions/types';
-import { errorMessage, InlineError, UnexpectedError } from './InlineError';
+import { ErrorBox, errorMessage } from './ErrorBox';
 
 type PageError = AppError | string | null;
 
@@ -15,8 +15,7 @@ export function ActionErrorProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<PageError>(null);
   return (
     <ReportError value={setError}>
-      {typeof error === 'string' && <UnexpectedError message={error} />}
-      {error !== null && typeof error !== 'string' && <InlineError error={error} />}
+      {error !== null && <ErrorBox error={error} />}
       {children}
     </ReportError>
   );

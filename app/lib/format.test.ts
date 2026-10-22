@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { formatDateTime, formatElapsed, formatRelative, formatTook } from './format';
+import { formatDuration } from '@core/index';
+import { formatDateTime, formatElapsed, formatInterval, formatRelative, formatTook } from './format';
 
 const S = 1000;
 const M = 60 * S;
@@ -34,4 +35,10 @@ test('formats how long a Run took', () => {
 
 test('formats a date with time of day', () => {
   expect(formatDateTime(Date.parse('2026-10-18T09:12:00'))).toBe('Oct 18, 09:12');
+});
+
+test('formats intervals exactly like the core duration formatter', () => {
+  for (const ms of [30 * S, 90 * S, 15 * M, 90 * M, 2 * H, 24 * H, 36 * H, 3 * 24 * H]) {
+    expect(formatInterval(ms)).toBe(formatDuration(ms));
+  }
 });

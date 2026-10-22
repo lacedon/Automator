@@ -6,6 +6,7 @@ import { cancelRun } from '../../actions/runs';
 import { ActionErrorProvider } from '../../components/ActionButton';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Elapsed } from '../../components/Elapsed';
+import { KIND_NAME } from '../../components/KindBadge';
 import { NeedsYouCard } from '../../components/NeedsYouCard';
 import { NextCheckLabel, Pill, WatchStatePill } from '../../components/Pill';
 import { RunNowPopover } from '../../components/RunNowPopover';
@@ -15,8 +16,6 @@ import { getCore } from '../../lib/core';
 import { formatDateTime } from '../../lib/format';
 
 export const dynamic = 'force-dynamic';
-
-const KIND_TEXT: Record<Watch['kind'], string> = { mr: 'GitLab MR', jira: 'Jira issue', free: 'Free-form' };
 
 function runNowDisabledReason(view: WatchDetailView, jiraEnabled: boolean): string | undefined {
   if (!view.actions.includes('runNow')) return view.watch.state === 'closed' ? 'Reopen the Watch first' : 'Resume the Watch first';
@@ -28,7 +27,7 @@ function Subline({ watch }: { watch: Watch }) {
   const isUrl = /^https?:\/\//.test(watch.targetUrl);
   return (
     <div className="muted">
-      {KIND_TEXT[watch.kind]} ·{' '}
+      {KIND_NAME[watch.kind]} ·{' '}
       {isUrl ? (
         <a href={watch.targetUrl} target="_blank" rel="noreferrer">
           {watch.targetUrl.replace(/^https?:\/\//, '')}

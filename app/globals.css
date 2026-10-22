@@ -620,3 +620,113 @@ textarea:focus {
 .kv .kv-full {
   grid-column: 1 / -1;
 }
+
+/* Error box details (ErrorBox) */
+
+.error-title {
+  font-weight: 700;
+}
+
+.error-box p {
+  margin: 2px 0 0;
+  color: var(--text);
+}
+
+/* Watch form */
+
+.page-title {
+  margin: 4px 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.watch-form {
+  max-width: 620px;
+}
+
+.watch-form > .error-box {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+}
+
+.field {
+  margin-bottom: 12px;
+  min-width: 0;
+}
+
+.field > label,
+.field-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.field input,
+.field select,
+.input-locked {
+  width: 100%;
+  padding: 6px 9px;
+}
+
+.input-locked {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.input-err {
+  border-color: #f85149;
+}
+
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.locked-note,
+.review-hint {
+  margin: -6px 0 12px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.field-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.seg label {
+  padding: 5px 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.seg label.on {
+  background: var(--nav-active-bg);
+  color: var(--text);
+}
+
+.seg label:focus-within {
+  outline: 1px solid var(--accent);
+}
+
+.seg input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
