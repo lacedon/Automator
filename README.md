@@ -165,12 +165,12 @@ Free-form Watches always run Copilot on their interval.
 Copilot may reply to discussions, fix code, commit and push to the MR's source branch, and address pipeline failures and conflicts. Before it does, it must:
 
 1. Re-read the current state of the MR, its branch and its discussions.
-2. Confirm that it's on the MR's source branch.
+2. Be on the MR's source branch. If the checkout is clean but on another branch, Copilot fetches and switches to the source branch itself (it never stashes or discards anything to do so); if the checkout isn't clean or the switch fails, it stops.
 3. Run the Repository's configured validation commands.
 
 It stops and marks the Watch **Needs you**, instead of guessing or pushing unchecked code, when:
 
-- the checkout has uncommitted changes, an unfinished merge or rebase, or is in an unexpected branch state (your work is never stashed or thrown away automatically),
+- the checkout has uncommitted changes, an unfinished merge or rebase, or can't be safely switched to the source branch (your work is never stashed or thrown away automatically),
 - a request is unclear or is a design disagreement,
 - validation commands aren't configured or a required one fails,
 - updating the branch wouldn't be safe.

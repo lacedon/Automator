@@ -70,6 +70,7 @@ describe('createCopilotLauncher', () => {
     expect(after('--model')).toBe('m1');
     expect(after('--deny-tool')).toBe('gitlab(merge_merge_request)');
     expect(after('--log-level')).toBe('error');
+    expect(after('--add-dir')).toBe(path.dirname(s.transcriptPath));
     expect(args).toEqual(expect.arrayContaining(['--no-color', '--no-ask-user']));
     expect(after('-p')).toContain('write exactly this JSON to');
     expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('# fake transcript\nnothing\n');

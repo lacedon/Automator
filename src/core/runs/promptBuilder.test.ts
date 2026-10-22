@@ -151,7 +151,9 @@ describe('buildWatchPrompt', () => {
     const prompt = watchPrompt({ snapshot: snapshot({ sourceBranch: 'feature/new-name' }) });
     const rules = prompt.slice(prompt.indexOf('## Rules'), prompt.indexOf('## Default instructions'));
     expect(rules).toContain('Re-read the current state of the MR');
-    expect(rules).toContain('Confirm that you are on the MR source branch `feature/new-name`');
+    expect(rules).toContain('Make sure you are on the MR source branch `feature/new-name`');
+    expect(rules).toContain('git switch feature/new-name');
+    expect(rules).toContain('Never stash, reset or discard anything to switch');
     expect(rules).toContain('Run the validation commands');
     expect(rules).toContain('Commit and push only to the MR source branch `feature/new-name`');
   });
