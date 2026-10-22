@@ -175,7 +175,7 @@ Free-form Watches always run Copilot on their interval.
 
 ### GitLab MRs: full autonomy
 
-Copilot may reply to discussions, fix code, commit and push to the MR's source branch, and address pipeline failures and conflicts. Before it does, it must:
+Copilot may reply to discussions, fix code, commit and push to the MR's source branch, and address pipeline failures. Merge conflicts are not resolved automatically: the Watch moves to **Needs you** and nothing is merged, rebased or reverted. Before Copilot changes anything, it must:
 
 1. Re-read the current state of the MR, its branch and its discussions.
 2. Be on the MR's source branch. If the checkout is clean but on another branch, Copilot fetches and switches to the source branch itself (it never stashes or discards anything to do so); if the checkout isn't clean or the switch fails, it stops.
@@ -185,7 +185,8 @@ It stops and marks the Watch **Needs you**, instead of guessing or pushing unche
 
 - the checkout has uncommitted changes, an unfinished merge or rebase, or can't be safely switched to the source branch (your work is never stashed or thrown away automatically),
 - a request is unclear or is a design disagreement,
-- validation commands aren't configured or a required one fails,
+- validation commands aren't configured or a required one fails (if a commit or push fails on a hook check, Copilot first runs `npm ci` once and retries),
+- the MR has merge conflicts with the target branch,
 - updating the branch wouldn't be safe.
 
 ### Jira
