@@ -62,7 +62,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 
 ## Architecture
 
-- **Single user, localhost only.** No login.
+- **Single user, localhost only.** No login. The dashboard answers only requests whose `Host` is `127.0.0.1`, `localhost` or `[::1]` (403 otherwise), so a web page can't reach it through DNS rebinding.
 - **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs Copilot. Both use the same SQLite database.
 - **Repositories:** the configuration maps Repository names to local folders and to service connections (GitLab host and credential, and the Jira connection where needed). Every Watch and ad-hoc Run must name a Repository. Copilot starts directly in that folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
 - **One global queue:** all Copilot Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.

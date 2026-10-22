@@ -21,7 +21,7 @@ Someone can build v1 from the README, the UI spec and this document without maki
 
 `npm start` runs both long-lived processes with `concurrently`:
 
-- **web**: `next start --hostname 127.0.0.1 --port 4317` (port configurable via `PORT`). Server Components read through `core/read-models`; mutations are Server Actions calling core services.
+- **web**: `next start --hostname 127.0.0.1 --port 4317` (port configurable via `PORT`). Server Components read through `core/read-models`; mutations are Server Actions calling core services. `proxy.ts` answers 403 to any request whose `Host` (or `X-Forwarded-Host`) isn't `127.0.0.1`, `localhost` or `[::1]` (DNS-rebinding guard) and sets `X-Content-Type-Options: nosniff`; Next.js itself rejects Server Actions whose `Origin` doesn't match the host.
 - **worker**: `tsx src/worker/main.ts`. Owns scheduling, pre-checks, Copilot Runs, notifications and cleanup.
 
 The **CLI** (`automator`, `tsx src/cli/main.ts`, exposed via `package.json#bin`) is a short-lived process calling the same core services as the dashboard. Neither the dashboard nor the CLI talks to the worker; they write SQLite rows the worker picks up.
