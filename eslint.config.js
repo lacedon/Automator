@@ -6,7 +6,7 @@ export default tseslint.config(
   {
     ignores: [
       'node_modules/**', '.next/**', 'coverage/**', 'test-results/**', 'playwright-report/**',
-      'next-env.d.ts', '.agents/**', '.claude/**', '.superpowers/**',
+      'next-env.d.ts', '.agents/**', '.claude/**', '.superpowers/**', 'MCP/**',
     ],
   },
   js.configs.recommended,

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useState } from 'react';
+import { startTransition, useActionState, useEffect, useState, type FormEvent } from 'react';
 import type { AppError, FormOptions, InitialReview, PreviewTargetResult, Watch, WatchKind } from '@core/index';
 import { createWatch, previewTarget, updateWatch } from '../actions/watches';
 import { formatInterval } from '../lib/format';
@@ -42,18 +42,23 @@ function errorField(error: AppError | undefined): string | null {
   }
 }
 
+const PREVIEW_UNAVAILABLE: PreviewTargetResult = { kind: null, preview: null, previewError: 'Preview unavailable' };
+
 function useDetectedKind(enabled: boolean, target: string, repository: string): PreviewTargetResult | null {
-  const [detected, setDetected] = useState<PreviewTargetResult | null>(null);
+  // Keyed by the input it was detected for, so a result never outlives a changed target or Repository.
+  const [detected, setDetected] = useState<{ key: string; result: PreviewTargetResult } | null>(null);
+  const key = `${repository}\n${target}`;
   useEffect(() => {
     if (!enabled || target.trim() === '') return;
     let stale = false;
     const timer = setTimeout(() => {
       previewTarget(target, repository).then(
         (result) => {
-          if (!stale) setDetected(result);
+          if (!stale) setDetected({ key, result });
         },
+        // Detection is a hint only; submitting still validates the target.
         () => {
-          // Detection is a hint only; submitting still validates the target.
+          if (!stale) setDetected({ key, result: PREVIEW_UNAVAILABLE });
         },
       );
     }, PREVIEW_DEBOUNCE_MS);
@@ -61,12 +66,13 @@ function useDetectedKind(enabled: boolean, target: string, repository: string): 
       stale = true;
       clearTimeout(timer);
     };
-  }, [enabled, target, repository]);
-  return enabled && target.trim() !== '' ? detected : null;
+  }, [enabled, target, repository, key]);
+  return enabled && detected?.key === key ? detected.result : null;
 }
 
 function DetectedKind({ detected }: { detected: PreviewTargetResult }) {
   if (detected.kind === null) {
+    if (detected.error === undefined) return <div className="field-hint muted">{detected.previewError}</div>;
     const reason = detected.error?.code === 'INVALID_TARGET' ? detected.error.message : detected.error?.code;
     return <div className="field-hint">Couldn&apos;t detect the kind: {reason}</div>;
   }
@@ -102,6 +108,16 @@ export function WatchForm(props: Props) {
   const [interval, setIntervalText] = useState<string | null>(null);
   const [model, setModel] = useState(watch?.model ?? '');
   const [review, setReview] = useState<InitialReview>(watch?.initialReview ?? options.initialReview);
+  // Edit mode mirrors the interval rule: an untouched initial review is not submitted, so it stays as stored.
+  const [reviewTouched, setReviewTouched] = useState(false);
+
+  // React resets a form after its action runs, which reverts controlled selects and radios; submitting manually
+  // keeps every entered value after a failed submit.
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    startTransition(() => formAction(data));
+  };
 
   const detected = useDetectedKind(mode === 'create', target, repository);
   const kind = watch?.kind ?? detected?.kind ?? null;
@@ -116,7 +132,7 @@ export function WatchForm(props: Props) {
   const promptFile = kind === null ? null : options.defaultPromptFiles[kind];
 
   return (
-    <form action={formAction} className="watch-form">
+    <form action={formAction} onSubmit={submit} className="watch-form">
       {state && <ErrorBox error={state.error} />}
 
       {watch === null ? (
@@ -236,15 +252,20 @@ export function WatchForm(props: Props) {
                 <label key={option} className={review === option ? 'on' : undefined}>
                   <input
                     type="radio"
-                    name="initialReview"
-                    value={option === options.initialReview ? '' : option}
+                    name="initialReviewChoice"
                     checked={review === option}
-                    onChange={() => setReview(option)}
+                    onChange={() => {
+                      setReview(option);
+                      setReviewTouched(true);
+                    }}
                   />
                   {option}
                 </label>
               ))}
             </div>
+            {(watch === null || reviewTouched) && (
+              <input type="hidden" name="initialReview" value={review === options.initialReview ? '' : review} />
+            )}
           </div>
         )}
       </div>
