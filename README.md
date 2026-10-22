@@ -17,6 +17,19 @@ Prerequisites:
 
 - Node.js 24
 - GitHub Copilot CLI installed and logged in (`copilot` on your `PATH`)
+- For GitLab MR Watches: [`glab`](https://gitlab.com/gitlab-org/cli) installed and logged in (see below)
+
+### GitLab access for Copilot
+
+Copilot needs its own way to read and reply to MRs, because Automator removes `GITLAB_TOKEN` from the environment it starts Copilot with. GitLab's MCP endpoint (`/api/v4/mcp`) rejects classic personal access tokens (`403 insufficient_scope`), so use the `glab` CLI instead:
+
+```sh
+brew install glab
+glab auth login --hostname gitlab.com --token <your token>   # a token with the `api` scope
+glab auth status                                             # check it works
+```
+
+`glab` keeps the token in the system keyring (or in its config file, `~/.config/glab-cli/`, if no keyring is available), and Copilot's shell picks it up from there. Use the same host as the Repository's `gitlab.host`. Anything running as you, Copilot included, can read it.
 
 Set up and start:
 
