@@ -248,6 +248,67 @@ describe('RunExecutor', () => {
     expect(s.executor.isBusy()).toBe(false);
   });
 
+  describe('finalize failure never leaves the run running', () => {
+    const silenceErrors = () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      cleanups.push(() => spy.mockRestore());
+      return spy;
+    };
+
+    test('result.json write failure finalizes in the DB as INTERNAL_ERROR and moves watch to needs_you', async () => {
+      const logged = silenceErrors();
+      const s = setup({ mode: 'acted' });
+      const watchId = addWatch(s.db);
+      const run = claim(s.db, s.clock.now(), watchId);
+      fs.mkdirSync(path.join(s.dataDir.resultPath(run.id), 'blocker'), { recursive: true });
+
+      const final = await s.executor.execute(run);
+
+      expect(final.error?.code).toBe('INTERNAL_ERROR');
+      expect(final.error?.message).toMatch(/^Internal error: /);
+      expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error', error: final.error });
+      expect(watchOf(s.db, watchId)).toMatchObject({ state: 'needs_you', needsYouRunId: run.id, cursor: oldCursor });
+      expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
+      expect(s.executor.isBusy()).toBe(false);
+      expect(logged).toHaveBeenCalledWith(expect.stringContaining(`Run #${run.id}: finalizing failed`));
+    });
+
+    test('applyOutcome failure falls back to an INTERNAL_ERROR outcome', async () => {
+      silenceErrors();
+      const s = setup({ mode: 'acted' });
+      s.db.exec(
+        "CREATE TRIGGER no_success BEFORE UPDATE OF status ON runs WHEN NEW.result_status = 'success' BEGIN SELECT RAISE(ABORT, 'db is busy'); END",
+      );
+      const watchId = addWatch(s.db);
+      const run = claim(s.db, s.clock.now(), watchId);
+
+      const final = await s.executor.execute(run);
+
+      expect(final.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Internal error: db is busy' });
+      expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error', error: final.error });
+      expect(watchOf(s.db, watchId).state).toBe('needs_you');
+      expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
+      expect(s.executor.isBusy()).toBe(false);
+    });
+
+    test('when applyOutcome keeps failing, a guarded UPDATE still finishes the run', async () => {
+      const logged = silenceErrors();
+      const s = setup({ mode: 'acted' });
+      const watchId = addWatch(s.db);
+      s.db.exec("CREATE TRIGGER no_watch_update BEFORE UPDATE ON watches BEGIN SELECT RAISE(ABORT, 'watch locked'); END");
+      const run = claim(s.db, s.clock.now(), watchId);
+
+      const final = await s.executor.execute(run);
+
+      expect(final.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Internal error: watch locked' });
+      expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error', error: final.error });
+      expect(watchOf(s.db, watchId).state).toBe('active');
+      expect(s.onNeedsYou).not.toHaveBeenCalled();
+      expect(s.executor.isBusy()).toBe(false);
+      expect(logged).toHaveBeenCalledWith(expect.stringContaining('applying the failure outcome failed: watch locked'));
+    });
+  });
+
   test('db failure storing pid kills the started process and is INTERNAL_ERROR, not SPAWN_FAILED', async () => {
     const kills: string[] = [];
     const proc: RunningProcess = { pid: 4321, exited: new Promise(() => {}), kill: (sig) => kills.push(sig) };

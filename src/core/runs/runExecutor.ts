@@ -88,9 +88,9 @@ const existing = (file: string) => (fs.existsSync(file) ? file : null);
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // Shared by the executor and restart recovery: result.json, then OutcomeApplier, then the notifier.
-export async function finalizeRun(deps: RunExecutorDeps, run: Run, conclusion: RunConclusion): Promise<RunFinal> {
+function toFinal(deps: RunExecutorDeps, run: Run, conclusion: RunConclusion): RunFinal {
   const { dataDir } = deps;
-  const final: RunFinal = {
+  return {
     runId: run.id,
     endedAt: deps.clock.now(),
     ...conclusion,
@@ -98,6 +98,19 @@ export async function finalizeRun(deps: RunExecutorDeps, run: Run, conclusion: R
     transcriptPath: existing(dataDir.transcriptPath(run.id)),
     resultPath: dataDir.resultPath(run.id),
   };
+}
+
+async function notifyNeedsYou(deps: RunExecutorDeps, needsYou: NeedsYouEvent | null): Promise<void> {
+  if (needsYou === null) return;
+  try {
+    await deps.onNeedsYou(needsYou);
+  } catch {
+    // Best effort: the event row keeps its pending Teams status.
+  }
+}
+
+export async function finalizeRun(deps: RunExecutorDeps, run: Run, conclusion: RunConclusion): Promise<RunFinal> {
+  const final = toFinal(deps, run, conclusion);
   const startedAt = run.startedAt ?? final.endedAt;
   const file: ResultFileV1 = {
     schemaVersion: 1,
@@ -117,13 +130,27 @@ export async function finalizeRun(deps: RunExecutorDeps, run: Run, conclusion: R
   writeJsonAtomic(final.resultPath, file);
 
   const { needsYou } = applyOutcome(deps.db, deps.config, final);
-  if (needsYou !== null) {
-    try {
-      await deps.onNeedsYou(needsYou);
-    } catch {
-      // Best effort: the event row keeps its pending Teams status.
-    }
+  await notifyNeedsYou(deps, needsYou);
+  return final;
+}
+
+// Used when finalizeRun throws (disk full, SQLITE_BUSY, ...): a Run must never stay running, so record
+// INTERNAL_ERROR in the DB only, through applyOutcome if possible, else with a bare guarded UPDATE.
+async function finalizeAfterFailure(deps: RunExecutorDeps, run: Run, cause: unknown): Promise<RunFinal> {
+  const final = toFinal(deps, run, failure('INTERNAL_ERROR', `Internal error: ${errorMessage(cause)}`));
+  let needsYou: NeedsYouEvent | null = null;
+  try {
+    ({ needsYou } = applyOutcome(deps.db, deps.config, final));
+  } catch (e) {
+    console.error(`Run #${run.id}: applying the failure outcome failed: ${errorMessage(e)}`);
+    deps.db
+      .prepare(
+        `UPDATE runs SET status = 'finished', ended_at = ?, result_status = 'error', error_json = ?
+         WHERE id = ? AND status = 'running'`,
+      )
+      .run(final.endedAt, JSON.stringify(final.error), run.id);
   }
+  await notifyNeedsYou(deps, needsYou);
   return final;
 }
 
@@ -169,7 +196,12 @@ export class RunExecutor {
         if (active.proc !== null && !active.exited) active.proc.kill('SIGKILL');
         conclusion = failure('INTERNAL_ERROR', `Internal error: ${errorMessage(e)}`);
       }
-      return await finalizeRun(this.deps, run, conclusion);
+      try {
+        return await finalizeRun(this.deps, run, conclusion);
+      } catch (e) {
+        console.error(`Run #${run.id}: finalizing failed: ${errorMessage(e)}`);
+        return await finalizeAfterFailure(this.deps, run, e);
+      }
     } finally {
       this.active = null;
     }
