@@ -219,10 +219,7 @@ export class RunExecutor {
     const a = this.active;
     if (a === null || a.proc === null || a.exited) return;
     const now = this.deps.clock.now();
-    const row = this.deps.db.prepare('SELECT cancel_requested_at FROM runs WHERE id = ?').get(a.run.id) as
-      | { cancel_requested_at: number | null }
-      | undefined;
-    if (row?.cancel_requested_at != null) a.interrupted = 'cancelled';
+    if (this.cancelRequested(a.run.id)) a.interrupted = 'cancelled';
     else if (a.interrupted === null && now - a.startedAt > this.deps.config.runs.timeoutMs) a.interrupted = 'timeout';
     if (a.interrupted === null) return;
 
@@ -233,6 +230,13 @@ export class RunExecutor {
       a.killSent = true;
       a.proc.kill('SIGKILL');
     }
+  }
+
+  private cancelRequested(runId: number): boolean {
+    const row = this.deps.db.prepare('SELECT cancel_requested_at FROM runs WHERE id = ?').get(runId) as
+      | { cancel_requested_at: number | null }
+      | undefined;
+    return row?.cancel_requested_at != null;
   }
 
   private async conclude(active: Active): Promise<RunConclusion> {
@@ -290,6 +294,9 @@ export class RunExecutor {
     const promptPath = dataDir.promptPath(run.id);
     writeTextAtomic(promptPath, prompt);
     db.prepare('UPDATE runs SET prompt_path = ? WHERE id = ?').run(promptPath, run.id);
+
+    // The watchdog only sees the process once it runs; a cancel during the pre-check must stop the Run here.
+    if (this.cancelRequested(run.id)) return failure('INTERRUPTED', 'Run cancelled', { interrupted: 'cancelled' });
 
     let started: RunningProcess | { spawnError: string };
     try {

@@ -379,6 +379,26 @@ describe('RunExecutor', () => {
     expect(readResult(final.resultPath).error).toEqual({ code: 'INTERRUPTED', message: 'Run cancelled' });
   });
 
+  test('cancel requested before copilot starts never spawns it and finishes as cancelled', async () => {
+    let runId = 0;
+    const s = setup({
+      snapshot: async () => {
+        s.db.prepare('UPDATE runs SET cancel_requested_at = ? WHERE id = ?').run(s.clock.now(), runId);
+        return { events: [], cursorCandidate: candidate, title: 'New title', sourceBranch: 'feat/x' };
+      },
+    });
+    const watchId = addWatch(s.db);
+    const run = claim(s.db, s.clock.now(), watchId);
+    runId = run.id;
+
+    const final = await s.executor.execute(run);
+
+    expect(s.starts).toHaveLength(0);
+    expect(final).toMatchObject({ interrupted: 'cancelled', error: { code: 'INTERRUPTED', message: 'Run cancelled' } });
+    expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', interrupted: 'cancelled', pid: null });
+    expect(watchOf(s.db, watchId).cursor).toEqual(oldCursor);
+  });
+
   test('watchdog sends SIGTERM once, prefers cancel, and SIGKILL 10 s later', async () => {
     const kills: string[] = [];
     let exit!: (e: CopilotExit) => void;
