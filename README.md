@@ -207,7 +207,7 @@ Failures:
 - Copilot Runs that fail, are interrupted, time out or return an invalid or missing result are **not** retried automatically. The Watch moves to **Needs you** instead, so replies and pushes aren't duplicated.
 - The Run timeout is **30 minutes** by default, configurable.
 - Cancelling a Run records it as interrupted. It can't undo replies or pushes that already happened.
-- If you pause or close a Watch during a Run, that still applies after the Run ends. A Watch can't be deleted while its Run is still going unless you cancel the Run first.
+- If you pause or close a Watch during a Run, that still applies after the Run ends. Exception: if that Run fails or asks for help, a paused Watch moves to Needs you so the failure isn't hidden. A Watch can't be deleted while its Run is still going unless you cancel the Run first.
 - Ad-hoc Run failures stay in Run history and don't create a Watch.
 
 ## History and result files
