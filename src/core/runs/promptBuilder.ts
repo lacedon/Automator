@@ -71,7 +71,7 @@ ${FIXED_RULES}
 
 ### Before you change, commit or push anything on the MR
 1. Re-read the current state of the MR, its branch and its discussions.
-2. Make sure you are on the MR source branch \`${branch}\`. Being on a different branch is not by itself a reason to stop: if the checkout is clean (no uncommitted changes, no unfinished merge or rebase), run \`git fetch origin ${branch}\` and then \`git switch ${branch}\` (if no local branch exists, \`git switch --track origin/${branch}\`), and confirm with \`git branch --show-current\`. Never stash, reset or discard anything to switch. If the checkout is not clean or the switch fails, stop and finish with outcome "needs-you". After every switch to a branch, run \`npm ci\` so the packages are up to date.
+2. Make sure you are on the MR source branch \`${branch}\`. Being on a different branch is not by itself a reason to stop: if the checkout is clean (no uncommitted changes, no unfinished merge or rebase), run \`git fetch origin ${branch}\` and then \`git switch ${branch}\` (if no local branch exists, \`git switch --track origin/${branch}\`), and confirm with \`git branch --show-current\`. Never stash, reset or discard anything to switch. If the checkout is not clean or the switch fails, stop and finish with outcome "needs-you". After every switch to a branch, run \`npm ci\` so the packages are up to date. If \`npm ci\` fails, run \`rm -r ./node_modules\` and try \`npm ci\` again; if it still fails, stop and finish with outcome "needs-you".
 3. Run the validation commands listed below.
 
 Commit and push only to the MR source branch \`${branch}\`.`;

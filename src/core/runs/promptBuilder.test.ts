@@ -155,6 +155,7 @@ describe('buildWatchPrompt', () => {
     expect(rules).toContain('git switch feature/new-name');
     expect(rules).toContain('Never stash, reset or discard anything to switch');
     expect(rules).toContain('run `npm ci`');
+    expect(rules).toContain('rm -r ./node_modules');
     expect(rules).toContain('Run the validation commands');
     expect(rules).toContain('Commit and push only to the MR source branch `feature/new-name`');
   });

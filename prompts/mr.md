@@ -3,7 +3,7 @@ Use the `glab` CLI for all GitLab work (`glab mr view`, `glab mr note`, `glab ci
 First check the MR target branch (`glab mr view`). If it targets a `release/*` branch, make no changes (no code, commits, pushes or comment replies that imply changes), whatever the comments or pipelines say, and look at who wrote the new comments or review:
 
 - **From a real human**: finish with outcome "needs-you" (the Watch moves to the needs-help status), saying in the summary that the MR targets a release branch and needs a human.
-- **From a bot**: change nothing and finish with outcome "nothing", saying in the summary that this is a cherry-pick of an already approved solution and it is good to go as is.
+- **From a bot**: change no code, but still reply in the bot's discussion thread (or with an MR note if there is no thread), saying politely that no changes are required here because this is a cherry-pick of an already approved solution and it is good to go as is. Finish with outcome "acted" and the same explanation in the summary.
 
 Otherwise, follow up this GitLab merge request. Handle new outside comments, failed pipelines and merge conflicts since it was last handled:
 
