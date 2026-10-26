@@ -1,12 +1,13 @@
 import type { Trigger } from '../domain/types';
 import type { ReadDeps } from './deps';
-import { RUNS_WITH_TITLE, toRunWithTitle, type RunWithTitle } from './runs';
+import { RUNS_WITH_TITLE, ticketLink, toRunWithTitle, type RunWithTitle, type TicketLink } from './runs';
 
 export type RunningCard = {
   runId: number;
   watchId: number | null;
   watchTitle: string | null;
   adhocPrompt: string | null;
+  ticket: TicketLink | null;
   repository: string;
   trigger: Trigger;
   reason: string;
@@ -23,6 +24,7 @@ export type QueueRow = {
   watchId: number | null;
   watchTitle: string | null;
   adhocPrompt: string | null;
+  ticket: TicketLink | null;
   repository: string;
   queuedAt: number;
   reason: string;
@@ -40,6 +42,7 @@ export function toRunningCard(run: RunWithTitle | null, deps: ReadDeps): Running
     watchId: run.watchId,
     watchTitle: run.watchTitle,
     adhocPrompt: run.adhocPrompt,
+    ticket: ticketLink(run, deps.config),
     repository: run.repository,
     trigger: run.trigger,
     reason: run.reason,
@@ -49,8 +52,8 @@ export function toRunningCard(run: RunWithTitle | null, deps: ReadDeps): Running
   };
 }
 
-export function waitingRows({ db }: ReadDeps): QueueRow[] {
-  return db
+export function waitingRows(deps: ReadDeps): QueueRow[] {
+  return deps.db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.status = 'queued' ORDER BY r.priority, r.queued_at, r.id`)
     .all()
     .map((row, i) => {
@@ -63,6 +66,7 @@ export function waitingRows({ db }: ReadDeps): QueueRow[] {
         watchId: run.watchId,
         watchTitle: run.watchTitle,
         adhocPrompt: run.adhocPrompt,
+        ticket: ticketLink(run, deps.config),
         repository: run.repository,
         queuedAt: run.queuedAt,
         reason: run.reason,

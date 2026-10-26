@@ -89,4 +89,10 @@ CREATE TABLE worker_lock (
 );
 `,
   },
+  {
+    version: 2,
+    sql: `ALTER TABLE runs ADD COLUMN ticket_key TEXT;
+ALTER TABLE runs ADD COLUMN ticket_title TEXT;
+`,
+  },
 ];

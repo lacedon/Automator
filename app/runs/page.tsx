@@ -93,7 +93,7 @@ function RunListRow({ run }: { run: RunRow }) {
       </td>
       <td className="cell-text">
         <Link href={href} className="plain-link">
-          <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} />
+          <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
         </Link>
       </td>
       <td>{run.repository}</td>

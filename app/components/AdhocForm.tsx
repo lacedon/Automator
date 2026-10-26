@@ -10,12 +10,16 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
   const [repository, setRepository] = useState(options.repositories[0]?.name ?? '');
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('');
+  const [ticket, setTicket] = useState('');
 
-  // A successful submit clears the prompt for the next Run; failures keep everything as entered.
+  // A successful submit clears the prompt and Ticket for the next Run; failures keep everything as entered.
   const [seen, setSeen] = useState<AdhocFormState>(null);
   if (state !== seen) {
     setSeen(state);
-    if (state?.ok) setPrompt('');
+    if (state?.ok) {
+      setPrompt('');
+      setTicket('');
+    }
   }
 
   // Submitting manually avoids React's automatic form reset, which would revert the controlled selects.
@@ -40,6 +44,7 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
       {state?.ok && (
         <div className="success-box" role="status">
           Run #{state.value.runId} queued{state.value.position !== null && ` (position ${state.value.position})`}
+          {state.value.warning !== undefined && <div className="muted">{state.value.warning}</div>}
         </div>
       )}
       <div className="field">
@@ -61,12 +66,24 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
         {repo !== undefined && <div className="field-hint muted mono">{repo.folder}</div>}
       </div>
       <div className="field">
+        <label htmlFor="ah-ticket">Jira Ticket (optional)</label>
+        <input
+          id="ah-ticket"
+          name="ticket"
+          type="text"
+          className={inputClass('ticket')}
+          value={ticket}
+          onChange={(e) => setTicket(e.target.value)}
+          placeholder="ABC-123 or https://…/browse/ABC-123"
+        />
+      </div>
+      <div className="field">
         <label htmlFor="ah-prompt">Prompt</label>
         <textarea
           id="ah-prompt"
           name="prompt"
           rows={4}
-          required
+          required={ticket.trim() === ''}
           className={inputClass('prompt')}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}

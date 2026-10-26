@@ -282,6 +282,36 @@ describe('read models', () => {
     expect(await read.runDetail(9_999)).toBeNull();
   });
 
+  test('Ticket-linked Runs expose the Ticket key, title and Jira link in every Run view', async () => {
+    const { db, read } = setup();
+    const linked = {
+      trigger: 'adhoc',
+      priority: 0,
+      adhoc_prompt: 'p',
+      ticket_key: 'ABC-123',
+      ticket_title: 'Fix login redirect',
+    };
+    const ticket = {
+      key: 'ABC-123',
+      title: 'Fix login redirect',
+      url: 'https://jira.example.com/browse/ABC-123',
+    };
+    const finished = insertRun(db, { ...linked, result_status: 'success', outcome: 'acted' });
+    const running = insertRun(db, { ...linked, status: 'running', started_at: 5_000 });
+    const queued = insertRun(db, { ...linked, status: 'queued', ticket_title: null });
+    const plain = insertRun(db, { trigger: 'adhoc', priority: 0, adhoc_prompt: 'x', status: 'queued' });
+
+    const queue = read.queueView();
+    expect(queue.running).toMatchObject({ runId: running, ticket });
+    expect(queue.waiting.find((r) => r.runId === queued)).toMatchObject({
+      ticket: { key: 'ABC-123', title: null, url: ticket.url },
+    });
+    expect(queue.waiting.find((r) => r.runId === plain)!.ticket).toBeNull();
+    expect(read.runList({}).find((r) => r.id === finished)).toMatchObject({ ticket });
+    expect(read.adhocView().rows.find((r) => r.id === finished)).toMatchObject({ ticket });
+    expect((await read.runDetail(finished))!.ticket).toEqual(ticket);
+  });
+
   test('form options list repositories with gitlab host', () => {
     const { read, config } = setup({ runs: { models: ['gpt-5', 'claude-sonnet-4.5'] } });
 

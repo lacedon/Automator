@@ -1,12 +1,25 @@
 import { toRun } from '../db/rows';
+import type { Config } from '../config/schema';
 import type { Interrupted, Outcome, ResultStatus, Run, RunError, RunStatus, Trigger } from '../domain/types';
+import { jiraBrowseUrl } from '../prechecks/jiraClient';
 import type { ReadDeps } from './deps';
+
+export type TicketLink = { key: string; title: string | null; url: string | null };
+
+export function ticketLink(
+  run: Pick<Run, 'repository' | 'ticketKey' | 'ticketTitle'>,
+  config: Config,
+): TicketLink | null {
+  if (run.ticketKey === null) return null;
+  return { key: run.ticketKey, title: run.ticketTitle, url: jiraBrowseUrl(config, run.repository, run.ticketKey) };
+}
 
 export type RunRow = {
   id: number;
   watchId: number | null;
   watchTitle: string | null;
   adhocPrompt: string | null;
+  ticket: TicketLink | null;
   repository: string;
   trigger: Trigger;
   status: RunStatus;
@@ -40,12 +53,13 @@ export function tookMs(run: Run): number | null {
   return run.endedAt - run.startedAt;
 }
 
-export function toRunRow(run: RunWithTitle): RunRow {
+export function toRunRow(run: RunWithTitle, config: Config): RunRow {
   return {
     id: run.id,
     watchId: run.watchId,
     watchTitle: run.watchTitle,
     adhocPrompt: run.adhocPrompt,
+    ticket: ticketLink(run, config),
     repository: run.repository,
     trigger: run.trigger,
     status: run.status,
@@ -63,7 +77,7 @@ export function toRunRow(run: RunWithTitle): RunRow {
   };
 }
 
-export function runList({ db }: ReadDeps, f: RunFilter): RunRow[] {
+export function runList({ db, config }: ReadDeps, f: RunFilter): RunRow[] {
   return db
     .prepare(
       `${RUNS_WITH_TITLE}
@@ -74,5 +88,5 @@ export function runList({ db }: ReadDeps, f: RunFilter): RunRow[] {
        ORDER BY r.id DESC`,
     )
     .all({ outcome: f.outcome ?? null, trigger: f.trigger ?? null, repository: f.repository ?? null })
-    .map((row) => toRunRow(toRunWithTitle(row)));
+    .map((row) => toRunRow(toRunWithTitle(row), config));
 }

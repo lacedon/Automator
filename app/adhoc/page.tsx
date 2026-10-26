@@ -7,6 +7,7 @@ import { AdhocForm } from '../components/AdhocForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Pill, RunPill } from '../components/Pill';
+import { ticketText } from '../components/RunMeta';
 import { getCore } from '../lib/core';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,15 @@ function History({ rows }: { rows: AdhocRow[] }) {
               <Link href={`/runs/${row.id}`}>{row.id}</Link>
             </td>
             <td className="cell-text" title={row.prompt}>
+              {row.ticket &&
+                (row.ticket.url === null ? (
+                  <strong>{ticketText(row.ticket)}</strong>
+                ) : (
+                  <a href={row.ticket.url} target="_blank" rel="noreferrer">
+                    {ticketText(row.ticket)}
+                  </a>
+                ))}
+              {row.ticket && row.prompt !== '' && ' · '}
               {row.prompt}
             </td>
             <td>{row.repository}</td>

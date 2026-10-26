@@ -162,12 +162,19 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
     .command('run')
     .description('Queue an ad-hoc Run')
     .requiredOption('--repo <name>', 'Repository name from the config')
-    .requiredOption('--prompt <text|@file>', 'prompt for Copilot', textOrFileArg)
+    .option('--prompt <text|@file>', 'prompt for Copilot (optional when --ticket is given)', textOrFileArg)
+    .option('--ticket <key|url>', 'Jira ticket to work on (key or browse URL)')
     .option('--model <model>', 'Copilot model')
-    .action((opts: { repo: string; prompt: string; model?: string }) => {
-      const r = getCore().queue.enqueueAdhocChecked({ repository: opts.repo, prompt: opts.prompt, model: opts.model });
+    .action(async (opts: { repo: string; prompt?: string; ticket?: string; model?: string }) => {
+      const r = await getCore().queue.requestAdhoc({
+        repository: opts.repo,
+        prompt: opts.prompt,
+        ticket: opts.ticket,
+        model: opts.model,
+      });
       if (!r.ok) return fail(r.error, { unknownRepoOutcome: 'No Run was queued.' });
-      queued(r.value);
+      queued(r.value.run);
+      if (r.value.warning !== undefined) io.err(`Warning: ${r.value.warning}`);
     });
 
   program

@@ -1,14 +1,28 @@
-import type { FileView, RunDetailView, RunError, Trigger } from '@core/index';
+import type { FileView, RunDetailView, RunError, TicketLink, Trigger } from '@core/index';
 import { formatDateTime, formatTook } from '../lib/format';
 import { Elapsed } from './Elapsed';
 
 export const TRIGGER_NAME: Record<Trigger, string> = { schedule: 'schedule', manual: 'manual', adhoc: 'ad-hoc' };
 
-export function RunItem({ watchTitle, adhocPrompt }: { watchTitle: string | null; adhocPrompt: string | null }) {
+export function ticketText(ticket: TicketLink): string {
+  return ticket.title === null ? ticket.key : `${ticket.key}: ${ticket.title}`;
+}
+
+export function RunItem({
+  watchTitle,
+  adhocPrompt,
+  ticket,
+}: {
+  watchTitle: string | null;
+  adhocPrompt: string | null;
+  ticket?: TicketLink | null;
+}) {
   if (watchTitle !== null) return <>{watchTitle}</>;
   return (
     <>
-      <em>ad-hoc:</em> “{adhocPrompt}”
+      <em>ad-hoc:</em> {ticket && <strong>{ticketText(ticket)}</strong>}
+      {ticket && adhocPrompt !== null && ' '}
+      {adhocPrompt !== null && <>“{adhocPrompt}”</>}
     </>
   );
 }
@@ -69,6 +83,20 @@ export function RunMeta({ view }: { view: RunDetailView }) {
             </>
           )}
         </dd>
+        {view.ticket && (
+          <>
+            <dt>Ticket</dt>
+            <dd>
+              {view.ticket.url === null ? (
+                ticketText(view.ticket)
+              ) : (
+                <a href={view.ticket.url} target="_blank" rel="noreferrer">
+                  {ticketText(view.ticket)}
+                </a>
+              )}
+            </dd>
+          </>
+        )}
         <dt>Files</dt>
         <dd>
           <FileLink runId={run.id} name="result.json" file={result} />

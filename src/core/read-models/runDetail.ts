@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import type { Run } from '../domain/types';
 import type { ReadDeps } from './deps';
-import { RUNS_WITH_TITLE, tookMs, toRunWithTitle } from './runs';
+import { RUNS_WITH_TITLE, ticketLink, tookMs, toRunWithTitle, type TicketLink } from './runs';
 
 export const FILE_CAP_BYTES = 5 * 1024 * 1024;
 
@@ -10,6 +10,7 @@ export type FileView = { path: string; content: string | null; truncated: boolea
 export type RunDetailView = {
   run: Run;
   watchTitle: string | null;
+  ticket: TicketLink | null;
   tookMs: number | null;
   transcript: FileView;
   result: FileView;
@@ -35,7 +36,7 @@ async function readCapped(file: string): Promise<FileView> {
 }
 
 export async function runDetail(deps: ReadDeps, id: number): Promise<RunDetailView | null> {
-  const { db, dataDir } = deps;
+  const { db, dataDir, config } = deps;
   const row = db.prepare(`${RUNS_WITH_TITLE} WHERE r.id = ?`).get(id);
   if (row === undefined) return null;
   const { watchTitle, ...run } = toRunWithTitle(row);
@@ -44,5 +45,5 @@ export async function runDetail(deps: ReadDeps, id: number): Promise<RunDetailVi
     readCapped(run.resultPath ?? dataDir.resultPath(id)),
     readCapped(run.promptPath ?? dataDir.promptPath(id)),
   ]);
-  return { run, watchTitle, tookMs: tookMs(run), transcript, result, prompt };
+  return { run, watchTitle, ticket: ticketLink(run, config), tookMs: tookMs(run), transcript, result, prompt };
 }

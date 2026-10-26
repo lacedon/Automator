@@ -7,18 +7,10 @@ import { EmptyState } from './components/EmptyState';
 import { Pill, RunPill } from './components/Pill';
 import { RelativeTime } from './components/RelativeTime';
 import { ResumeForm } from './components/ResumeForm';
+import { RunItem } from './components/RunMeta';
 import { getCore } from './lib/core';
 
 export const dynamic = 'force-dynamic';
-
-function RunTitle({ watchTitle, adhocPrompt }: { watchTitle: string | null; adhocPrompt: string | null }) {
-  if (watchTitle !== null) return <>{watchTitle}</>;
-  return (
-    <>
-      <em>ad-hoc:</em> {adhocPrompt}
-    </>
-  );
-}
 
 function NeedsYou({ cards }: { cards: NeedsYouCard[] }) {
   return (
@@ -64,7 +56,7 @@ function NowRunning({ run }: { run: RunningCard }) {
           ● <Elapsed since={run.startedAt} />
         </Pill>
         <Link href={`/runs/${run.runId}`} className="row-text">
-          <RunTitle watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} />{' '}
+          <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />{' '}
           <span className="muted">· {run.repository}</span>
         </Link>
         <ConfirmDialog
@@ -92,7 +84,7 @@ function RecentRuns({ runs }: { runs: RunRow[] }) {
         <Link key={run.id} href={`/runs/${run.id}`} className="row row-link">
           <RunPill run={run} />
           <span className="row-text">
-            <RunTitle watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} />
+            <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
             {run.summary !== null && <span className="muted"> · {run.summary}</span>}
           </span>
           <RelativeTime at={run.endedAt ?? run.startedAt ?? run.queuedAt} />

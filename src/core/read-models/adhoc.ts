@@ -1,11 +1,12 @@
 import type { Interrupted, Outcome, ResultStatus, RunStatus } from '../domain/types';
 import type { ReadDeps } from './deps';
 import { waitingRows } from './queue';
-import { toRunRow, toRunWithTitle, RUNS_WITH_TITLE } from './runs';
+import { toRunRow, toRunWithTitle, RUNS_WITH_TITLE, type TicketLink } from './runs';
 
 export type AdhocRow = {
   id: number;
   prompt: string;
+  ticket: TicketLink | null;
   repository: string;
   status: RunStatus;
   queuePosition: number | null;
@@ -25,10 +26,11 @@ export function adhocView(deps: ReadDeps): { rows: AdhocRow[] } {
     .prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id IS NULL ORDER BY r.id DESC`)
     .all()
     .map((row) => {
-      const run = toRunRow(toRunWithTitle(row));
+      const run = toRunRow(toRunWithTitle(row), deps.config);
       return {
         id: run.id,
         prompt: run.adhocPrompt ?? '',
+        ticket: run.ticket,
         repository: run.repository,
         status: run.status,
         queuePosition: positions.get(run.id) ?? null,

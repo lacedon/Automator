@@ -40,6 +40,6 @@ export function homeView(deps: ReadDeps): HomeView {
   const recent = db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.status = 'finished' ORDER BY r.id DESC LIMIT ?`)
     .all(RECENT_LIMIT)
-    .map((row) => toRunRow(toRunWithTitle(row)));
+    .map((row) => toRunRow(toRunWithTitle(row), deps.config));
   return { needsYou, running: toRunningCard(runningRun(deps), deps), recent };
 }

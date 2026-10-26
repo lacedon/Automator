@@ -11,13 +11,13 @@ import { formatDateTime } from '../lib/format';
 
 export const dynamic = 'force-dynamic';
 
-type Item = Pick<QueueRow, 'runId' | 'watchId' | 'watchTitle' | 'adhocPrompt'>;
+type Item = Pick<QueueRow, 'runId' | 'watchId' | 'watchTitle' | 'adhocPrompt' | 'ticket'>;
 
 function QueueItem({ run, strong }: { run: Item; strong?: boolean }) {
   const href = run.watchId === null ? `/runs/${run.runId}` : `/watches/${run.watchId}`;
   return (
     <Link href={href} className={strong ? 'plain-link strong' : 'plain-link'}>
-      <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} />
+      <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
     </Link>
   );
 }

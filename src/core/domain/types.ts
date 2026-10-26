@@ -50,6 +50,8 @@ export interface Run {
   priority: number;
   reason: string;
   adhocPrompt: string | null;
+  ticketKey: string | null;
+  ticketTitle: string | null;
   extraInstructions: string | null;
   reviewUnresolved: boolean;
   model: string;

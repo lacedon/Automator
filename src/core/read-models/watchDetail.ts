@@ -61,7 +61,7 @@ export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null 
   const runs = db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id = ? AND r.status <> 'queued' ORDER BY r.id DESC`)
     .all(id)
-    .map((r) => toRunRow(toRunWithTitle(r)));
+    .map((r) => toRunRow(toRunWithTitle(r), deps.config));
 
   return {
     watch,

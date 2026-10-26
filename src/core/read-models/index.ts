@@ -12,6 +12,7 @@ import { watchList, type WatchFilter, type WatchListView } from './watches';
 
 export type { ReadDeps } from './deps';
 export type { AdhocRow } from './adhoc';
+export type { TicketLink } from './runs';
 export type { FormOptions } from './formOptions';
 export type { HomeView, NeedsYouCard } from './home';
 export type { NextCheck, NextCheckContext, NextCheckKind } from './nextCheck';

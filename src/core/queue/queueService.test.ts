@@ -15,13 +15,20 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-function setup() {
+function setup(opts: { ticketTitle?: (conn: string, key: string) => Promise<string>; jiraEnabled?: boolean } = {}) {
   const t = tempDb();
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
-  const config = testConfig({ runs: { defaultModel: 'default-model' } });
-  return { db: t.db, file: t.file, clock, dataDir, config, queue: new QueueService(t.db, clock, dataDir, config) };
+  const config = testConfig({ runs: { defaultModel: 'default-model' }, jira: { enabled: opts.jiraEnabled ?? true } });
+  return {
+    db: t.db,
+    file: t.file,
+    clock,
+    dataDir,
+    config,
+    queue: new QueueService(t.db, clock, dataDir, config, { ticketTitle: opts.ticketTitle }),
+  };
 }
 
 function statuses(db: Database): { id: number; status: string }[] {
@@ -231,9 +238,9 @@ describe('QueueService', () => {
     expect(statuses(db)).toEqual([{ id: keep.id, status: 'queued' }]);
   });
 
-  test('unknown repository writes attempt file and queues nothing', () => {
+  test('unknown repository writes attempt file and queues nothing', async () => {
     const { db, clock, queue } = setup();
-    const r = queue.enqueueAdhocChecked({ repository: 'nope', prompt: 'p' });
+    const r = await queue.requestAdhoc({ repository: 'nope', prompt: 'p' });
     if (r.ok || r.error.code !== 'UNKNOWN_REPOSITORY') throw new Error('expected UNKNOWN_REPOSITORY');
     expect(r.error).toMatchObject({ name: 'nope', known: ['api', 'pages'] });
     expect(r.error.attemptFileError).toBeUndefined();
@@ -246,12 +253,103 @@ describe('QueueService', () => {
     expect(statuses(db)).toEqual([]);
   });
 
-  test('checked adhoc enqueue uses default model', () => {
+  test('checked adhoc enqueue uses default model', async () => {
     const { queue } = setup();
-    const r = queue.enqueueAdhocChecked({ repository: 'pages', prompt: 'p' });
+    const r = await queue.requestAdhoc({ repository: 'pages', prompt: 'p' });
     if (!r.ok) throw new Error('expected ok');
-    expect(r.value).toMatchObject({ repository: 'pages', adhocPrompt: 'p', model: 'default-model', status: 'queued' });
-    const explicit = queue.enqueueAdhocChecked({ repository: 'pages', prompt: 'p', model: 'm2' });
-    expect(explicit.ok && explicit.value.model).toBe('m2');
+    expect(r.value.run).toMatchObject({
+      repository: 'pages',
+      adhocPrompt: 'p',
+      model: 'default-model',
+      status: 'queued',
+    });
+    const explicit = await queue.requestAdhoc({ repository: 'pages', prompt: 'p', model: 'm2' });
+    expect(explicit.ok && explicit.value.run.model).toBe('m2');
+  });
+});
+
+describe('QueueService.requestAdhoc', () => {
+  test('stores the Ticket key and the fetched title on the Run', async () => {
+    const lookups: [string, string][] = [];
+    const { queue } = setup({
+      ticketTitle: async (conn, key) => {
+        lookups.push([conn, key]);
+        return 'Fix login redirect';
+      },
+    });
+
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'Do it', ticket: 'abc-123' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { run: { trigger: 'adhoc', ticketKey: 'ABC-123', ticketTitle: 'Fix login redirect' } },
+    });
+    expect(lookups).toEqual([['corp', 'ABC-123']]);
+  });
+
+  test('accepts a browse URL as well as a key', async () => {
+    const { queue } = setup({ ticketTitle: async () => 'T' });
+    const result = await queue.requestAdhoc({
+      repository: 'pages',
+      prompt: 'Do it',
+      ticket: 'https://jira.example.com/browse/abc-7',
+    });
+    expect(result).toMatchObject({ ok: true, value: { run: { ticketKey: 'ABC-7' } } });
+  });
+
+  test('still queues the Run with the key only, plus a warning, when the title lookup fails', async () => {
+    const { queue } = setup({
+      ticketTitle: async () => {
+        throw new Error('Jira token missing');
+      },
+    });
+
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'Do it', ticket: 'ABC-123' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        run: { status: 'queued', ticketKey: 'ABC-123', ticketTitle: null },
+        warning: 'Could not fetch the Ticket title: Jira token missing',
+      },
+    });
+  });
+
+  test.each([
+    ['a malformed Ticket', 'pages', 'not a ticket', true, { code: 'INVALID_INPUT', field: 'ticket' }],
+    ['a non-Jira URL', 'pages', 'https://example.com/browse/ABC-1', true, { code: 'INVALID_INPUT', field: 'ticket' }],
+    ['a bare key on a Repository without Jira', 'api', 'ABC-1', true, { code: 'INVALID_INPUT', field: 'ticket' }],
+    ['Jira disabled', 'pages', 'ABC-1', false, { code: 'JIRA_DISABLED' }],
+  ])('rejects %s and queues nothing', async (_name, repository, ticket, jiraEnabled, error) => {
+    const { db, queue } = setup({ jiraEnabled });
+
+    const result = await queue.requestAdhoc({ repository, prompt: 'Do it', ticket });
+
+    expect(result).toMatchObject({ ok: false, error });
+    expect(statuses(db)).toEqual([]);
+  });
+
+  test('allows a blank prompt only when a Ticket is linked', async () => {
+    const { db, queue } = setup({ ticketTitle: async () => 'T' });
+
+    expect(await queue.requestAdhoc({ repository: 'pages', prompt: '  ', ticket: 'ABC-1' })).toMatchObject({
+      ok: true,
+      value: { run: { adhocPrompt: null, ticketKey: 'ABC-1' } },
+    });
+    expect(await queue.requestAdhoc({ repository: 'pages', prompt: '  ' })).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'prompt' },
+    });
+    expect(statuses(db)).toHaveLength(1);
+  });
+
+  test('queues a Run without a Ticket and does not deduplicate Runs for the same Ticket', async () => {
+    const { db, queue } = setup({ ticketTitle: async () => 'T' });
+
+    await queue.requestAdhoc({ repository: 'pages', prompt: 'plain' });
+    await queue.requestAdhoc({ repository: 'pages', prompt: 'again', ticket: 'ABC-1' });
+    await queue.requestAdhoc({ repository: 'pages', prompt: 'again', ticket: 'ABC-1' });
+
+    expect(statuses(db)).toHaveLength(3);
   });
 });

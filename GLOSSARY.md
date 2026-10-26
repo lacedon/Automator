@@ -25,7 +25,7 @@ One execution of Copilot, either to follow up on a Watch or to carry out an ad-h
 _Avoid_: Session, check
 
 **Ad-hoc run**:
-A Run requested directly by the user without an associated Watch.
+A Run requested directly by the user without an associated Watch. It happens once and may optionally be _for_ a Ticket; without one it is a generic request.
 
 **Needs you**:
 A Watch state indicating that follow-up requires a human decision before automatic work can continue.

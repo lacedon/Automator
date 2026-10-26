@@ -51,7 +51,10 @@ CLI examples (the worker must be running for queued Runs to start):
 npm run automator -- watch add <url> --repo <name>
 npm run automator -- watch list
 npm run automator -- run --repo <name> --prompt "Summarize open TODOs in src/"
+npm run automator -- run --repo <name> --ticket ABC-123 --prompt "Use the existing helper"
 ```
+
+`--ticket` takes a Jira key or `/browse/` URL and the prompt is then optional. The Ticket title is fetched when the Run is queued; if Jira can't be reached the Run is still queued with just the key and a warning. Like any ad-hoc Run, it goes straight into the shared queue, runs once and is driven by the prompt (branches, commits and MRs are allowed, never required). It never resolves discussions, force-pushes or pushes to protected branches, or deletes or reassigns tickets; merging or approving MRs and changing Jira statuses only happen when the prompt explicitly asks. See [ADR 0002](docs/adr/0002-ad-hoc-runs-are-prompt-driven.md).
 
 Tests:
 
@@ -273,7 +276,7 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Watches that 
 - Pause / resume / close / reopen / delete controls
 - Queue view and Run history, with completed transcripts and result files
 - **Run now** with optional extra instructions
-- Ad-hoc Runs (pick a Repository and enter a prompt), with explicit cancellation
+- Ad-hoc Runs (pick a Repository, optionally a Jira Ticket, and enter a prompt), with explicit cancellation
 
 ## CLI (v1)
 

@@ -14,10 +14,25 @@ const { queueAdhoc, deleteAdhocRun } = await import('./adhoc');
 let core: Core;
 
 beforeEach(() => {
-  core = createCore(testConfig({ runs: { defaultModel: 'default-model', models: ['other-model'] } }), {
-    clock: fakeClock(),
-    notifier: { async notifyNeedsYou() {} },
-  });
+  core = createCore(
+    testConfig({ runs: { defaultModel: 'default-model', models: ['other-model'] }, jira: { enabled: true } }),
+    {
+      clock: fakeClock(),
+      notifier: { async notifyNeedsYou() {} },
+      jira: () => ({
+        async issue(key: string) {
+          if (key === 'ABC-500') throw new Error('Jira is down');
+          return { key, summary: `Summary of ${key}` } as never;
+        },
+        async myself() {
+          return { accountId: 'me' };
+        },
+        async statuses() {
+          return [];
+        },
+      }),
+    },
+  );
   holder.core = core;
   revalidatePath.mockClear();
 });
@@ -69,6 +84,44 @@ test('queueAdhoc requires a prompt', async () => {
     error: { code: 'INVALID_INPUT', field: 'prompt', message: 'Prompt is required' },
     values: fields,
   });
+  expect(queuedRuns()).toEqual([]);
+});
+
+const queuedTickets = () =>
+  core.db
+    .prepare(
+      "SELECT ticket_key AS key, ticket_title AS title, adhoc_prompt AS prompt FROM runs WHERE status = 'queued'",
+    )
+    .all();
+
+test('queueAdhoc links a Ticket given as a key and stores its fetched title', async () => {
+  const result = await queueAdhoc(
+    null,
+    form({ repository: 'pages', prompt: 'Use the helper', model: '', ticket: ' abc-123 ' }),
+  );
+  expect(result).toEqual({ ok: true, value: { runId: 1, position: 1 } });
+  expect(queuedTickets()).toEqual([{ key: 'ABC-123', title: 'Summary of ABC-123', prompt: 'Use the helper' }]);
+});
+
+test('queueAdhoc takes a blank prompt when a Ticket is linked', async () => {
+  const result = await queueAdhoc(null, form({ repository: 'pages', prompt: '', model: '', ticket: 'ABC-1' }));
+  expect(result).toMatchObject({ ok: true });
+  expect(queuedTickets()).toEqual([{ key: 'ABC-1', title: 'Summary of ABC-1', prompt: null }]);
+});
+
+test('queueAdhoc still queues and warns when the Ticket title cannot be fetched', async () => {
+  const result = await queueAdhoc(null, form({ repository: 'pages', prompt: 'p', model: '', ticket: 'ABC-500' }));
+  expect(result).toEqual({
+    ok: true,
+    value: { runId: 1, position: 1, warning: 'Could not fetch the Ticket title: Jira is down' },
+  });
+  expect(queuedTickets()).toEqual([{ key: 'ABC-500', title: null, prompt: 'p' }]);
+});
+
+test('queueAdhoc rejects an invalid Ticket, keeps the entered values and queues nothing', async () => {
+  const fields = { repository: 'pages', prompt: 'p', model: '', ticket: 'nonsense' };
+  const result = await queueAdhoc(null, form(fields));
+  expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'ticket' }, values: fields });
   expect(queuedRuns()).toEqual([]);
 });
 

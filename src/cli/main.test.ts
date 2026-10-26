@@ -13,9 +13,28 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-function setup() {
-  const config = testConfig();
-  const core = createCore(config, { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } });
+function setup(opts: { jira?: boolean } = {}) {
+  const config = testConfig(opts.jira ? { jira: { enabled: true } } : {});
+  const core = createCore(config, {
+    clock: fakeClock(),
+    notifier: { async notifyNeedsYou() {} },
+    ...(opts.jira
+      ? {
+          jira: () => ({
+            async issue(key: string) {
+              if (key === 'ABC-500') throw new Error('Jira is down');
+              return { key, summary: `Summary of ${key}` } as never;
+            },
+            async myself() {
+              return { accountId: 'me' };
+            },
+            async statuses() {
+              return [];
+            },
+          }),
+        }
+      : {}),
+  });
   cleanups.push(() => {
     core.close();
     fs.rmSync(config.configDir, { recursive: true, force: true });
@@ -125,6 +144,42 @@ describe('runCli', () => {
     expect(core.db.prepare('SELECT model FROM runs WHERE id = 2').get()).toEqual({
       model: core.config.runs.defaultModel,
     });
+  });
+
+  test('run --ticket links the Ticket with its fetched title', async () => {
+    const core = setup({ jira: true });
+    const r = await cli(core, 'run', '--repo', 'pages', '--ticket', 'abc-123', '--prompt', 'Use the helper');
+    expect(r).toEqual({ code: 0, out: ['Run #1 queued (position 1)'], err: [] });
+    expect(
+      core.db.prepare('SELECT ticket_key AS key, ticket_title AS title, adhoc_prompt AS prompt FROM runs').all(),
+    ).toEqual([{ key: 'ABC-123', title: 'Summary of ABC-123', prompt: 'Use the helper' }]);
+  });
+
+  test('run --ticket works without --prompt, but a Run needs one of them', async () => {
+    const core = setup({ jira: true });
+    expect((await cli(core, 'run', '--repo', 'pages', '--ticket', 'https://jira.example.com/browse/ABC-9')).code).toBe(
+      0,
+    );
+    expect(await cli(core, 'run', '--repo', 'pages')).toEqual({ code: 1, out: [], err: ['Prompt is required'] });
+    expect(queuedRuns(core)).toHaveLength(1);
+  });
+
+  test('run --ticket warns but still queues when the title cannot be fetched', async () => {
+    const core = setup({ jira: true });
+    const r = await cli(core, 'run', '--repo', 'pages', '--ticket', 'ABC-500');
+    expect(r).toEqual({
+      code: 0,
+      out: ['Run #1 queued (position 1)'],
+      err: ['Warning: Could not fetch the Ticket title: Jira is down'],
+    });
+  });
+
+  test('run --ticket rejects an invalid Ticket and queues nothing', async () => {
+    const core = setup({ jira: true });
+    const r = await cli(core, 'run', '--repo', 'pages', '--ticket', 'nonsense', '--prompt', 'x');
+    expect(r.code).toBe(1);
+    expect(r.err).toHaveLength(1);
+    expect(queuedRuns(core)).toEqual([]);
   });
 
   test('unknown repository for run exits 1', async () => {

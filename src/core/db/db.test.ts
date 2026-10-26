@@ -48,12 +48,12 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
-  test('migrate is idempotent and sets user_version 1', () => {
+  test('migrate is idempotent and sets user_version 2', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(1);
+    expect(db.pragma('user_version', { simple: true })).toBe(2);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(1);
+    expect(db.pragma('user_version', { simple: true })).toBe(2);
     const tables = db
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
       .pluck()

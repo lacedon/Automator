@@ -7,18 +7,23 @@ import { getCore } from '../lib/core';
 import { parseInput } from './parse';
 import type { ActionResult } from './types';
 
-const FORM_FIELDS = ['repository', 'prompt', 'model'] as const;
+const FORM_FIELDS = ['repository', 'prompt', 'model', 'ticket'] as const;
 
 export type AdhocFormValues = Partial<Record<(typeof FORM_FIELDS)[number], string>>;
 
 export type AdhocFormState =
-  | { ok: true; value: { runId: number; position: number | null } }
+  | { ok: true; value: { runId: number; position: number | null; warning?: string } }
   | { ok: false; error: AppError; values: AdhocFormValues }
   | null;
 
 const adhocSchema = z.object({
   repository: z.string(),
-  prompt: z.string().trim().min(1, 'Prompt is required'),
+  // The queue requires a prompt unless a Ticket is linked.
+  prompt: z.string().optional(),
+  ticket: z
+    .string()
+    .optional()
+    .transform((v) => (v?.trim() ? v.trim() : undefined)),
   // Blank = the config default model.
   model: z
     .string()
@@ -35,10 +40,14 @@ export async function queueAdhoc(_prev: AdhocFormState, formData: FormData): Pro
   const input = parseInput(adhocSchema, values);
   if (!input.ok) return { ...input, values };
   const { queue } = getCore();
-  const result = queue.enqueueAdhocChecked(input.value);
+  const result = await queue.requestAdhoc(input.value);
   if (!result.ok) return { ...result, values };
   revalidatePath('/', 'layout');
-  return { ok: true, value: { runId: result.value.id, position: queue.position(result.value.id) } };
+  const { run, warning } = result.value;
+  return {
+    ok: true,
+    value: { runId: run.id, position: queue.position(run.id), ...(warning === undefined ? {} : { warning }) },
+  };
 }
 
 export async function deleteAdhocRun(id: number): Promise<ActionResult> {

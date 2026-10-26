@@ -2,6 +2,7 @@ import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
+import { parseTarget } from '../domain/targets';
 import type { Clock, Run, RunStatus, WatchState } from '../domain/types';
 import { unknownRepositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
@@ -18,8 +19,21 @@ export interface EnqueueWatchInput {
 
 export interface EnqueueAdhocInput {
   repository: string;
-  prompt: string;
+  prompt: string | null;
   model: string;
+  ticketKey?: string;
+  ticketTitle?: string | null;
+}
+
+export interface AdhocRequest {
+  repository: string;
+  prompt?: string;
+  model?: string;
+  ticket?: string;
+}
+
+export interface QueueDeps {
+  ticketTitle?: (connection: string, key: string) => Promise<string>;
 }
 
 function paragraphs(text: string | null | undefined): string[] {
@@ -41,6 +55,7 @@ export class QueueService {
     private readonly clock: Clock,
     private readonly dataDir: DataDir,
     private readonly config: Config,
+    private readonly deps: QueueDeps = {},
   ) {}
 
   enqueueWatch(input: EnqueueWatchInput): Run {
@@ -81,18 +96,57 @@ export class QueueService {
   enqueueAdhoc(input: EnqueueAdhocInput): Run {
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at)
-         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, queued_at)
+         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?)
          RETURNING *`,
       )
-      .get(input.repository, input.prompt, input.model, this.clock.now());
+      .get(
+        input.repository,
+        input.prompt,
+        input.ticketKey ?? null,
+        input.ticketTitle ?? null,
+        input.model,
+        this.clock.now(),
+      );
     return toRun(row);
   }
 
-  enqueueAdhocChecked(input: { repository: string; prompt: string; model?: string }): Result<Run> {
+  async requestAdhoc(input: AdhocRequest): Promise<Result<{ run: Run; warning?: string }>> {
     const unknown = unknownRepositoryError(this.config, this.dataDir, input.repository, this.clock.now());
     if (unknown) return err(unknown);
-    return ok(this.enqueueAdhoc({ ...input, model: input.model ?? this.config.runs.defaultModel }));
+    let ticket: { key: string; title: string | null } | undefined;
+    let warning: string | undefined;
+    const prompt = input.prompt?.trim() || null;
+    if (input.ticket !== undefined) {
+      if (!this.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+      const target = parseTarget(input.ticket, this.config, input.repository);
+      if (!target.ok)
+        return err({
+          code: 'INVALID_INPUT',
+          field: 'ticket',
+          message: target.error.code === 'INVALID_TARGET' ? target.error.message : 'Invalid Ticket',
+        });
+      if (target.value.jira === undefined)
+        return err({ code: 'INVALID_INPUT', field: 'ticket', message: 'Not a Jira ticket' });
+      const { conn, key } = target.value.jira;
+      let title: string | null = null;
+      try {
+        title = (await this.deps.ticketTitle?.(conn, key)) ?? null;
+      } catch (e) {
+        warning = `Could not fetch the Ticket title: ${e instanceof Error && e.message ? e.message : 'unknown error'}`;
+      }
+      ticket = { key, title };
+    } else if (prompt === null) {
+      return err({ code: 'INVALID_INPUT', field: 'prompt', message: 'Prompt is required' });
+    }
+    const run = this.enqueueAdhoc({
+      repository: input.repository,
+      prompt,
+      model: input.model ?? this.config.runs.defaultModel,
+      ticketKey: ticket?.key,
+      ticketTitle: ticket?.title,
+    });
+    return ok(warning === undefined ? { run } : { run, warning });
   }
 
   claimNext(): Run | null {

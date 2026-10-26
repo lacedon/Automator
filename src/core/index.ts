@@ -133,7 +133,9 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     jiraClientFor: deps.jira,
     gitlabMeCache: metaMeCache(db, deps.gitlab, secrets),
   });
-  const queue = new QueueService(db, clock, dataDir, config);
+  const queue = new QueueService(db, clock, dataDir, config, {
+    ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
+  });
   const executorDeps: RunExecutorDeps = { db, clock, config, dataDir, launcher: copilot, prechecks, onNeedsYou };
 
   return {

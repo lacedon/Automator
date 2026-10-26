@@ -62,6 +62,8 @@ export function toRun(row: unknown): Run {
     priority: r.priority as number,
     reason: r.reason as string,
     adhocPrompt: r.adhoc_prompt as string | null,
+    ticketKey: r.ticket_key as string | null,
+    ticketTitle: r.ticket_title as string | null,
     extraInstructions: r.extra_instructions as string | null,
     reviewUnresolved: r.review_unresolved === 1,
     model: r.model as string,
