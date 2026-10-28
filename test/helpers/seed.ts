@@ -163,9 +163,9 @@ export function seed(core: Core): void {
   // Queue, Runs and Ad-hoc pages: waiting rows of every priority, an error before start, a timeout and a finished ad-hoc Run.
   const insertRun = db.prepare(
     `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at, ended_at,
-       pid, result_status, outcome, summary, error_json, interrupted)
+       pid, result_status, outcome, summary, error_json, interrupted, session_id)
      VALUES (@watchId, 'pages', @status, @trigger, @priority, @reason, @prompt, 'claude-sonnet-4.5', @queuedAt, @startedAt, @endedAt,
-       @pid, @resultStatus, @outcome, @summary, @error, @interrupted)`,
+       @pid, @resultStatus, @outcome, @summary, @error, @interrupted, @sessionId)`,
   );
   const run = (fields: Partial<Record<string, unknown>>) =>
     insertRun.run({
@@ -184,6 +184,7 @@ export function seed(core: Core): void {
       summary: null,
       error: null,
       interrupted: null,
+      sessionId: null,
       ...fields,
     });
   const jiraActive = (
@@ -238,6 +239,20 @@ export function seed(core: Core): void {
     resultStatus: 'success',
     outcome: 'acted',
     summary: 'Committed CHANGELOG entry',
+  });
+  // HTML-looking request on purpose: the Chat tab must show it as literal text.
+  run({
+    trigger: 'adhoc',
+    priority: 0,
+    reason: 'ad-hoc',
+    prompt: 'Check <b>the</b> export job',
+    startedAt: now - 25 * MIN,
+    endedAt: now - 22 * MIN,
+    pid: 4102,
+    resultStatus: 'success',
+    outcome: 'needs-you',
+    summary: 'Which environment should the export job run against?',
+    sessionId: 'seed-session',
   });
 }
 

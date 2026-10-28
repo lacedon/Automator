@@ -25,7 +25,11 @@ One execution of Copilot, either to follow up on a Watch or to carry out an ad-h
 _Avoid_: Session, check
 
 **Ad-hoc run**:
-A Run requested directly by the user without an associated Watch. It happens once and may optionally be _for_ a Ticket; without one it is a generic request.
+A Run requested directly by the user without an associated Watch. It happens once and may optionally be _for_ a Ticket; without one it is a generic request. A finished one can be continued by replying in its Chat tab.
+
+**Follow-up run**:
+An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same Copilot session.
+_Avoid_: continuation, reopen
 
 **Needs you**:
 A Watch state indicating that follow-up requires a human decision before automatic work can continue.

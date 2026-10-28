@@ -83,3 +83,24 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
   await page.waitForTimeout(4000);
   expect(refreshes).toEqual([]);
 });
+
+// Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
+test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /Check <b>the<\/b> export job/ }).click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
+  await page.getByRole('tab', { name: 'Chat' }).click();
+
+  const panel = page.getByRole('tabpanel');
+  await expect(panel.locator('.chat-request')).toHaveText('Check <b>the</b> export job');
+  await expect(panel.locator('b')).toHaveCount(0);
+  await expect(panel.locator('.chat-agent')).toContainText('Which environment should the export job run against?');
+
+  await panel.getByLabel('Message').fill('Use the staging URL');
+  await panel.getByRole('button', { name: 'Send' }).click();
+
+  const queued = panel.locator('.chat-run', { hasText: 'Use the staging URL' });
+  await expect(queued).toContainText('queued');
+  await expect(panel.getByLabel('Message')).toHaveCount(0);
+  await expect(panel.getByText(/^Waiting for Run #\d+ to finish$/)).toBeVisible();
+});
