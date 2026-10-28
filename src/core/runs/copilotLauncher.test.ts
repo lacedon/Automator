@@ -119,6 +119,41 @@ describe('createCopilotLauncher', () => {
     expect(rec.argv).not.toContain('--secret-env-vars');
   });
 
+  test('passes --session-id when a sessionId is given', async () => {
+    const s = setup();
+    const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
+    const proc = launcher.start({
+      cwd: s.repo,
+      prompt: 'hi',
+      model: 'm1',
+      transcriptPath: s.transcriptPath,
+      logPath: s.logPath,
+      env: { ...process.env, FAKE_COPILOT_MODE: 'no-result', FAKE_COPILOT_RECORD: s.record },
+      sessionId: 'abc-123',
+    });
+    await proc.exited;
+    const rec = JSON.parse(fs.readFileSync(s.record, 'utf8')) as Recorded;
+    const i = rec.argv.indexOf('--session-id');
+    expect(i).toBeGreaterThan(-1);
+    expect(rec.argv[i + 1]).toBe('abc-123');
+  });
+
+  test('omits --session-id when none is given', async () => {
+    const s = setup();
+    const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
+    const proc = launcher.start({
+      cwd: s.repo,
+      prompt: 'hi',
+      model: 'm1',
+      transcriptPath: s.transcriptPath,
+      logPath: s.logPath,
+      env: { ...process.env, FAKE_COPILOT_MODE: 'no-result', FAKE_COPILOT_RECORD: s.record },
+    });
+    await proc.exited;
+    const rec = JSON.parse(fs.readFileSync(s.record, 'utf8')) as Recorded;
+    expect(rec.argv).not.toContain('--session-id');
+  });
+
   test('appends child output to logPath and reports nonzero exit', async () => {
     const s = setup();
     fs.writeFileSync(s.logPath, 'previous\n');

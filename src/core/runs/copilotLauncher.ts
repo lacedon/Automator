@@ -21,6 +21,7 @@ export interface CopilotLauncher {
     logPath: string;
     env: Env;
     extraArgs?: string[];
+    sessionId?: string;
   }): RunningProcess;
 }
 
@@ -50,6 +51,7 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         'error',
         ...config.runs.denyTools.flatMap((pattern) => ['--deny-tool', pattern]),
         ...(secrets.envNames.length > 0 ? ['--secret-env-vars', secrets.envNames.join(',')] : []),
+        ...(opts.sessionId !== undefined ? ['--session-id', opts.sessionId] : []),
         ...(opts.extraArgs ?? []),
       ];
 
