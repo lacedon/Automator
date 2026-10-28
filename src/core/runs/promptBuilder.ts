@@ -76,8 +76,11 @@ export function buildAdhocPrompt(input: { run: Run; config: Config; resultPath: 
   if (run.ticketKey !== null) {
     sections.push(ticketSection(run, config), `## Default instructions\n\n${readDefaultPrompt(config, 'jira-adhoc')}`);
   }
+  const message = run.adhocPrompt?.trim() || '(none)';
   sections.push(
-    `## Request\n\nRepository: ${run.repository}\n\n${run.adhocPrompt?.trim() || '(none)'}`,
+    run.parentRunId === null
+      ? `## Request\n\nRepository: ${run.repository}\n\n${message}`
+      : `## Follow-up message\n\nThis continues the earlier conversation in this session.\n\nRepository: ${run.repository}\n\n${message}`,
     validationSection(config, run.repository),
     resultSection(resultPath),
   );

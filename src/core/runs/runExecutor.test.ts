@@ -99,13 +99,13 @@ function claim(
   db: Database,
   startedAt: number,
   watchId: number | null,
-  extra: { adhocPrompt?: string; repository?: string } = {},
+  extra: { adhocPrompt?: string; repository?: string; parentRunId?: number } = {},
 ): Run {
   return toRun(
     db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at)
-         VALUES (?, ?, 'running', ?, ?, 'new comment', ?, 'm1', ?, ?) RETURNING *`,
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, parent_run_id, model, queued_at, started_at)
+         VALUES (?, ?, 'running', ?, ?, 'new comment', ?, ?, 'm1', ?, ?) RETURNING *`,
       )
       .get(
         watchId,
@@ -113,6 +113,7 @@ function claim(
         watchId === null ? 'adhoc' : 'schedule',
         watchId === null ? 0 : 1,
         extra.adhocPrompt ?? null,
+        extra.parentRunId ?? null,
         startedAt,
         startedAt,
       ),
@@ -572,6 +573,57 @@ describe('RunExecutor', () => {
     expect(s.onNeedsYou).not.toHaveBeenCalled();
     expect(readResult(final.resultPath)).toMatchObject({ watchId: null, trigger: 'adhoc' });
     expect(runOf(s.db, final.runId).cursorCandidate).toBeNull();
+  });
+
+  describe('Copilot sessions', () => {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    const finishedParent = (db: Database, sessionId: string | null): number =>
+      (
+        db
+          .prepare(
+            `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, ended_at, session_id)
+             VALUES ('pages', 'finished', 'adhoc', 0, 'r', 'first', 'm', 1, 2, ?) RETURNING id`,
+          )
+          .get(sessionId) as { id: number }
+      ).id;
+
+    test('ad-hoc Run gets a generated session id, saved before Copilot exits', async () => {
+      const s = setup({ mode: 'hang' });
+      const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'Do it' });
+      const done = s.executor.execute(run);
+      await waitFor(() => s.starts.length === 1);
+      const sessionId = s.starts[0].sessionId;
+      expect(sessionId).toMatch(UUID);
+      expect(runOf(s.db, run.id).sessionId).toBe(sessionId);
+      s.executor.killActive();
+      await done;
+    });
+
+    test("follow-up Run reuses the parent's session id", async () => {
+      const s = setup();
+      const parentRunId = finishedParent(s.db, 'parent-session');
+      const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'More', parentRunId });
+      await s.executor.execute(run);
+      expect(s.starts[0].sessionId).toBe('parent-session');
+      expect(runOf(s.db, run.id).sessionId).toBe('parent-session');
+    });
+
+    test('follow-up Run fails with SESSION_RESUME_FAILED when the parent has no session', async () => {
+      const s = setup();
+      const parentRunId = finishedParent(s.db, null);
+      const final = await s.executor.execute(claim(s.db, s.clock.now(), null, { adhocPrompt: 'More', parentRunId }));
+      expect(final.error?.code).toBe('SESSION_RESUME_FAILED');
+      expect(s.starts).toHaveLength(0);
+    });
+
+    test('Watch Run passes no session id', async () => {
+      const s = setup();
+      const watchId = addWatch(s.db);
+      const run = claim(s.db, s.clock.now(), watchId);
+      await s.executor.execute(run);
+      expect(s.starts[0].sessionId).toBeUndefined();
+      expect(runOf(s.db, run.id).sessionId).toBeNull();
+    });
   });
 
   test('includes the last 3 finished runs of the watch in the prompt', async () => {

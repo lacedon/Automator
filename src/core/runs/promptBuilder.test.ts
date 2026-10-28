@@ -308,6 +308,29 @@ describe('buildAdhocPrompt', () => {
     expect(prompt).not.toContain('## Ticket');
   });
 
+  test('follow-up prompt labels the message', () => {
+    const prompt = buildAdhocPrompt({
+      run: run({ watchId: null, trigger: 'adhoc', parentRunId: 7, adhocPrompt: 'Use the staging URL' }),
+      config: config(),
+      resultPath: RESULT_PATH,
+    });
+    expect(prompt).toContain('## Follow-up message');
+    expect(prompt).toContain('This continues the earlier conversation in this session.');
+    expect(prompt).toContain('Use the staging URL');
+    expect(prompt).toContain(RESULT_PATH);
+    expect(prompt).not.toContain('## Request');
+  });
+
+  test('root prompt is unchanged', () => {
+    const prompt = buildAdhocPrompt({
+      run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, adhocPrompt: 'Bump it' }),
+      config: config(),
+      resultPath: RESULT_PATH,
+    });
+    expect(prompt).toContain('## Request');
+    expect(prompt).not.toContain('## Follow-up message');
+  });
+
   describe('rules', () => {
     const rules = () =>
       buildAdhocPrompt({
