@@ -33,7 +33,12 @@ export { CleanupService } from './cleanup/cleanupService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';
 export type { JiraClient, JiraIssue } from './prechecks/jiraClient';
-export { QueueService, type EnqueueAdhocInput, type EnqueueWatchInput } from './queue/queueService';
+export {
+  MAX_FOLLOW_UP_CHARS,
+  QueueService,
+  type EnqueueAdhocInput,
+  type EnqueueWatchInput,
+} from './queue/queueService';
 export type { CopilotExit, CopilotLauncher, RunningProcess } from './runs/copilotLauncher';
 export type { RunFinal } from './runs/outcomeApplier';
 export { recoverInterruptedRuns } from './runs/recovery';

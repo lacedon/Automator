@@ -353,3 +353,127 @@ describe('QueueService.requestAdhoc', () => {
     expect(statuses(db)).toHaveLength(3);
   });
 });
+
+describe('QueueService.requestFollowUp', () => {
+  function finishedAdhoc(
+    ctx: ReturnType<typeof setup>,
+    over: { repository?: string; sessionId?: string | null; status?: string } = {},
+  ) {
+    const run = ctx.queue.enqueueAdhoc({ repository: over.repository ?? 'pages', prompt: 'first', model: 'opus' });
+    ctx.db
+      .prepare('UPDATE runs SET status = ?, session_id = ? WHERE id = ?')
+      .run(over.status ?? 'finished', over.sessionId === undefined ? 'sess-1' : over.sessionId, run.id);
+    return run;
+  }
+
+  test("queues a follow-up with the parent's repository, model and session link", () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx);
+
+    const result = ctx.queue.requestFollowUp(parent.id, '  and now this  ');
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        run: {
+          status: 'queued',
+          trigger: 'adhoc',
+          repository: 'pages',
+          model: 'opus',
+          adhocPrompt: 'and now this',
+          parentRunId: parent.id,
+          ticketKey: null,
+          ticketTitle: null,
+        },
+      },
+    });
+  });
+
+  test('rejects an unknown Run', () => {
+    expect(setup().queue.requestFollowUp(999, 'hi')).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+
+  test('rejects a Watch Run', () => {
+    const ctx = setup();
+    const run = ctx.queue.enqueueWatch({ ...base, watchId: insertWatch(ctx.db), trigger: 'manual', reason: 'r' });
+    ctx.db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(run.id);
+
+    expect(ctx.queue.requestFollowUp(run.id, 'hi')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'run', message: 'Chat is only available for ad-hoc Runs' },
+    });
+  });
+
+  test.each([
+    ['empty', '  \n ', 'Message is required'],
+    ['too long', 'x'.repeat(20_001), 'Message is too long (max 20000 characters)'],
+  ])('rejects a message that is %s', (_name, message, text) => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx);
+
+    expect(ctx.queue.requestFollowUp(parent.id, message)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'message', message: text },
+    });
+    expect(statuses(ctx.db)).toHaveLength(1);
+  });
+
+  test('message of 20001 characters is rejected, 20000 accepted', () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx);
+
+    expect(ctx.queue.requestFollowUp(parent.id, 'x'.repeat(20_001)).ok).toBe(false);
+    expect(ctx.queue.requestFollowUp(parent.id, 'x'.repeat(20_000)).ok).toBe(true);
+  });
+
+  test('validates the message before the Run state', () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx, { status: 'running' });
+
+    expect(ctx.queue.requestFollowUp(parent.id, '')).toMatchObject({ error: { field: 'message' } });
+  });
+
+  test('rejects a Run that has not finished', () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx, { status: 'running' });
+
+    expect(ctx.queue.requestFollowUp(parent.id, 'hi')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'running', action: 'followUp' },
+    });
+  });
+
+  test('a second follow-up on the same Run is rejected', () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx);
+
+    expect(ctx.queue.requestFollowUp(parent.id, 'one').ok).toBe(true);
+    expect(ctx.queue.requestFollowUp(parent.id, 'two')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'run', message: 'Reply on the latest Run in the thread' },
+    });
+    const children = ctx.db.prepare('SELECT id FROM runs WHERE parent_run_id = ?').all(parent.id);
+    expect(children).toHaveLength(1);
+  });
+
+  test('rejects a Run without a Copilot session', () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx, { sessionId: null });
+
+    expect(ctx.queue.requestFollowUp(parent.id, 'hi')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'run', message: 'This Run has no Copilot session to continue' },
+    });
+  });
+
+  test('removed Repository gives UNKNOWN_REPOSITORY and creates no Run', () => {
+    const ctx = setup();
+    const parent = finishedAdhoc(ctx, { repository: 'removed' });
+
+    expect(ctx.queue.requestFollowUp(parent.id, 'hi')).toMatchObject({
+      ok: false,
+      error: { code: 'UNKNOWN_REPOSITORY', name: 'removed' },
+    });
+    expect(statuses(ctx.db)).toHaveLength(1);
+  });
+});

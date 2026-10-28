@@ -17,10 +17,13 @@ export interface EnqueueWatchInput {
   reviewUnresolved?: boolean;
 }
 
+export const MAX_FOLLOW_UP_CHARS = 20_000;
+
 export interface EnqueueAdhocInput {
   repository: string;
   prompt: string | null;
   model: string;
+  parentRunId?: number;
   ticketKey?: string;
   ticketTitle?: string | null;
 }
@@ -96,8 +99,8 @@ export class QueueService {
   enqueueAdhoc(input: EnqueueAdhocInput): Run {
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, queued_at)
-         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, parent_run_id, queued_at)
+         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -106,9 +109,59 @@ export class QueueService {
         input.ticketKey ?? null,
         input.ticketTitle ?? null,
         input.model,
+        input.parentRunId ?? null,
         this.clock.now(),
       );
     return toRun(row);
+  }
+
+  requestFollowUp(runId: number, message: string): Result<{ run: Run }> {
+    return this.db
+      .transaction((): Result<{ run: Run }> => {
+        const parent = this.db
+          .prepare('SELECT watch_id, status, repository, model, session_id FROM runs WHERE id = ?')
+          .get(runId) as
+          | {
+              watch_id: number | null;
+              status: RunStatus;
+              repository: string;
+              model: string;
+              session_id: string | null;
+            }
+          | undefined;
+        if (!parent) return err({ code: 'NOT_FOUND' });
+        if (parent.watch_id !== null)
+          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Chat is only available for ad-hoc Runs' });
+        const prompt = message.trim();
+        if (prompt === '') return err({ code: 'INVALID_INPUT', field: 'message', message: 'Message is required' });
+        if (prompt.length > MAX_FOLLOW_UP_CHARS)
+          return err({
+            code: 'INVALID_INPUT',
+            field: 'message',
+            message: `Message is too long (max ${MAX_FOLLOW_UP_CHARS} characters)`,
+          });
+        if (parent.status !== 'finished')
+          return err({ code: 'INVALID_STATE', state: parent.status, action: 'followUp' });
+        if (this.db.prepare('SELECT 1 FROM runs WHERE parent_run_id = ?').get(runId))
+          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Reply on the latest Run in the thread' });
+        if (parent.session_id === null)
+          return err({
+            code: 'INVALID_INPUT',
+            field: 'run',
+            message: 'This Run has no Copilot session to continue',
+          });
+        const unknown = unknownRepositoryError(this.config, this.dataDir, parent.repository, this.clock.now());
+        if (unknown) return err(unknown);
+        return ok({
+          run: this.enqueueAdhoc({
+            repository: parent.repository,
+            prompt,
+            model: parent.model,
+            parentRunId: runId,
+          }),
+        });
+      })
+      .immediate();
   }
 
   async requestAdhoc(input: AdhocRequest): Promise<Result<{ run: Run; warning?: string }>> {
