@@ -350,4 +350,94 @@ describe('read models', () => {
       [done, 'one', 'finished', null],
     ]);
   });
+
+  describe('thread', () => {
+    const adhoc = { trigger: 'adhoc', priority: 0, adhoc_prompt: 'p' };
+
+    test('Watch Run has no thread', async () => {
+      const { db, read } = setup();
+      const id = insertRun(db, { watch_id: insertWatch(db) });
+
+      expect((await read.runDetail(id))!.thread).toBeNull();
+    });
+
+    test('thread lists root to tip for any Run in the chain', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, { ...adhoc, adhoc_prompt: 'first', session_id: 's', summary: 'done 1' });
+      const mid = insertRun(db, { ...adhoc, adhoc_prompt: 'second', parent_run_id: root, session_id: 's' });
+      const tip = insertRun(db, { ...adhoc, adhoc_prompt: 'third', parent_run_id: mid, session_id: 's' });
+
+      const fromRoot = (await read.runDetail(root))!.thread!;
+      const fromTip = (await read.runDetail(tip))!.thread!;
+
+      expect(fromRoot.runs.map((r) => r.id)).toEqual([root, mid, tip]);
+      expect(fromTip.runs).toEqual(fromRoot.runs);
+      expect(fromRoot.runs[0]).toMatchObject({
+        id: root,
+        status: 'finished',
+        request: 'first',
+        summary: 'done 1',
+        error: null,
+        ticketKey: null,
+      });
+    });
+
+    test('reply target is the finished tip', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, { ...adhoc, session_id: 's' });
+      const tip = insertRun(db, { ...adhoc, parent_run_id: root, session_id: 's2' });
+
+      expect((await read.runDetail(root))!.thread).toMatchObject({ replyToRunId: tip, replyBlockedReason: null });
+    });
+
+    test('reply blocked while the tip is queued, with a reason naming the Run', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, { ...adhoc, session_id: 's' });
+      const tip = insertRun(db, { ...adhoc, parent_run_id: root, status: 'queued' });
+
+      expect((await read.runDetail(root))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: `Waiting for Run #${tip} to finish`,
+      });
+    });
+
+    test('reply blocked when the finished tip has no Copilot session', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, adhoc);
+
+      expect((await read.runDetail(root))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: 'No Copilot session to continue',
+      });
+    });
+
+    test('reply blocked when the repository is no longer configured', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, { ...adhoc, repository: 'gone', session_id: 's' });
+
+      expect((await read.runDetail(root))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: 'Repository "gone" is no longer configured',
+      });
+    });
+
+    test('thread of a follow-up whose parent was deleted starts at the follow-up', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, { ...adhoc, session_id: 's' });
+      const child = insertRun(db, { ...adhoc, parent_run_id: root, session_id: 's' });
+      db.prepare('DELETE FROM runs WHERE id = ?').run(root);
+
+      expect((await read.runDetail(child))!.thread!.runs.map((r) => r.id)).toEqual([child]);
+    });
+
+    test('a corrupt parent cycle terminates', async () => {
+      const { db, read } = setup();
+      const a = insertRun(db, { ...adhoc, session_id: 's' });
+      const b = insertRun(db, { ...adhoc, parent_run_id: a, session_id: 's' });
+      db.pragma('foreign_keys = OFF');
+      db.prepare('UPDATE runs SET parent_run_id = ? WHERE id = ?').run(b, a);
+
+      expect((await read.runDetail(a))!.thread!.runs.map((r) => r.id).sort()).toEqual([a, b].sort());
+    });
+  });
 });
