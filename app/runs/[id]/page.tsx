@@ -45,6 +45,8 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         result={view.result}
         prompt={view.prompt}
         noTranscript={noTranscriptText(run)}
+        thread={view.thread}
+        currentRunId={run.id}
       />
     </>
   );

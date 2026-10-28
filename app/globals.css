@@ -817,3 +817,39 @@ textarea:focus {
 .watch-form .actions {
   align-items: center;
 }
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-run {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-request {
+  align-self: flex-end;
+  background: var(--nav-active-bg);
+}
+
+.chat-agent {
+  align-self: flex-start;
+  background: var(--surface);
+}
+
+.chat-form textarea {
+  width: 100%;
+}
