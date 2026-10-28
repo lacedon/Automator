@@ -22,20 +22,21 @@ Typical use is clarifications and follow-ups. Success means the user can answer 
 
 ### Data
 
-A new migration (version 3):
+Phase 1 migration (version 3):
 
-- Table `run_messages`: `id`, `run_id`, `role` (`user` | `agent` | `system`), `body`, `created_at`, `delivered_at` (NULL until a user message reaches Copilot).
-- `runs.session_id TEXT`: the Copilot session id, persisted as soon as the Run starts so it survives a worker crash.
-- `runs.parent_run_id INTEGER`: set on a follow-up Run, pointing at the Run it continues.
+- `runs.session_id TEXT`: the Copilot session id, persisted before Copilot starts so it survives a worker crash. A new Ad-hoc Run gets a generated UUID passed as `--session-id`; a follow-up Run reuses its parent's id.
+- `runs.parent_run_id INTEGER` (`ON DELETE SET NULL`): set on a follow-up Run, pointing at the Run it continues.
 
-The web app and the worker are separate processes; the database is their shared channel.
+In phase 1 the chat thread is derived from the chain of linked Runs (each Run contributes its request and its summary or error), so no message table is needed yet.
+
+Phase 2 migration: table `run_messages` (`id`, `run_id`, `role` (`user` | `agent` | `system`), `body`, `created_at`, `delivered_at`, NULL until a user message reaches Copilot). The web app and the worker are separate processes; the database is their shared channel for live delivery.
 
 ### Chat UI
 
 - A new **Chat** tab in the Run detail tabs, with a composer.
 - The thread shows messages from the whole chain of linked Runs (root Run and its follow-ups).
-- The `sendRunMessage` server action validates the Run is Ad-hoc and inserts a `run_messages` row. It does not talk to Copilot.
-- Messages not yet delivered show as "queued". The page keeps auto-refreshing while any Run in the chain is active.
+- The `sendRunMessage` server action validates the request and enqueues a follow-up Run (phase 1). It does not talk to Copilot.
+- A follow-up that has not started shows as "queued". The page keeps auto-refreshing while any Run in the chain is active.
 
 ### Follow-up mode (phase 1)
 
@@ -57,7 +58,8 @@ The web app and the worker are separate processes; the database is their shared 
 ### Errors
 
 - Worker down: messages stay "queued" and are shown as such.
-- Session cannot be resumed, or ACP fails or exits unexpectedly: the Run fails with a specific error code (for example `SESSION_RESUME_FAILED`, `ACP_FAILED`). There is no silent fallback to `-p`.
+- A follow-up whose parent Run has no stored session id fails with `SESSION_RESUME_FAILED`; any other resume failure surfaces as the usual `EXIT_NONZERO`. In phase 2, ACP failure or an unexpected exit fails the Run with `ACP_FAILED`. There is no silent fallback to `-p`.
+- A follow-up message is accepted only on the latest finished Ad-hoc Run of a thread, up to 20000 characters.
 - Worker crash recovery keeps `session_id`, so a follow-up is still possible.
 
 ### Testing
