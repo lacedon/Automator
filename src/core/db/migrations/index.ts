@@ -95,4 +95,11 @@ CREATE TABLE worker_lock (
 ALTER TABLE runs ADD COLUMN ticket_title TEXT;
 `,
   },
+  {
+    version: 3,
+    sql: `ALTER TABLE runs ADD COLUMN session_id TEXT;
+ALTER TABLE runs ADD COLUMN parent_run_id INTEGER REFERENCES runs(id) ON DELETE SET NULL;
+CREATE INDEX ix_run_parent ON runs(parent_run_id);
+`,
+  },
 ];

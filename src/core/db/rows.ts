@@ -65,6 +65,8 @@ export function toRun(row: unknown): Run {
     ticketKey: r.ticket_key as string | null,
     ticketTitle: r.ticket_title as string | null,
     extraInstructions: r.extra_instructions as string | null,
+    sessionId: r.session_id as string | null,
+    parentRunId: r.parent_run_id as number | null,
     reviewUnresolved: r.review_unresolved === 1,
     model: r.model as string,
     queuedAt: r.queued_at as number,

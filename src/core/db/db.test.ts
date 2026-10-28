@@ -48,17 +48,41 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
-  test('migrate is idempotent and sets user_version 2', () => {
+  test('migrate is idempotent and sets user_version 3', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(2);
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(2);
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
     const tables = db
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
       .pluck()
       .all();
     expect(tables).toEqual(['meta', 'needs_you_events', 'runs', 'watches', 'worker_lock']);
+  });
+
+  test('migration 3 adds session and parent columns', () => {
+    const db = setup();
+    const parentId = insertRun(db, null, 'finished');
+    const childId = insertRun(db, null, 'finished');
+    db.prepare('UPDATE runs SET parent_run_id = ? WHERE id = ?').run(parentId, childId);
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(parentId))).toMatchObject({
+      sessionId: null,
+      parentRunId: null,
+    });
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(childId))).toMatchObject({
+      sessionId: null,
+      parentRunId: parentId,
+    });
+  });
+
+  test('deleting a parent Run nulls parent_run_id on the child', () => {
+    const db = setup();
+    const parentId = insertRun(db, null, 'finished');
+    const childId = insertRun(db, null, 'finished');
+    db.prepare('UPDATE runs SET parent_run_id = ? WHERE id = ?').run(parentId, childId);
+    db.prepare('DELETE FROM runs WHERE id = ?').run(parentId);
+    expect(db.prepare('SELECT parent_run_id FROM runs WHERE id = ?').pluck().get(childId)).toBeNull();
   });
 
   test('pragmas applied', () => {

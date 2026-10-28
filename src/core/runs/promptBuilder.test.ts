@@ -61,6 +61,8 @@ function run(partial: Partial<Run> = {}): Run {
     ticketKey: null,
     ticketTitle: null,
     extraInstructions: null,
+    sessionId: null,
+    parentRunId: null,
     reviewUnresolved: false,
     model: 'claude-sonnet-4.5',
     queuedAt: 0,

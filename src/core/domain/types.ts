@@ -53,6 +53,8 @@ export interface Run {
   ticketKey: string | null;
   ticketTitle: string | null;
   extraInstructions: string | null;
+  sessionId: string | null;
+  parentRunId: number | null;
   reviewUnresolved: boolean;
   model: string;
   queuedAt: number;
