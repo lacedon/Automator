@@ -421,6 +421,16 @@ describe('read models', () => {
       });
     });
 
+    test('a prototype-key repository name is not treated as configured', async () => {
+      const { db, read } = setup();
+      const root = insertRun(db, { ...adhoc, repository: 'constructor', session_id: 's' });
+
+      expect((await read.runDetail(root))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: 'Repository "constructor" is no longer configured',
+      });
+    });
+
     test('thread of a follow-up whose parent was deleted starts at the follow-up', async () => {
       const { db, read } = setup();
       const root = insertRun(db, { ...adhoc, session_id: 's' });

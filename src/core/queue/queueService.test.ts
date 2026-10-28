@@ -382,6 +382,7 @@ describe('QueueService.requestFollowUp', () => {
           model: 'opus',
           adhocPrompt: 'and now this',
           parentRunId: parent.id,
+          sessionId: 'sess-1',
           ticketKey: null,
           ticketTitle: null,
         },

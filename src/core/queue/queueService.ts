@@ -24,6 +24,7 @@ export interface EnqueueAdhocInput {
   prompt: string | null;
   model: string;
   parentRunId?: number;
+  sessionId?: string;
   ticketKey?: string;
   ticketTitle?: string | null;
 }
@@ -99,8 +100,8 @@ export class QueueService {
   enqueueAdhoc(input: EnqueueAdhocInput): Run {
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, parent_run_id, queued_at)
-         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, parent_run_id, session_id, queued_at)
+         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -110,6 +111,7 @@ export class QueueService {
         input.ticketTitle ?? null,
         input.model,
         input.parentRunId ?? null,
+        input.sessionId ?? null,
         this.clock.now(),
       );
     return toRun(row);
@@ -158,6 +160,7 @@ export class QueueService {
             prompt,
             model: parent.model,
             parentRunId: runId,
+            sessionId: parent.session_id,
           }),
         });
       })

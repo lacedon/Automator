@@ -5,6 +5,7 @@ import { RunPill } from '../../components/Pill';
 import { RunErrorCard, RunMeta } from '../../components/RunMeta';
 import { RunTabs } from '../../components/RunTabs';
 import { NoAutoRefresh } from '../../components/NoAutoRefresh';
+import { keepsRefreshing } from '../../lib/autoRefresh';
 import { getCore } from '../../lib/core';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       </div>
       <RunMeta view={view} />
       {run.error !== null && <RunErrorCard error={run.error} />}
-      {run.status === 'finished' && <NoAutoRefresh />}
+      {!keepsRefreshing(run.status, view.thread) && <NoAutoRefresh />}
       <RunTabs
         transcript={view.transcript}
         result={view.result}

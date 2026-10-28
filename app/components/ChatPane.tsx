@@ -66,7 +66,7 @@ export function ChatPane({ thread, currentRunId }: { thread: ThreadView; current
         <p className="muted">{thread.replyBlockedReason}</p>
       ) : (
         <form action={formAction} onSubmit={submit} className="watch-form chat-form">
-          {failed !== null && <ErrorBox error={failed} />}
+          {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome="No Run was queued." />}
           {state?.ok && (
             <div className="success-box" role="status">
               Run #{state.value.runId} queued

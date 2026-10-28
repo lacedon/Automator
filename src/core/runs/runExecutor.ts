@@ -306,7 +306,7 @@ export class RunExecutor {
         return failure('SESSION_RESUME_FAILED', `Run #${run.parentRunId} has no Copilot session to continue`);
       }
       sessionId = session;
-      db.prepare('UPDATE runs SET session_id = ? WHERE id = ?').run(sessionId, run.id);
+      if (run.sessionId === null) db.prepare('UPDATE runs SET session_id = ? WHERE id = ?').run(sessionId, run.id);
     }
 
     // The watchdog only sees the process once it runs; a cancel during the pre-check must stop the Run here.
@@ -341,12 +341,11 @@ export class RunExecutor {
     return { ...this.evaluate(active, exit, resultPath), branch };
   }
 
-  // A follow-up continues its parent's session; null means the parent has none to resume.
+  // A follow-up row carries its parent's session from enqueue; a root Run never has one before this point.
+  // A row with a parent but no session is a legacy/edge case: null means there is nothing to resume.
   private sessionFor(run: Run): string | null {
-    if (run.parentRunId === null) return randomUUID();
-    const row = this.deps.db.prepare('SELECT session_id FROM runs WHERE id = ?').get(run.parentRunId) as
-      { session_id: string | null } | undefined;
-    return row?.session_id ?? null;
+    if (run.sessionId !== null) return run.sessionId;
+    return run.parentRunId === null ? randomUUID() : null;
   }
 
   private evaluate(active: Active, exit: CopilotExit, resultPath: string): RunConclusion {

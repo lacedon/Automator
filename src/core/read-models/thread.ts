@@ -37,7 +37,8 @@ function toThreadRun(run: Run): ThreadRun {
 function replyBlock(deps: ReadDeps, tip: Run): string | null {
   if (tip.status !== 'finished') return `Waiting for Run #${tip.id} to finish`;
   if (tip.sessionId === null) return 'No Copilot session to continue';
-  if (!(tip.repository in deps.config.repositories)) return `Repository "${tip.repository}" is no longer configured`;
+  if (!Object.hasOwn(deps.config.repositories, tip.repository))
+    return `Repository "${tip.repository}" is no longer configured`;
   return null;
 }
 

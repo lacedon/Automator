@@ -308,6 +308,15 @@ describe('buildAdhocPrompt', () => {
     expect(prompt).not.toContain('## Ticket');
   });
 
+  test('a follow-up whose parent was deleted keeps the follow-up framing', () => {
+    const prompt = buildAdhocPrompt({
+      run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, sessionId: 's', adhocPrompt: 'More' }),
+      config: testConfig(),
+      resultPath: '/r.json',
+    });
+    expect(prompt).toContain('## Follow-up message');
+  });
+
   test('follow-up prompt labels the message', () => {
     const prompt = buildAdhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: 7, adhocPrompt: 'Use the staging URL' }),

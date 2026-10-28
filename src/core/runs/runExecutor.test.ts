@@ -10,6 +10,8 @@ import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
 import type { NeedsYouEvent, Run, WatchKind } from '../domain/types';
 import { DataDir } from '../files/dataDir';
+import { createReadModels } from '../read-models/index';
+import { QueueService } from '../queue/queueService';
 import { HttpError } from '../http/fetchWithRetry';
 import { FreeformPrecheck } from '../prechecks/freeform';
 import type { Prechecks } from '../prechecks/index';
@@ -99,13 +101,13 @@ function claim(
   db: Database,
   startedAt: number,
   watchId: number | null,
-  extra: { adhocPrompt?: string; repository?: string; parentRunId?: number } = {},
+  extra: { adhocPrompt?: string; repository?: string; parentRunId?: number; sessionId?: string } = {},
 ): Run {
   return toRun(
     db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, parent_run_id, model, queued_at, started_at)
-         VALUES (?, ?, 'running', ?, ?, 'new comment', ?, ?, 'm1', ?, ?) RETURNING *`,
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, parent_run_id, session_id, model, queued_at, started_at)
+         VALUES (?, ?, 'running', ?, ?, 'new comment', ?, ?, ?, 'm1', ?, ?) RETURNING *`,
       )
       .get(
         watchId,
@@ -114,6 +116,7 @@ function claim(
         watchId === null ? 0 : 1,
         extra.adhocPrompt ?? null,
         extra.parentRunId ?? null,
+        extra.sessionId ?? null,
         startedAt,
         startedAt,
       ),
@@ -599,21 +602,62 @@ describe('RunExecutor', () => {
       await done;
     });
 
-    test("follow-up Run reuses the parent's session id", async () => {
+    test('follow-up Run resumes the session id it carries', async () => {
       const s = setup();
       const parentRunId = finishedParent(s.db, 'parent-session');
-      const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'More', parentRunId });
-      await s.executor.execute(run);
+      const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'More', parentRunId, sessionId: 'parent-session' });
+      const final = await s.executor.execute(run);
       expect(s.starts[0].sessionId).toBe('parent-session');
       expect(runOf(s.db, run.id).sessionId).toBe('parent-session');
+      expect(fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8')).toContain('## Follow-up message');
     });
 
-    test('follow-up Run fails with SESSION_RESUME_FAILED when the parent has no session', async () => {
+    test('follow-up Run with a parent but no session fails with SESSION_RESUME_FAILED', async () => {
       const s = setup();
       const parentRunId = finishedParent(s.db, null);
-      const final = await s.executor.execute(claim(s.db, s.clock.now(), null, { adhocPrompt: 'More', parentRunId }));
+      const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'More', parentRunId });
+      const final = await s.executor.execute(run);
       expect(final.error?.code).toBe('SESSION_RESUME_FAILED');
       expect(s.starts).toHaveLength(0);
+      expect(runOf(s.db, run.id).sessionId).toBeNull();
+    });
+
+    test('follow-up that fails before Copilot starts keeps its session and the thread offers a reply on it', async () => {
+      const s = setup();
+      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config);
+      const parentRunId = finishedParent(s.db, 'parent-session');
+      const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
+      s.db.prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
+      fs.rmSync(s.config.repositories.pages!.folder, { recursive: true });
+
+      const final = await s.executor.execute(runOf(s.db, queued.id));
+
+      expect(final.error?.code).toBe('REPOSITORY_UNAVAILABLE');
+      expect(s.starts).toHaveLength(0);
+      expect(runOf(s.db, queued.id).sessionId).toBe('parent-session');
+      s.db.prepare("UPDATE runs SET status = 'finished', ended_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
+      fs.mkdirSync(s.config.repositories.pages!.folder, { recursive: true });
+      const read = createReadModels({ db: s.db, config: s.config, dataDir: s.dataDir, clock: s.clock });
+      expect((await read.runDetail(parentRunId))!.thread).toMatchObject({
+        replyToRunId: queued.id,
+        replyBlockedReason: null,
+      });
+    });
+
+    test('follow-up whose parent was deleted while queued still resumes the session with follow-up framing', async () => {
+      const s = setup();
+      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config);
+      const parentRunId = finishedParent(s.db, 'parent-session');
+      const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
+      expect(queue.deleteAdhoc(parentRunId)).toEqual({ ok: true, value: undefined });
+      s.db.prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
+      const run = runOf(s.db, queued.id);
+      expect(run.parentRunId).toBeNull();
+
+      const final = await s.executor.execute(run);
+
+      expect(s.starts[0].sessionId).toBe('parent-session');
+      expect(fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8')).toContain('## Follow-up message');
     });
 
     test('Watch Run passes no session id', async () => {
