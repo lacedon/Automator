@@ -164,6 +164,19 @@ describe('buildWatchPrompt', () => {
     expect(rules).toContain('Commit and push only to the MR source branch `feature/new-name`');
   });
 
+  test('MR default instructions ignore allowed-to-fail jobs on every target branch', () => {
+    const prompt = watchPrompt();
+    const defaults = prompt.slice(prompt.indexOf('## Default instructions'), prompt.indexOf('## Watch\n'));
+    expect(defaults).toContain(
+      'Ignore failed jobs marked `allow_failure: true` on every target branch, including `qa` and `release/*`.',
+    );
+    expect(defaults).toContain('Do not fix them or finish with outcome "needs-you" because of them.');
+    expect(defaults).toContain('If only allowed-to-fail jobs failed, the pipeline needs no action.');
+    expect(defaults).toContain('fix failed pipeline jobs that are not allowed to fail');
+    expect(defaults).not.toContain('ask for help when a job that is allowed to fail has failed');
+    expect(defaults).not.toContain('`qa`: fix it like any other failed job');
+  });
+
   test('free-form has no default instructions section', () => {
     const prompt = watchPrompt({
       watch: watch({
