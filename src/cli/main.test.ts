@@ -13,8 +13,11 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-function setup(opts: { jira?: boolean } = {}) {
-  const config = testConfig(opts.jira ? { jira: { enabled: true } } : {});
+function setup(opts: { jira?: boolean; legacyRepo?: boolean } = {}) {
+  const config = testConfig({
+    ...(opts.jira ? { jira: { enabled: true } } : {}),
+    ...(opts.legacyRepo ? { repositories: { 'inspire-mbdp-pages': { folder: './repos/pages', gitlab: 'corp' } } } : {}),
+  });
   const core = createCore(config, {
     clock: fakeClock(),
     notifier: { async notifyNeedsYou() {} },
@@ -43,10 +46,31 @@ function setup(opts: { jira?: boolean } = {}) {
 }
 
 async function cli(core: Core, ...argv: string[]) {
+  const result = await cliWith(core, argv);
+  return { code: result.code, out: result.out, err: result.err };
+}
+
+async function cliWith(
+  core: Core,
+  argv: string[],
+  confirm: (prompt: string, preview: string[]) => Promise<boolean> = async () => false,
+) {
   const out: string[] = [];
   const err: string[] = [];
-  const code = await runCli(argv, { out: (s) => out.push(s), err: (s) => err.push(s) }, core);
-  return { code, out, err };
+  const confirmationPrompts: string[] = [];
+  const code = await runCli(
+    argv,
+    {
+      out: (s) => out.push(s),
+      err: (s) => err.push(s),
+      confirm: async (prompt) => {
+        confirmationPrompts.push(prompt);
+        return confirm(prompt, [...out]);
+      },
+    },
+    core,
+  );
+  return { code, out, err, confirmationPrompts };
 }
 
 function queuedRuns(core: Core) {
@@ -57,7 +81,154 @@ function queuedRuns(core: Core) {
     .all();
 }
 
+function legacyPromptSource(core: Core): string {
+  const source = path.join(core.config.configDir, 'legacy-prompts');
+  fs.mkdirSync(source, { recursive: true });
+  fs.writeFileSync(path.join(source, 'mr.md'), 'Private MR prompt sentinel.');
+  fs.writeFileSync(path.join(source, 'jira.md'), 'Private Jira prompt sentinel.');
+  fs.writeFileSync(path.join(source, 'jira-adhoc.md'), 'Private ad-hoc prompt sentinel.');
+  fs.writeFileSync(path.join(source, 'free.md'), 'This prompt must not be imported.');
+  return source;
+}
+
 describe('runCli', () => {
+  test('previews source and destination before asking for confirmation without exposing prompt text', async () => {
+    const core = setup({ legacyRepo: true });
+    const source = legacyPromptSource(core);
+    const r = await cliWith(
+      core,
+      ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages', '--source', source],
+      async (prompt, preview) => {
+        expect(prompt).not.toContain('Private');
+        expect(preview).toEqual([
+          `Legacy prompt source: ${source}`,
+          `SQLite database: ${core.dataDir.db}`,
+          'Repository: inspire-mbdp-pages',
+        ]);
+        return false;
+      },
+    );
+    expect(r.code).toBe(0);
+    expect(r.out).toEqual([
+      `Legacy prompt source: ${source}`,
+      `SQLite database: ${core.dataDir.db}`,
+      'Repository: inspire-mbdp-pages',
+      'Import cancelled; no changes made.',
+    ]);
+    expect(r.out.join('\n')).not.toContain('Private');
+    expect(r.confirmationPrompts).toEqual(['Import these legacy prompts?']);
+    expect(core.agents.listAgents()).toHaveLength(5);
+  });
+
+  test('declined import writes nothing', async () => {
+    const core = setup({ legacyRepo: true });
+    const source = legacyPromptSource(core);
+    const before = core.agents.listAgents();
+    const r = await cliWith(core, ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages', '--source', source]);
+
+    expect(r.code).toBe(0);
+    expect(r.out.at(-1)).toBe('Import cancelled; no changes made.');
+    expect(core.agents.listAgents()).toEqual(before);
+    expect(core.agents.listAssignments()).toHaveLength(5);
+  });
+
+  test('rejects a missing Repository before confirmation', async () => {
+    const core = setup();
+    const source = legacyPromptSource(core);
+    const r = await cliWith(core, ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages', '--source', source]);
+
+    expect(r.code).toBe(1);
+    expect(r.confirmationPrompts).toEqual([]);
+    expect(r.err).toEqual(['Unknown Repository "inspire-mbdp-pages". Known: api, pages']);
+    expect(core.agents.listAgents()).toHaveLength(5);
+  });
+
+  test('rejects every other Repository before reading source files or asking for confirmation', async () => {
+    const core = setup();
+    const missing = path.join(core.config.configDir, 'missing-prompts');
+    const r = await cliWith(core, ['prompts', 'import-legacy', '--repo', 'pages', '--source', missing]);
+
+    expect(r.code).toBe(1);
+    expect(r.confirmationPrompts).toEqual([]);
+    expect(r.err).toEqual(['Legacy prompt import is only supported for Repository "inspire-mbdp-pages".']);
+    expect(core.agents.listAgents()).toHaveLength(5);
+  });
+
+  test('rejects a missing source before confirmation', async () => {
+    const core = setup({ legacyRepo: true });
+    const missing = path.join(core.config.configDir, 'missing-prompts');
+    const r = await cliWith(core, ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages', '--source', missing]);
+
+    expect(r.code).toBe(1);
+    expect(r.confirmationPrompts).toEqual([]);
+    expect(r.err[0]).toContain(missing);
+    expect(r.err.join('\n')).not.toContain('Private');
+    expect(core.agents.listAgents()).toHaveLength(5);
+  });
+
+  test('does not partially import profiles or mark a conflicting Repository as imported', async () => {
+    const core = setup({ legacyRepo: true });
+    const source = legacyPromptSource(core);
+    const originalAgents = core.agents.listAgents();
+    core.agents.assign('inspire-mbdp-pages', 'jira-watch', originalAgents[0]!.id);
+
+    const r = await cliWith(
+      core,
+      ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages', '--source', source],
+      async () => true,
+    );
+
+    expect(r.code).toBe(1);
+    expect(r.err.join('\n')).toContain('jira-watch');
+    expect(r.err.join('\n')).not.toContain('Private');
+    expect(core.agents.listAgents()).toEqual(originalAgents);
+    expect(
+      core.agents.listAssignments().filter((assignment) => assignment.repository === 'inspire-mbdp-pages'),
+    ).toEqual([{ repository: 'inspire-mbdp-pages', workflowType: 'jira-watch', agentId: originalAgents[0]!.id }]);
+    expect(
+      core.db.prepare("SELECT 1 FROM meta WHERE key = 'legacy_agent_prompts_imported:inspire-mbdp-pages'").get(),
+    ).toBeUndefined();
+  });
+
+  test('imports only the three selected prompts once with the expected mappings', async () => {
+    const core = setup({ legacyRepo: true });
+    const source = legacyPromptSource(core);
+    const args = ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages', '--source', source];
+    const first = await cliWith(core, args, async () => true);
+    const agentsAfterFirstImport = core.agents.listAgents();
+    const second = await cliWith(core, args, async () => true);
+
+    expect(first).toMatchObject({
+      code: 0,
+      out: expect.arrayContaining(['Legacy prompts imported for Repository inspire-mbdp-pages.']),
+    });
+    expect(second).toMatchObject({
+      code: 0,
+      out: expect.arrayContaining(['Legacy prompts were already imported for Repository inspire-mbdp-pages.']),
+    });
+    expect(core.agents.listAgents()).toHaveLength(8);
+    expect(
+      core.agents
+        .listAgents()
+        .slice(-3)
+        .map((agent) => [agent.name, agent.instructions]),
+    ).toEqual([
+      ['inspire-mbdp-pages / MR Watch', 'Private MR prompt sentinel.'],
+      ['inspire-mbdp-pages / Jira Watch', 'Private Jira prompt sentinel.'],
+      ['inspire-mbdp-pages / Ticket Ad-hoc', 'Private ad-hoc prompt sentinel.'],
+    ]);
+    expect(core.agents.resolve('inspire-mbdp-pages', 'mr-watch').agent?.name).toBe('inspire-mbdp-pages / MR Watch');
+    expect(core.agents.resolve('inspire-mbdp-pages', 'jira-watch').agent?.name).toBe('inspire-mbdp-pages / Jira Watch');
+    expect(core.agents.resolve('inspire-mbdp-pages', 'ticket-adhoc').agent?.name).toBe(
+      'inspire-mbdp-pages / Ticket Ad-hoc',
+    );
+    expect(
+      core.agents.listAssignments().filter((assignment) => assignment.repository === 'inspire-mbdp-pages'),
+    ).toHaveLength(3);
+    expect(agentsAfterFirstImport).toHaveLength(8);
+    for (const result of [first, second]) expect(result.out.join('\n')).not.toContain('Private');
+  });
+
   test('watch add success exits 0', async () => {
     const core = setup();
     const r = await cli(
