@@ -11,6 +11,7 @@ export function Sidebar({ counts }: { counts: { watches: number; queued: number 
     { href: '/queue', label: 'Queue', count: counts.queued },
     { href: '/runs', label: 'Runs' },
     { href: '/adhoc', label: 'Ad-hoc' },
+    { href: '/settings/agents', label: 'Settings' },
   ];
   return (
     <nav className="sidebar" aria-label="Main">

@@ -853,3 +853,20 @@ textarea:focus {
 .chat-form textarea {
   width: 100%;
 }
+
+/* Agent settings: cards wrap to one column on narrow screens */
+
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.agent-grid .card {
+  margin-bottom: 0;
+}
+
+.agent-grid textarea {
+  width: 100%;
+}
