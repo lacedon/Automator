@@ -13,6 +13,8 @@ function describe(error: SimpleError): string {
       return 'Instructions are required.';
     case 'INVALID_INPUT':
       return `${error.field}: ${error.message}`;
+    case 'RESTART_FAILED':
+      return error.message;
     case 'INVALID_STATE':
       return `Can't ${error.action} while ${error.state.replace('_', ' ')}.`;
     case 'RUN_IN_PROGRESS':

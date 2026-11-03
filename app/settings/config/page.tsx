@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readEditableConfig } from '@core/index';
 import { ConfigForm } from '../../components/ConfigForm';
 import { ErrorBox } from '../../components/ErrorBox';
+import { RestartApplicationButton } from '../../components/RestartApplicationButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,13 @@ export default function ConfigurationSettingsPage() {
         <Link href="/settings/agents">Open Agent Settings →</Link>
       </p>
       {error !== null ? <ErrorBox error={error} /> : config !== undefined && <ConfigForm initial={config} />}
+      <section aria-labelledby="restart-application-heading">
+        <h2 id="restart-application-heading" className="section-h">
+          Restart application
+        </h2>
+        <p className="muted">Saved settings take effect after a restart. Active work will drain first.</p>
+        <RestartApplicationButton />
+      </section>
     </>
   );
 }

@@ -61,6 +61,7 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
       return 'Cancel the running Run first';
     case 'INVALID_TARGET':
     case 'INVALID_INPUT':
+    case 'RESTART_FAILED':
       return error.message;
     case 'MISSING_INSTRUCTIONS':
       return 'Free-form Watches need --instructions';
