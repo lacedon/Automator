@@ -287,6 +287,6 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Watches that 
 ## Out of scope for v1
 
 - Live streaming of transcripts
-- Editing config or secrets from the dashboard
+- Editing secrets from the dashboard
 - An MCP tool or skill that lets Copilot create Watches itself (easy to add later on top of the CLI)
 - Worktrees, automatic cloning, or running Runs in parallel (see [ADR 0001](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md))
