@@ -116,6 +116,18 @@ test('agentDeletionImpact lists every affected reference without deleting', asyn
   expect(await agentDeletionImpact(9999)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
 });
 
+test('agentDeletionImpact includes references added after an earlier lookup', async () => {
+  const agent = core.agents.createAgent({ name: 'A', instructions: 'x' });
+  expect(await agentDeletionImpact(agent.id)).toMatchObject({ ok: true, value: [] });
+
+  core.agents.assign('pages', 'jira-watch', agent.id);
+
+  expect(await agentDeletionImpact(agent.id)).toMatchObject({
+    ok: true,
+    value: [{ repository: 'pages', workflowType: 'jira-watch', agentId: agent.id }],
+  });
+});
+
 test('deleteAgent clears references to blocking null slots and returns them', async () => {
   const agent = core.agents.createAgent({ name: 'A', instructions: 'x' });
   core.agents.assign('pages', 'mr-watch', agent.id);

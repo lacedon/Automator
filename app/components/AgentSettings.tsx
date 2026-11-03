@@ -4,6 +4,7 @@ import { startTransition, useActionState, useState, type FormEvent } from 'react
 import type { Agent, AgentAssignment, OperationTemplate, WorkflowType } from '@core/index';
 import {
   assignAgent,
+  agentDeletionImpact,
   clearRepositoryAgent,
   deleteAgent,
   saveAgent,
@@ -29,6 +30,18 @@ const INHERIT = '';
 
 function describeReference(ref: AgentAssignment, labels: Map<WorkflowType, string>): string {
   return `${ref.repository ?? 'Default'} · ${labels.get(ref.workflowType) ?? ref.workflowType}`;
+}
+
+export function buildAgentDeletionMessage(
+  name: string,
+  references: AgentAssignment[],
+  labels: Map<WorkflowType, string>,
+): string {
+  return references.length === 0
+    ? `Delete Agent "${name}"? It is not assigned anywhere.`
+    : `Delete Agent "${name}"? It is assigned to: ${references
+        .map((r) => describeReference(r, labels))
+        .join('; ')}. Each of these slots will have no Agent and block Runs until you assign another one.`;
 }
 
 function AgentForm({ agent }: { agent?: Agent }) {
@@ -91,27 +104,28 @@ function AgentCard({
     references.length === 0
       ? 'Not assigned anywhere.'
       : `Serves ${references.map((r) => describeReference(r, labels)).join('; ')}.`;
-  const message =
-    references.length === 0
-      ? `Delete Agent "${agent.name}"? It is not assigned anywhere.`
-      : `Delete Agent "${agent.name}"? It is assigned to: ${references
-          .map((r) => describeReference(r, labels))
-          .join('; ')}. Each of these slots will have no Agent and block Runs until you assign another one.`;
+  const prepare = async (): Promise<ActionResult<string>> => {
+    const result = await agentDeletionImpact(agent.id);
+    if (!result.ok) return result;
+    if (result.value === undefined) return { ok: true };
+    return { ok: true, value: buildAgentDeletionMessage(agent.name, result.value, labels) };
+  };
   return (
     <div className="card">
       <div className="card-title">{agent.name}</div>
       <p className="muted field-hint">{served}</p>
       <AgentForm agent={agent} />
-      <p>
+      <div className="field">
         <ConfirmDialog
           danger
           label="Delete Agent"
-          message={message}
+          message={buildAgentDeletionMessage(agent.name, references, labels)}
           confirmLabel="Delete Agent"
           dismissLabel="Keep Agent"
           action={deleteAgent.bind(null, agent.id)}
+          prepare={prepare}
         />
-      </p>
+      </div>
     </div>
   );
 }
