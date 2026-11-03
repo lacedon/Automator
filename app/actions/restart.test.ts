@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:net';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const requestHeaders = vi.hoisted(() => vi.fn());
@@ -7,13 +9,16 @@ vi.mock('next/headers', () => ({ headers: requestHeaders }));
 const { requestApplicationRestart } = await import('./restart');
 
 type RestartMessage = { type: 'restart'; requestId: string };
-type Supervisor = EventEmitter & { send?: (message: RestartMessage) => boolean };
+type Supervisor = EventEmitter & {
+  env: Record<string, string>;
+  send?: (message: RestartMessage, callback?: (error: Error | null) => void) => boolean;
+};
 
 const originalProcess = process;
 let supervisor: Supervisor;
 
 beforeEach(() => {
-  supervisor = new EventEmitter();
+  supervisor = Object.assign(new EventEmitter(), { env: {} });
   vi.stubGlobal('process', supervisor);
   requestHeaders.mockResolvedValue(new Headers({ host: 'localhost:4317' }));
 });
@@ -41,6 +46,43 @@ test('requests restart and accepts only its matching acceptance acknowledgement'
   expect(result).toEqual({ ok: true, value: { accepted: true } });
   expect(supervisor.listenerCount('message')).toBe(0);
   expect(supervisor.listenerCount('disconnect')).toBe(0);
+});
+
+test('waits for acknowledgement when IPC backpressure returns false', async () => {
+  supervisor.send = vi.fn((message) => {
+    queueMicrotask(() => supervisor.emit('message', { type: 'restart-accepted', requestId: message.requestId }));
+    return false;
+  });
+
+  expect(await requestApplicationRestart()).toEqual({ ok: true, value: { accepted: true } });
+});
+
+test('uses the supervisor IPC socket inherited by Next dev server workers', async () => {
+  const socketPath =
+    process.platform === 'win32'
+      ? `\\\\.\\pipe\\automator-restart-test-${process.pid}-${randomUUID()}`
+      : `.restart-dev-${process.pid}-${randomUUID().slice(0, 8)}.sock`;
+  const server = createServer((connection) => {
+    let input = '';
+    connection.setEncoding('utf8');
+    connection.on('data', (chunk) => {
+      input += chunk;
+      const newline = input.indexOf('\n');
+      if (newline === -1) return;
+      const request = JSON.parse(input.slice(0, newline)) as RestartMessage;
+      connection.end(`${JSON.stringify({ type: 'restart-accepted', requestId: request.requestId })}\n`);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+  supervisor.env.AUTOMATOR_SUPERVISOR_SOCKET = socketPath;
+  supervisor.send = vi.fn(() => false);
+
+  try {
+    expect(await requestApplicationRestart()).toEqual({ ok: true, value: { accepted: true } });
+    expect(supervisor.send).not.toHaveBeenCalled();
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
 });
 
 test('reports a matching restart rejection', async () => {

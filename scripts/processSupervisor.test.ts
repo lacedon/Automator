@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
+import { statSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { describe, expect, test, vi } from 'vitest';
 import { createProcessSupervisor } from './processSupervisor.mjs';
 
@@ -18,7 +21,7 @@ class FakeChild extends EventEmitter {
   }
 }
 
-function setup() {
+function setup(restartSocketPath?: string) {
   const children: FakeChild[] = [];
   const spawn = vi.fn(() => {
     const name = ['web', 'worker'][children.length % 2];
@@ -28,18 +31,55 @@ function setup() {
   });
   const exit = vi.fn();
   const log = vi.fn();
+  const env = {
+    PATH: '/test',
+    ...(restartSocketPath === undefined ? {} : { AUTOMATOR_SUPERVISOR_SOCKET: restartSocketPath }),
+  };
   const supervisor = createProcessSupervisor({
     spawn,
     commands: { web: ['next', 'start'], worker: ['node', 'worker'] },
-    env: { PATH: '/test' },
+    env,
     exit,
     log,
   });
 
-  return { children, exit, log, spawn, supervisor };
+  return { children, env, exit, log, spawn, supervisor };
 }
 
 describe('createProcessSupervisor', () => {
+  test('accepts a restart request over the private control socket and drains the worker', async () => {
+    const socketPath =
+      process.platform === 'win32'
+        ? `\\\\.\\pipe\\automator-supervisor-test-${process.pid}-${randomUUID()}`
+        : `.supervisor-control-${process.pid}-${randomUUID().slice(0, 8)}.sock`;
+    const s = setup(socketPath);
+    await s.supervisor.start();
+    try {
+      const [web, worker] = s.children;
+      const response = await new Promise<{ type: string; requestId: string }>((resolve, reject) => {
+        const socket = createConnection(socketPath);
+        let buffer = '';
+        socket.setEncoding('utf8');
+        socket.on('connect', () => socket.write(`${JSON.stringify({ type: 'restart', requestId: 'dev-1' })}\n`));
+        socket.on('data', (chunk) => {
+          buffer += chunk;
+          const newline = buffer.indexOf('\n');
+          if (newline !== -1) resolve(JSON.parse(buffer.slice(0, newline)));
+        });
+        socket.on('error', reject);
+      });
+
+      expect(s.env.AUTOMATOR_SUPERVISOR_SOCKET).toBe(socketPath);
+      if (process.platform !== 'win32') expect(statSync(socketPath).mode & 0o777).toBe(0o600);
+      expect(s.spawn).toHaveBeenNthCalledWith(1, 'next', ['start'], expect.objectContaining({ env: s.env }));
+      expect(response).toEqual({ type: 'restart-accepted', requestId: 'dev-1' });
+      expect(worker.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(web.kill).not.toHaveBeenCalled();
+    } finally {
+      await s.supervisor.stop('SIGTERM');
+    }
+  });
+
   test('restarts both processes only after the worker and web child close in order', () => {
     const s = setup();
     s.supervisor.start();
