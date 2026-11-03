@@ -175,4 +175,9 @@ INSERT INTO agent_assignments (repository, workflow_type, agent_id)
 SELECT NULL, workflow_type, id FROM agents;
 `,
   },
+  {
+    version: 5,
+    sql: `ALTER TABLE agents DROP COLUMN workflow_type;
+`,
+  },
 ];

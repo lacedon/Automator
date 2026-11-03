@@ -26,6 +26,17 @@ function setupVersion3(): Database {
   return db;
 }
 
+function setupVersion4(): Database {
+  const db = new BetterSqlite3(':memory:');
+  db.pragma('foreign_keys = ON');
+  for (const { version, sql } of migrations.filter(({ version }) => version <= 4)) {
+    db.exec(sql);
+    db.pragma(`user_version = ${version}`);
+  }
+  cleanups.push(() => db.close());
+  return db;
+}
+
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
@@ -78,12 +89,19 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
-  test('migrate is idempotent and sets user_version 4', () => {
+  test('migrate is idempotent and sets user_version 5', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(4);
+    expect(db.pragma('user_version', { simple: true })).toBe(5);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(4);
+    expect(db.pragma('user_version', { simple: true })).toBe(5);
+    expect(db.pragma('table_info(agents)').map((column: { name: string }) => column.name)).toEqual([
+      'id',
+      'name',
+      'instructions',
+      'created_at',
+      'updated_at',
+    ]);
     const tables = db
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
       .pluck()
@@ -125,7 +143,10 @@ describe('db', () => {
 
   test('assignment slots are unique and a null repository Agent is an explicit override', () => {
     const db = setup();
-    const agentId = db.prepare("SELECT id FROM agents WHERE workflow_type = 'mr-watch'").pluck().get() as number;
+    const agentId = db
+      .prepare("SELECT agent_id FROM agent_assignments WHERE repository IS NULL AND workflow_type = 'mr-watch'")
+      .pluck()
+      .get() as number;
     const insertAssignment = db.prepare(
       'INSERT INTO agent_assignments (repository, workflow_type, agent_id) VALUES (?, ?, ?)',
     );
@@ -142,6 +163,62 @@ describe('db', () => {
     expect(
       db.prepare("SELECT 1 FROM agent_assignments WHERE repository = 'pages' AND workflow_type = 'mr-watch'").get(),
     ).toBeUndefined();
+  });
+
+  test('migration 5 preserves Agents and assignments while making Agents workflow-neutral', () => {
+    const db = setupVersion4();
+    const customAgentId = Number(
+      db
+        .prepare(
+          `INSERT INTO agents (workflow_type, name, instructions, created_at, updated_at)
+           VALUES ('mr-watch', 'Custom', 'Keep these instructions', ?, ?)`,
+        )
+        .run(T, T + 1).lastInsertRowid,
+    );
+    db.prepare('INSERT INTO agent_assignments (repository, workflow_type, agent_id) VALUES (?, ?, ?)').run(
+      'pages',
+      'mr-watch',
+      customAgentId,
+    );
+    db.prepare('INSERT INTO agent_assignments (repository, workflow_type, agent_id) VALUES (?, ?, NULL)').run(
+      'pages',
+      'jira-watch',
+    );
+    const agentsBefore = db
+      .prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id')
+      .all();
+    const assignmentsBefore = db
+      .prepare('SELECT repository, workflow_type, agent_id FROM agent_assignments ORDER BY repository, workflow_type')
+      .all();
+
+    migrate(db);
+
+    expect(db.pragma('user_version', { simple: true })).toBe(5);
+    expect(db.pragma('table_info(agents)').map((column: { name: string }) => column.name)).not.toContain(
+      'workflow_type',
+    );
+    expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
+      agentsBefore,
+    );
+    expect(
+      db
+        .prepare('SELECT repository, workflow_type, agent_id FROM agent_assignments ORDER BY repository, workflow_type')
+        .all(),
+    ).toEqual(assignmentsBefore);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+
+    db.prepare('DELETE FROM agents WHERE id = ?').run(customAgentId);
+    expect(
+      db
+        .prepare("SELECT agent_id FROM agent_assignments WHERE repository = 'pages' AND workflow_type = 'mr-watch'")
+        .pluck()
+        .get(),
+    ).toBeNull();
+    expect(
+      db
+        .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name IN (?, ?) ORDER BY name')
+        .all('index', 'ux_agent_assignment_default', 'ux_agent_assignment_repository'),
+    ).toEqual([{ name: 'ux_agent_assignment_default' }, { name: 'ux_agent_assignment_repository' }]);
   });
 
   test('migration 4 backfills Watch, root Ad-hoc, and follow-up Workflow types', () => {
