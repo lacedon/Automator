@@ -95,12 +95,12 @@ describe('db', () => {
     migrate(db);
     migrate(db);
     expect(db.pragma('user_version', { simple: true })).toBe(5);
-    expect(db.pragma('table_info(agents)').map((column: { name: string }) => column.name)).toEqual([
-      'id',
-      'name',
-      'instructions',
-      'created_at',
-      'updated_at',
+    expect(db.pragma('table_info(agents)')).toEqual([
+      expect.objectContaining({ name: 'id' }),
+      expect.objectContaining({ name: 'name' }),
+      expect.objectContaining({ name: 'instructions' }),
+      expect.objectContaining({ name: 'created_at' }),
+      expect.objectContaining({ name: 'updated_at' }),
     ]);
     const tables = db
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
@@ -194,9 +194,7 @@ describe('db', () => {
     migrate(db);
 
     expect(db.pragma('user_version', { simple: true })).toBe(5);
-    expect(db.pragma('table_info(agents)').map((column: { name: string }) => column.name)).not.toContain(
-      'workflow_type',
-    );
+    expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,
     );
