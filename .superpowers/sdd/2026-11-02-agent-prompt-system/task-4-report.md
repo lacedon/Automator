@@ -29,8 +29,8 @@ No lint script exists in package.json.
 - Forms submit via `startTransition` so a failed save keeps entered values (same pattern as `WatchForm`).
 
 ## Concerns
-- Touching `globals.css` is outside the listed files; kept narrowly scoped.
-- Not visually verified in a browser (build + types only), to avoid touching the real `~/.automator` database.
+- The responsive menu and active-navigation treatment touch shared shell files; this was necessary because the fixed sidebar made this settings screen unusable at tablet and phone widths.
+- The app-screen linter retains three intentional warnings: monospace is reserved for code, and the shadow is on the floating menu popover. The browser inspector reports no warnings.
 - RED output captured was the truncated tail of the run.
 
 ## Follow-up fix: fresh deletion preview
@@ -49,3 +49,13 @@ Added coverage for all assignment slots and the unassigned wording. Before imple
 - `git diff --check`: passed.
 
 The Next build emitted four Turbopack dynamic-file-pattern warnings from existing `src/core/files/dataDir.ts`, `src/core/config/load.ts`, and `src/core/index.ts`; compilation, type-checking, and build completed successfully.
+
+## Browser validation and completion
+
+- The isolated app was inspected at 1440, 768, and 390 CSS pixels. The final inspector result was **0 FAIL, 0 WARN**; all six final viewport screenshots were opened and reviewed.
+- The first phone pass exposed the fixed sidebar and narrow cards. The shared navigation now folds into a menu through tablet widths; the phone menu retains both the main routes and New Watch, while Ad-hoc remains the single top-bar action.
+- Assignment and Agent grids now use three columns on desktop, two on tablet (with the final odd card spanning the row), and one on phone. The New Agent form is separate from the profile grid to avoid a ragged row.
+- Browser interactions verified: the mobile menu opens, routes to Runs and back to Settings, and closes after navigation; a temporary Agent was created and deleted; its deletion preview said it was unassigned; deleting the first assigned Default showed the fresh `Default · MR Watch` reference and the blocking consequence. Temporary test data was removed from the isolated database.
+- The app-screen critique: the page's question—where each Workflow gets its Agent and template—is answered by the first assignment cards. At desktop, the assignment cards and profile cards share the canvas edges; on tablet the final single card spans the row; on phone the navigation folds away and forms stack at full width. The main state is explicit: empty Agent instructions block Runs. There are no charts or repeated numeric facts to reconcile.
+- `npx vitest run`: 39 files and 528 tests passed. `npx tsc --noEmit` passed. `npx next build` succeeded and includes `/settings/agents`, with the four existing dynamic-file-pattern warnings noted above. `git diff --check` passed.
+- All browser validation used the isolated configuration and database; the real `~/.automator` data was not used.

@@ -243,14 +243,14 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
   };
 
   return (
-    <>
+    <div className="agent-settings">
       <h2 className="section-h">Assignments and templates</h2>
       <p className="muted">
         Each Workflow uses its Repository Agent if one is set, otherwise the default. A slot with no Agent, or an Agent
         with empty instructions, blocks Runs before Copilot starts.
       </p>
       {assignmentError !== null && <ErrorBox error={assignmentError} unknownRepositoryOutcome="Nothing was changed." />}
-      <div className="agent-grid">
+      <div className="agent-grid agent-grid--assignments">
         {workflows.map(({ type, label }) => (
           <div className="card" key={type}>
             <div className="card-title">{label}</div>
@@ -283,15 +283,15 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
       <h2 className="section-h">Agents</h2>
       <p className="muted">Agents are instruction-only profiles and can be assigned to any Workflow.</p>
       {agents.length === 0 && <EmptyState>No Agents yet.</EmptyState>}
-      <div className="agent-grid">
+      <div className="agent-grid agent-grid--agents">
         {agents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} assignments={assignments} labels={labels} />
         ))}
-        <div className="card">
-          <div className="card-title">New Agent</div>
-          <AgentForm key={agents.length} />
-        </div>
       </div>
-    </>
+      <div className="card agent-new-card">
+        <div className="card-title">New Agent</div>
+        <AgentForm key={agents.length} />
+      </div>
+    </div>
   );
 }
