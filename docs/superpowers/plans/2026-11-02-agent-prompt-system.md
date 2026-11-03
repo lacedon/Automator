@@ -41,12 +41,12 @@
 
 - Produces `WorkflowType = 'mr-watch' | 'jira-watch' | 'free-watch' | 'ticket-adhoc' | 'free-adhoc'`.
 - Produces `Run.workflowType`, `Agent { id, name, instructions, createdAt, updatedAt }`, `AgentAssignment { repository: string | null, workflowType, agentId: number | null }`, and `OperationTemplate { workflowType, instructions }`.
-- Schema version 4 adds `workflow_type` to `runs`, `agents`, `agent_assignments`, and `operation_templates`. Seed one empty default Agent and default assignment per Workflow type.
+- Agents are workflow-neutral profiles; workflow type belongs to Runs, assignments, and operation templates. Schema version 4 introduces those tables and seeds one empty default Agent and assignment per Workflow type. Schema version 5 removes the erroneous `workflow_type` column from `agents` while preserving all Agents and assignments created by version 4.
 - A repository assignment row with `agent_id = NULL` is an explicit blocked override; deleting an override row restores default fallback.
 
-- [ ] **Step 1: Write failing migration tests** for version 4, five empty defaults, uniqueness of default/repository assignment slots, and backfill of existing Watch, ticket Ad-hoc, and follow-up Runs.
-- [ ] **Step 2: Run tests to verify they fail.** Run: `npm test -- src/core/db/db.test.ts`. Expected: migration/domain assertions fail against schema version 3.
-- [ ] **Step 3: Implement the migration and row mapping.** Backfill Watch types from `watches.kind`, root Ad-hoc types from `ticket_key`, and follow-up types from their parent chain.
+- [ ] **Step 1: Write failing migration tests** for the final schema version, five empty defaults, uniqueness of default/repository assignment slots, preservation of Agent/assignment data when version 5 removes `agents.workflow_type`, and backfill of existing Watch, ticket Ad-hoc, and follow-up Runs.
+- [ ] **Step 2: Run tests to verify they fail.** Run: `npm test -- src/core/db/db.test.ts`. Expected: schema-version and final-Agent-schema assertions fail against the current version 4 shape.
+- [ ] **Step 3: Implement migrations and row mapping.** Backfill Watch types from `watches.kind`, root Ad-hoc types from `ticket_key`, and follow-up types from their parent chain. Preserve existing Agent and assignment rows while removing `agents.workflow_type` in version 5.
 - [ ] **Step 4: Run tests to verify they pass.** Run: `npm test -- src/core/db/db.test.ts`.
 - [ ] **Step 5: Commit.**
 
