@@ -70,6 +70,13 @@ function splitProject(projectId: string): { owner: string; name: string } {
   return { owner, name };
 }
 
+// Issue comments, review bodies and review comments have separate GitHub ID sequences, so notes get
+// a shared ordering key instead: creation time in seconds, with the low digits of the GitHub ID as tie-break.
+function noteKey(createdAt: string, githubId: number): number {
+  const seconds = Math.floor(Date.parse(createdAt) / 1000);
+  return (Number.isNaN(seconds) ? 0 : seconds) * 1_000_000 + (githubId % 1_000_000);
+}
+
 function userNote(
   id: number,
   user: UserJson,
@@ -82,7 +89,15 @@ function userNote(
     resolvable: false,
     resolved: false,
     notes: [
-      { id, system: false, authorId: user?.id ?? 0, authorUsername: user?.login ?? 'ghost', body, createdAt, url },
+      {
+        id: noteKey(createdAt, id),
+        system: false,
+        authorId: user?.id ?? 0,
+        authorUsername: user?.login ?? 'ghost',
+        body,
+        createdAt,
+        url,
+      },
     ],
   };
 }
@@ -139,7 +154,7 @@ export function createGitHubClient(
   }
 
   const toNote = (c: GqlComment): ReviewNote => ({
-    id: c.databaseId,
+    id: noteKey(c.createdAt, c.databaseId),
     system: false,
     authorId: c.author?.databaseId ?? 0,
     authorUsername: c.author?.login ?? 'ghost',

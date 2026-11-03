@@ -40,12 +40,16 @@ function prJson(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const at = (id: number) => new Date(Date.parse('2026-10-20T09:00:00Z') + id * 60_000).toISOString();
+// Mirrors the client's shared ordering key (creation time in seconds, then GitHub ID).
+const key = (id: number) => Math.floor(Date.parse(at(id)) / 1000) * 1_000_000 + id;
+
 function comment(id: number, user: typeof me, body: string) {
   return {
     id,
     user,
     body,
-    created_at: '2026-10-20T09:00:00Z',
+    created_at: at(id),
     html_url: `${PR_URL}#issuecomment-${id}`,
   };
 }
@@ -61,7 +65,7 @@ function thread(id: string, resolved: boolean, commentId: number, author: typeof
           databaseId: commentId,
           author: { login: author.login, databaseId: author.id },
           body: 'Rename this',
-          createdAt: '2026-10-20T09:05:00Z',
+          createdAt: at(commentId),
           url: `${PR_URL}#discussion_r${commentId}`,
         },
       ],
@@ -205,13 +209,13 @@ describe('createGitHubClient', () => {
     const { client } = setup({
       comments: [comment(10, anna, 'one'), comment(11, anna, 'two')],
       reviews: [
-        { id: 20, user: anna, body: 'Please fix', state: 'CHANGES_REQUESTED', submitted_at: 'x', html_url: 'u' },
-        { id: 21, user: anna, body: '', state: 'APPROVED', submitted_at: 'x', html_url: 'u' },
+        { id: 20, user: anna, body: 'Please fix', state: 'CHANGES_REQUESTED', submitted_at: at(20), html_url: 'u' },
+        { id: 21, user: anna, body: '', state: 'APPROVED', submitted_at: at(21), html_url: 'u' },
       ],
       threads: [thread('t1', false, 30, anna)],
     });
     const discussions = await client.discussions('acme/app', 7);
-    expect(discussions.flatMap((d) => d.notes.map((n) => n.id))).toEqual([10, 11, 20, 30]);
+    expect(discussions.flatMap((d) => d.notes.map((n) => n.id))).toEqual([10, 11, 20, 30].map(key));
     expect(discussions.find((d) => d.id === 't1')).toMatchObject({ resolvable: true, resolved: false });
   });
 
@@ -223,13 +227,13 @@ describe('createGitHubClient', () => {
           databaseId: 31,
           author: { login: 'anna', databaseId: 2 },
           body: 'late reply',
-          createdAt: '2026-10-20T10:00:00Z',
+          createdAt: at(31),
           url: 'u',
         },
       ],
     });
     const [t] = await client.discussions('acme/app', 7);
-    expect(t!.notes.map((n) => n.id)).toEqual([30, 31]);
+    expect(t!.notes.map((n) => n.id)).toEqual([30, 31].map(key));
   });
 
   test('GraphQL permission errors are auth failures, other errors are not', async () => {
@@ -246,18 +250,31 @@ describe('createGitHubClient', () => {
 });
 
 describe('GitHubPrecheck', () => {
+  test('comments of different kinds are ordered by time, not by their separate GitHub ID sequences', async () => {
+    const { precheck } = setup({
+      comments: [comment(10, anna, 'issue comment')],
+      threads: [thread('t1', false, 3, anna)],
+    });
+    // The thread comment has a smaller GitHub ID but is newer than the cursor's note.
+    expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: key(2) }) }))).toEqual({
+      kind: 'changed',
+      reason: 'new comment by @anna',
+    });
+    expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: key(10) }) }))).toEqual({ kind: 'unchanged' });
+  });
+
   test('first check records the baseline', async () => {
     const { precheck } = setup({ comments: [comment(10, anna, 'hi')] });
-    expect(await precheck.check(watch())).toEqual({ kind: 'unchanged', cursor: cursor({ lastNoteId: 10 }) });
+    expect(await precheck.check(watch())).toEqual({ kind: 'unchanged', cursor: cursor({ lastNoteId: key(10) }) });
   });
 
   test('new comment by someone else is a change; own comments are ignored', async () => {
     const { precheck } = setup({ comments: [comment(10, anna, 'hi'), comment(11, me, 'mine')] });
-    expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: 9 }) }))).toEqual({
+    expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: key(9) }) }))).toEqual({
       kind: 'changed',
       reason: 'new comment by @anna',
     });
-    expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: 10 }) }))).toEqual({ kind: 'unchanged' });
+    expect(await precheck.check(watch({ cursor: cursor({ lastNoteId: key(10) }) }))).toEqual({ kind: 'unchanged' });
   });
 
   test('failed check run and merge conflict are reported once', async () => {
@@ -292,13 +309,15 @@ describe('GitHubPrecheck', () => {
       comments: [comment(10, anna, 'hi')],
       checkRuns: [{ id: 9, conclusion: 'failure' }],
     });
-    const snap = await precheck.snapshot(watch({ cursor: cursor({ lastNoteId: 5 }) }), { reviewUnresolved: false });
+    const snap = await precheck.snapshot(watch({ cursor: cursor({ lastNoteId: key(5) }) }), {
+      reviewUnresolved: false,
+    });
     expect(snap.sourceBranch).toBe('feature/widgets');
     expect(snap.events.map((e) => [e.author, e.url ?? e.text])).toEqual([
       ['@anna', `${PR_URL}#issuecomment-10`],
       ['github', `Check run #9 failed on ${SHA.slice(0, 8)}`],
     ]);
-    expect(snap.cursorCandidate).toEqual(cursor({ lastNoteId: 10, handledPipelineId: 9 }));
+    expect(snap.cursorCandidate).toEqual(cursor({ lastNoteId: key(10), handledPipelineId: 9 }));
   });
 
   test('bad credentials are an auth failure', async () => {
