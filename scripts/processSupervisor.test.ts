@@ -87,6 +87,47 @@ describe('createProcessSupervisor', () => {
     expect(worker.kill).toHaveBeenCalledTimes(1);
   });
 
+  test('does not restart when the web child exits before the worker drain finishes', () => {
+    const s = setup();
+    s.supervisor.start();
+    const [web, worker] = s.children;
+
+    web.emit('message', { type: 'restart', requestId: 'restart-1' });
+    web.close(7);
+    worker.close();
+
+    expect(s.spawn).toHaveBeenCalledTimes(2);
+    expect(s.exit).toHaveBeenCalledWith(7);
+  });
+
+  test('does not restart when the worker fails to close cleanly during restart', () => {
+    const s = setup();
+    s.supervisor.start();
+    const [web, worker] = s.children;
+
+    web.emit('message', { type: 'restart', requestId: 'restart-1' });
+    worker.close(9);
+    web.close();
+
+    expect(s.spawn).toHaveBeenCalledTimes(2);
+    expect(s.exit).toHaveBeenCalledWith(9);
+  });
+
+  test('does not restart after a child error during restart', () => {
+    const s = setup();
+    s.supervisor.start();
+    const [web, worker] = s.children;
+
+    web.emit('message', { type: 'restart', requestId: 'restart-1' });
+    web.emit('error', new Error('web process failed'));
+    web.close(1);
+    worker.close();
+
+    expect(s.spawn).toHaveBeenCalledTimes(2);
+    expect(s.exit).toHaveBeenCalledWith(1);
+    expect(s.log).toHaveBeenCalledWith('[start] web: web process failed');
+  });
+
   test('stops the other process and exits when either child exits unexpectedly', () => {
     const s = setup();
     s.supervisor.start();

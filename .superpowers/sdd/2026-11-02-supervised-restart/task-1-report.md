@@ -49,3 +49,18 @@ accepted restart IPC triggers a respawn. The tests verify web IPC setup and
 worker-before-web shutdown ordering. No process-semantics conflict remains.
 The preceding configuration-editor commit (`d7458e7`) is untouched; no
 source-file overlap was found.
+
+## Follow-up fix: unexpected child exits during restart
+
+The review finding was reproduced with regression tests: a web close during
+worker drain, a worker close with status 9, and a web process error each
+incorrectly respawned the pair (4 spawns instead of 2). Restart now proceeds
+only after the requested worker shutdown completes with status 0, followed by
+the requested web shutdown; child errors abort the restart, and all other
+closes use the ordinary stop-and-exit path.
+
+- RED: focused supervisor suite failed all 3 new regression tests.
+- GREEN: `npm test -- scripts/processSupervisor.test.ts` — 1 file, 8 tests
+  passed.
+- `npm run check` — passed; typecheck, lint, formatting, dependency-cruiser,
+  and full suite (41 files, 552 tests) all passed.
