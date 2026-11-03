@@ -1,5 +1,7 @@
 import type { WatchKind } from '../domain/types';
 import type { ReadDeps } from './deps';
+import { scopeFilter } from './scope';
+import type { ProjectScope } from '../domain/types';
 import { runningRun, toRunningCard, type RunningCard } from './queue';
 import { RUNS_WITH_TITLE, toRunRow, toRunWithTitle, type RunRow } from './runs';
 
@@ -17,14 +19,16 @@ export type HomeView = { needsYou: NeedsYouCard[]; running: RunningCard | null; 
 
 const RECENT_LIMIT = 10;
 
-export function homeView(deps: ReadDeps): HomeView {
+export function homeView(deps: ReadDeps, scope: ProjectScope = null): HomeView {
   const { db } = deps;
+  const inScope = scopeFilter(deps, scope);
   const needsYou = db
     .prepare(
       `SELECT id, title, kind, repository, needs_you_reason, needs_you_since, needs_you_run_id FROM watches
        WHERE state = 'needs_you' ORDER BY needs_you_since DESC, id DESC`,
     )
     .all()
+    .filter((row) => inScope((row as { repository: string }).repository))
     .map((row) => {
       const r = row as Record<string, unknown>;
       return {
@@ -39,7 +43,12 @@ export function homeView(deps: ReadDeps): HomeView {
     });
   const recent = db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.status = 'finished' ORDER BY r.id DESC LIMIT ?`)
-    .all(RECENT_LIMIT)
-    .map((row) => toRunRow(toRunWithTitle(row), deps.config));
-  return { needsYou, running: toRunningCard(runningRun(deps), deps), recent };
+    // A Project's runs may be older than the newest runs overall, so scoped views read the whole history.
+    .all(scope === null ? RECENT_LIMIT : -1)
+    .map(toRunWithTitle)
+    .filter((run) => inScope(run.repository))
+    .slice(0, RECENT_LIMIT)
+    .map((run) => toRunRow(run, deps.config));
+  const running = runningRun(deps);
+  return { needsYou, running: running && inScope(running.repository) ? toRunningCard(running, deps) : null, recent };
 }

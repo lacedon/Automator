@@ -142,6 +142,10 @@ If the result file itself can't be written, that is reported too.
 
 If a Repository's folder later disappears, its existing Watches move to **Needs you** and get an error result.
 
+### Projects
+
+Projects group Repositories so unrelated work stays visually apart. Manage them on the **Projects** page: create, rename, delete, and choose which Repositories each contains (a Repository belongs to at most one Project). The top-bar switcher scopes the dashboard to **All projects**, one Project, or **Unassigned** Repositories, and tints the UI with that Project's colour. Deleting a Project only unassigns its Repositories. Existing Repositories start unassigned, and the selection is remembered in a browser cookie.
+
 ## Checking and scheduling
 
 ### GitLab MR and GitHub PR pre-check

@@ -7,6 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Pill, PriorityPill, PRIORITY_LABEL } from '../components/Pill';
 import { RunItem } from '../components/RunMeta';
 import { getCore } from '../lib/core';
+import { currentScope } from '../lib/scope';
 import { formatDateTime } from '../lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -117,8 +118,8 @@ function Waiting({ rows }: { rows: QueueRow[] }) {
   );
 }
 
-export default function QueuePage() {
-  const { running, waiting } = getCore().read.queueView();
+export default async function QueuePage() {
+  const { running, waiting } = getCore().read.queueView(await currentScope());
   return (
     <>
       <h2 className="section-h">Running</h2>

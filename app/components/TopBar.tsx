@@ -1,13 +1,21 @@
 import Link from 'next/link';
+import { ProjectSwitcher } from './ProjectSwitcher';
 import { MobileNavigation } from './Sidebar';
 
-export function TopBar({ counts }: { counts: { watches: number; queued: number } }) {
+type Props = {
+  counts: { watches: number; queued: number };
+  projects: { id: number; name: string }[];
+  scope: number | 'none' | null;
+};
+
+export function TopBar({ counts, projects, scope }: Props) {
   return (
     <header className="topbar">
       <Link href="/" className="brand">
         Automator
       </Link>
       <MobileNavigation counts={counts} />
+      <ProjectSwitcher projects={projects} scope={scope} />
       <span className="spacer" />
       <Link href="/watches/new" className="btn btn-secondary">
         + Watch

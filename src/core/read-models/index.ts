@@ -1,4 +1,5 @@
-import type { Watch } from '../domain/types';
+import type { ProjectScope, Watch } from '../domain/types';
+import { scopeFilter } from './scope';
 import { adhocView, type AdhocRow } from './adhoc';
 import type { ReadDeps } from './deps';
 import { formOptions, type FormOptions } from './formOptions';
@@ -24,34 +25,36 @@ export type { WatchDetailView, WatchSettings } from './watchDetail';
 export type { LastRun, WatchFilter, WatchListView, WatchRow } from './watches';
 
 export interface ReadModels {
-  homeView(): HomeView;
+  homeView(scope?: ProjectScope): HomeView;
   watchList(f: WatchFilter): WatchListView;
   watchDetail(id: number): WatchDetailView | null;
-  queueView(): { running: RunningCard | null; waiting: QueueRow[] };
+  queueView(scope?: ProjectScope): { running: RunningCard | null; waiting: QueueRow[] };
   runList(f: RunFilter): RunRow[];
   runDetail(id: number): Promise<RunDetailView | null>;
-  adhocView(): { rows: AdhocRow[] };
+  adhocView(scope?: ProjectScope): { rows: AdhocRow[] };
   formOptions(): FormOptions;
   nextCheckText(w: Watch, ctx: NextCheckContext): NextCheck;
-  navCounts(): { watches: number; queued: number };
+  navCounts(scope?: ProjectScope): { watches: number; queued: number };
 }
 
 export function createReadModels(deps: ReadDeps): ReadModels {
   return {
-    homeView: () => homeView(deps),
+    homeView: (scope) => homeView(deps, scope),
     watchList: (f) => watchList(deps, f),
     watchDetail: (id) => watchDetail(deps, id),
-    queueView: () => queueView(deps),
+    queueView: (scope) => queueView(deps, scope),
     runList: (f) => runList(deps, f),
     runDetail: (id) => runDetail(deps, id),
-    adhocView: () => adhocView(deps),
+    adhocView: (scope) => adhocView(deps, scope),
     formOptions: () => formOptions(deps),
     nextCheckText,
-    navCounts: () => {
-      const count = (sql: string) => (deps.db.prepare(sql).get() as { n: number }).n;
+    navCounts: (scope = null) => {
+      const inScope = scopeFilter(deps, scope);
+      const repositories = (sql: string) =>
+        (deps.db.prepare(sql).all() as { repository: string }[]).map((r) => r.repository);
       return {
-        watches: count('SELECT count(*) AS n FROM watches'),
-        queued: count("SELECT count(*) AS n FROM runs WHERE status = 'queued'"),
+        watches: repositories('SELECT repository FROM watches').filter(inScope).length,
+        queued: repositories("SELECT repository FROM runs WHERE status = 'queued'").filter(inScope).length,
       };
     },
   };

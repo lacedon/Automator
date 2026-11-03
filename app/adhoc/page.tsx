@@ -9,6 +9,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Pill, RunPill } from '../components/Pill';
 import { ticketText } from '../components/RunMeta';
 import { getCore } from '../lib/core';
+import { currentScope } from '../lib/scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,10 +99,10 @@ function History({ rows }: { rows: AdhocRow[] }) {
   );
 }
 
-export default function AdhocPage() {
+export default async function AdhocPage() {
   const core = getCore();
   const { repositories, models, defaultModel } = core.read.formOptions();
-  const { rows } = core.read.adhocView();
+  const { rows } = core.read.adhocView(await currentScope());
   return (
     <ActionErrorProvider>
       <h1 className="page-title">New ad-hoc run</h1>

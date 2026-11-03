@@ -160,7 +160,7 @@ export function WatchForm(props: Props) {
               {repo === undefined && <option value={repository}>{repository}</option>}
               {options.repositories.map((r) => (
                 <option key={r.name} value={r.name}>
-                  {r.name}
+                  {r.project === null ? r.name : `${r.name} (${r.project})`}
                 </option>
               ))}
             </select>

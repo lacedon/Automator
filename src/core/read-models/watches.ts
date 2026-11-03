@@ -1,8 +1,18 @@
 import { toWatch } from '../db/rows';
 import { intervalFor } from '../domain/schedule';
-import type { Interrupted, Outcome, ResultStatus, Run, Watch, WatchKind, WatchState } from '../domain/types';
+import type {
+  Interrupted,
+  ProjectScope,
+  Outcome,
+  ResultStatus,
+  Run,
+  Watch,
+  WatchKind,
+  WatchState,
+} from '../domain/types';
 import { allowedActions, type WatchAction } from '../domain/watchState';
 import type { ReadDeps } from './deps';
+import { scopeFilter } from './scope';
 import { nextCheckText, type NextCheck } from './nextCheck';
 import { runningRun, waitingRows } from './queue';
 import type { RunWithTitle } from './runs';
@@ -30,7 +40,13 @@ export type WatchRow = {
   actions: WatchAction[];
 };
 
-export type WatchFilter = { state?: WatchState; kind?: WatchKind; repository?: string; q?: string };
+export type WatchFilter = {
+  state?: WatchState;
+  kind?: WatchKind;
+  repository?: string;
+  q?: string;
+  project?: ProjectScope;
+};
 
 export type WatchListView = { counts: Record<'all' | WatchState, number>; jiraNotice: boolean; rows: WatchRow[] };
 
@@ -83,6 +99,7 @@ function lastRuns({ db }: ReadDeps): Map<number, LastRun> {
 export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
   const { db, config } = deps;
   const q = f.q?.trim().toLowerCase() || null;
+  const inScope = scopeFilter(deps, f.project ?? null);
   const watches = db
     .prepare(
       `SELECT * FROM watches
@@ -91,7 +108,8 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
          AND (@q IS NULL OR instr(lower(title), @q) > 0 OR instr(lower(target_url), @q) > 0)`,
     )
     .all({ kind: f.kind ?? null, repository: f.repository ?? null, q })
-    .map(toWatch);
+    .map(toWatch)
+    .filter((w) => inScope(w.repository));
 
   const counts: WatchListView['counts'] = { all: watches.length, needs_you: 0, active: 0, paused: 0, closed: 0 };
   for (const w of watches) counts[w.state] += 1;

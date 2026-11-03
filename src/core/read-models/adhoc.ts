@@ -1,6 +1,7 @@
-import type { Interrupted, Outcome, ResultStatus, RunStatus } from '../domain/types';
+import type { Interrupted, ProjectScope, Outcome, ResultStatus, RunStatus } from '../domain/types';
 import type { ReadDeps } from './deps';
 import { waitingRows } from './queue';
+import { scopeFilter } from './scope';
 import { toRunRow, toRunWithTitle, RUNS_WITH_TITLE, type TicketLink } from './runs';
 
 export type AdhocRow = {
@@ -20,13 +21,16 @@ export type AdhocRow = {
   tookMs: number | null;
 };
 
-export function adhocView(deps: ReadDeps): { rows: AdhocRow[] } {
+export function adhocView(deps: ReadDeps, scope: ProjectScope = null): { rows: AdhocRow[] } {
+  const inScope = scopeFilter(deps, scope);
   const positions = new Map(waitingRows(deps).map((r) => [r.runId, r.position]));
   const rows = deps.db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id IS NULL ORDER BY r.id DESC`)
     .all()
-    .map((row) => {
-      const run = toRunRow(toRunWithTitle(row), deps.config);
+    .map(toRunWithTitle)
+    .filter((run) => inScope(run.repository))
+    .map((withTitle) => {
+      const run = toRunRow(withTitle, deps.config);
       return {
         id: run.id,
         prompt: run.adhocPrompt ?? '',
