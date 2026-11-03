@@ -1,15 +1,29 @@
+import BetterSqlite3 from 'better-sqlite3';
 import type { Database } from './open';
 import { afterEach, describe, expect, test } from 'vitest';
 import { tempDb } from '../../../test/helpers/db';
 import { migrate } from './migrate';
+import { migrations } from './migrations';
 import { toNeedsYouEvent, toRun, toWatch } from './rows';
 
 const cleanups: (() => void)[] = [];
+const workflowTypes = ['mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc'] as const;
 
 function setup(): Database {
   const t = tempDb();
   cleanups.push(t.cleanup);
   return t.db;
+}
+
+function setupVersion3(): Database {
+  const db = new BetterSqlite3(':memory:');
+  db.pragma('foreign_keys = ON');
+  for (const { version, sql } of migrations.filter(({ version }) => version <= 3)) {
+    db.exec(sql);
+    db.pragma(`user_version = ${version}`);
+  }
+  cleanups.push(() => db.close());
+  return db;
 }
 
 afterEach(() => {
@@ -38,6 +52,22 @@ function insertRun(db: Database, watchId: number | null, status: string): number
   return Number(info.lastInsertRowid);
 }
 
+function insertLegacyRun(db: Database, input: { watchId?: number; ticketKey?: string; parentRunId?: number }): number {
+  const info = db
+    .prepare(
+      `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, ticket_key, parent_run_id, model, queued_at)
+       VALUES (?, 'pages', 'finished', ?, 0, 'old run', ?, ?, 'm', ?)`,
+    )
+    .run(
+      input.watchId ?? null,
+      input.watchId === undefined ? 'adhoc' : 'schedule',
+      input.ticketKey ?? null,
+      input.parentRunId ?? null,
+      T,
+    );
+  return Number(info.lastInsertRowid);
+}
+
 function constraintCode(fn: () => unknown): string | undefined {
   try {
     fn();
@@ -48,17 +78,103 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
-  test('migrate is idempotent and sets user_version 3', () => {
+  test('migrate is idempotent and sets user_version 4', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(3);
+    expect(db.pragma('user_version', { simple: true })).toBe(4);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(3);
+    expect(db.pragma('user_version', { simple: true })).toBe(4);
     const tables = db
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
       .pluck()
       .all();
-    expect(tables).toEqual(['meta', 'needs_you_events', 'runs', 'watches', 'worker_lock']);
+    expect(tables).toEqual([
+      'agent_assignments',
+      'agents',
+      'meta',
+      'needs_you_events',
+      'operation_templates',
+      'runs',
+      'watches',
+      'worker_lock',
+    ]);
+  });
+
+  test('migration 4 seeds an empty default Agent for each Workflow type', () => {
+    const db = setup();
+    const defaults = db
+      .prepare(
+        `SELECT assignment.workflow_type AS workflowType, agent.name, agent.instructions
+         FROM agent_assignments AS assignment
+         JOIN agents AS agent ON agent.id = assignment.agent_id
+         WHERE assignment.repository IS NULL ORDER BY assignment.workflow_type`,
+      )
+      .all();
+    expect(defaults).toEqual(
+      [...workflowTypes].sort().map((workflowType) => ({
+        workflowType,
+        name: 'Default',
+        instructions: '',
+      })),
+    );
+    expect(db.prepare('SELECT COUNT(*) FROM agents').pluck().get()).toBe(workflowTypes.length);
+    expect(db.prepare('SELECT workflow_type FROM operation_templates ORDER BY workflow_type').pluck().all()).toEqual(
+      [],
+    );
+  });
+
+  test('assignment slots are unique and a null repository Agent is an explicit override', () => {
+    const db = setup();
+    const agentId = db.prepare("SELECT id FROM agents WHERE workflow_type = 'mr-watch'").pluck().get() as number;
+    const insertAssignment = db.prepare(
+      'INSERT INTO agent_assignments (repository, workflow_type, agent_id) VALUES (?, ?, ?)',
+    );
+    expect(constraintCode(() => insertAssignment.run(null, 'mr-watch', agentId))).toBe('SQLITE_CONSTRAINT_UNIQUE');
+    expect(() => insertAssignment.run('pages', 'mr-watch', null)).not.toThrow();
+    expect(constraintCode(() => insertAssignment.run('pages', 'mr-watch', agentId))).toBe('SQLITE_CONSTRAINT_UNIQUE');
+    expect(
+      db
+        .prepare("SELECT agent_id FROM agent_assignments WHERE repository = 'pages' AND workflow_type = 'mr-watch'")
+        .pluck()
+        .get(),
+    ).toBeNull();
+    db.prepare("DELETE FROM agent_assignments WHERE repository = 'pages' AND workflow_type = 'mr-watch'").run();
+    expect(
+      db.prepare("SELECT 1 FROM agent_assignments WHERE repository = 'pages' AND workflow_type = 'mr-watch'").get(),
+    ).toBeUndefined();
+  });
+
+  test('migration 4 backfills Watch, root Ad-hoc, and follow-up Workflow types', () => {
+    const db = setupVersion3();
+    const watchIdFor = (kind: 'mr' | 'jira' | 'free') =>
+      Number(
+        db
+          .prepare(
+            `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, created_at, updated_at)
+             VALUES (?, ?, ?, 'pages', 'Title', 'active', ?, ?)`,
+          )
+          .run(kind, `url-${kind}`, `target-${kind}`, T, T).lastInsertRowid,
+      );
+    const mrRun = insertLegacyRun(db, { watchId: watchIdFor('mr') });
+    const jiraRun = insertLegacyRun(db, { watchId: watchIdFor('jira') });
+    const freeRun = insertLegacyRun(db, { watchId: watchIdFor('free') });
+    const ticketRoot = insertLegacyRun(db, { ticketKey: 'ABC-123' });
+    const freeRoot = insertLegacyRun(db, {});
+    const followUp = insertLegacyRun(db, { parentRunId: ticketRoot });
+    const secondFollowUp = insertLegacyRun(db, { parentRunId: followUp });
+
+    migrate(db);
+
+    const workflowTypeFor = (id: number) => toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(id)).workflowType;
+    expect([
+      workflowTypeFor(mrRun),
+      workflowTypeFor(jiraRun),
+      workflowTypeFor(freeRun),
+      workflowTypeFor(ticketRoot),
+      workflowTypeFor(freeRoot),
+      workflowTypeFor(followUp),
+      workflowTypeFor(secondFollowUp),
+    ]).toEqual(['mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc', 'ticket-adhoc', 'ticket-adhoc']);
   });
 
   test('migration 3 adds session and parent columns', () => {

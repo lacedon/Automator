@@ -14,6 +14,7 @@ import type {
   Watch,
   WatchKind,
   WatchState,
+  WorkflowType,
 } from '../domain/types';
 
 type Row = Record<string, unknown>;
@@ -56,6 +57,7 @@ export function toRun(row: unknown): Run {
   return {
     id: r.id as number,
     watchId: r.watch_id as number | null,
+    workflowType: r.workflow_type as WorkflowType,
     repository: r.repository as string,
     status: r.status as RunStatus,
     trigger: r.trigger as Trigger,
