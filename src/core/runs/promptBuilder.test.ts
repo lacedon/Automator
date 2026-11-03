@@ -52,6 +52,7 @@ function run(partial: Partial<Run> = {}): Run {
   return {
     id: 7,
     watchId: 1,
+    workflowType: 'mr-watch',
     repository: 'pages',
     status: 'running',
     trigger: 'schedule',

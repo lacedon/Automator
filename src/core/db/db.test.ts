@@ -177,6 +177,20 @@ describe('db', () => {
     ]).toEqual(['mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc', 'ticket-adhoc', 'ticket-adhoc']);
   });
 
+  test('migration 4 inherits the parent Workflow type even when a child has a Watch', () => {
+    const db = setupVersion3();
+    const watchId = insertWatch(db);
+    const parentId = insertLegacyRun(db, { ticketKey: 'ABC-123' });
+    const childId = insertLegacyRun(db, { watchId, parentRunId: parentId });
+    const grandchildId = insertLegacyRun(db, { parentRunId: childId });
+
+    migrate(db);
+
+    for (const id of [parentId, childId, grandchildId]) {
+      expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(id)).workflowType).toBe('ticket-adhoc');
+    }
+  });
+
   test('migration 3 adds session and parent columns', () => {
     const db = setup();
     const parentId = insertRun(db, null, 'finished');

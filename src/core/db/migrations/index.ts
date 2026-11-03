@@ -118,12 +118,12 @@ SET workflow_type = CASE
     FROM watches
     WHERE watches.id = runs.watch_id
   )
-  WHEN parent_run_id IS NULL THEN CASE WHEN ticket_key IS NOT NULL THEN 'ticket-adhoc' ELSE 'free-adhoc' END
-  ELSE workflow_type
-END;
+  ELSE CASE WHEN ticket_key IS NOT NULL THEN 'ticket-adhoc' ELSE 'free-adhoc' END
+END
+WHERE parent_run_id IS NULL;
 
 WITH RECURSIVE inherited(run_id, workflow_type) AS (
-  SELECT id, workflow_type FROM runs WHERE watch_id IS NOT NULL OR parent_run_id IS NULL
+  SELECT id, workflow_type FROM runs WHERE parent_run_id IS NULL
   UNION
   SELECT child.id, inherited.workflow_type
   FROM runs AS child
