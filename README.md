@@ -96,7 +96,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 | Jira Ticket | Ticket key/URL                      | Look at changes and comments, and reply when the next step is clear |
 | Free-form   | Any URL + **required** instructions | Follow the Watch's instructions                                     |
 
-MR and Jira Watches use the default prompt for their kind, plus optional extra instructions. Default prompts are editable Markdown files, one per kind. Each Watch can also use a different model.
+Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model.
 
 ### Watch states
 
@@ -251,14 +251,15 @@ Failures:
   - schedules and working hours,
   - Jira settings,
   - cleanup settings,
-  - models and prompts,
+  - model selections,
   - the Teams chat to notify.
 
   A credential-free example config is committed.
 
 - **Secrets** (GitLab and Jira tokens) are read from environment variables or a gitignored `.env`. They are never added to prompts or result files.
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
-- Changes to the config take effect after a restart (v1). The dashboard doesn't edit config or secrets.
+- The Settings page edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
+- Restart is a separate, confirmed Settings action. The supervisor drains active work before restarting the web process and worker.
 
 ## Cleanup
 
