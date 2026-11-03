@@ -110,6 +110,8 @@ export function createConfigSchema(configDir: string) {
   });
 }
 
+export type ConfigInput = z.input<ReturnType<typeof createConfigSchema>>;
+
 export type ReferenceIssue = { path: string[]; message: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
