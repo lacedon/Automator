@@ -1,6 +1,6 @@
 # Automator
 
-A small personal tool to automate work with Jira and Git (GitLab). It keeps track of outside items that need follow-up, such as merge requests waiting for review or Jira tickets. It checks them from time to time and runs Copilot CLI when something needs doing. A local dashboard shows the current state.
+A small personal tool to automate work with Jira and Git (GitLab or GitHub). It keeps track of outside items that need follow-up, such as merge requests waiting for review or Jira tickets. It checks them from time to time and runs Copilot CLI when something needs doing. A local dashboard shows the current state.
 
 > **Status:** v1 implemented.
 
@@ -18,6 +18,7 @@ Prerequisites:
 - Node.js 24
 - GitHub Copilot CLI installed and logged in (`copilot` on your `PATH`)
 - For GitLab MR Watches: [`glab`](https://gitlab.com/gitlab-org/cli) installed and logged in (see below)
+- For GitHub PR Watches: [`gh`](https://cli.github.com) installed and logged in (see below)
 
 ### GitLab access for Copilot
 
@@ -30,6 +31,18 @@ glab auth status                                             # check it works
 ```
 
 `glab` keeps the token in the system keyring (or in its config file, `~/.config/glab-cli/`, if no keyring is available), and Copilot's shell picks it up from there. Use the same host as the Repository's `gitlab.host`. Anything running as you, Copilot included, can read it.
+
+### GitHub access for Copilot
+
+GitHub works like GitLab: Automator reads pull requests with its own token, and Copilot needs its own access to read and reply to them. Use the `gh` CLI:
+
+```sh
+brew install gh
+gh auth login --hostname github.com   # a login with the `repo` scope
+gh auth status                        # check it works
+```
+
+Give Automator's token its own variable (for example `AUTOMATOR_GITHUB_TOKEN`, not `GITHUB_TOKEN`): Automator removes the configured token variables from the environment it starts Copilot with. A classic token needs the `repo` scope; a fine-grained token needs read access to pull requests, contents, checks and metadata. For GitHub Enterprise Server, set the connection's `host` to your server.
 
 Set up and start:
 
@@ -82,7 +95,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 
 - **Single user, localhost only.** No login. The dashboard answers only requests whose `Host` is `127.0.0.1`, `localhost` or `[::1]` (403 otherwise), so a web page can't reach it through DNS rebinding.
 - **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs Copilot. Both use the same SQLite database.
-- **Repositories:** the configuration maps Repository names to local folders and to service connections (GitLab host and credential, and the Jira connection where needed). Every Watch and ad-hoc Run must name a Repository. Copilot starts directly in that folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
+- **Repositories:** the configuration maps Repository names to local folders and to service connections (GitLab and/or GitHub host and credential, and the Jira connection where needed). A Repository names a `gitlab` and/or a `github` connection; a target URL picks the connection whose host matches. Every Watch and ad-hoc Run must name a Repository. Copilot starts directly in that folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
 - **One global queue:** all Copilot Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.
 - **Fresh session per Run:** every Run starts a new Copilot session. Its prompt includes the Watch instructions, summaries of recent Runs and any resolution note you left.
 
@@ -93,6 +106,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 | Kind        | Target                              | Default behavior                                                    |
 | ----------- | ----------------------------------- | ------------------------------------------------------------------- |
 | GitLab MR   | Merge request URL                   | Handle new outside comments, pipeline failures and merge conflicts  |
+| GitHub PR   | Pull request URL                    | Handle new outside comments, failed checks and merge conflicts      |
 | Jira Ticket | Ticket key/URL                      | Look at changes and comments, and reply when the next step is clear |
 | Free-form   | Any URL + **required** instructions | Follow the Watch's instructions                                     |
 
@@ -130,9 +144,9 @@ If a Repository's folder later disappears, its existing Watches move to **Needs 
 
 ## Checking and scheduling
 
-### GitLab MR pre-check
+### GitLab MR and GitHub PR pre-check
 
-A cheap REST check runs before Copilot is started. A Run is queued only when, since the last handled point, there is at least one of these:
+GitHub pull requests are checked the same way as GitLab merge requests, using the GitHub REST and GraphQL APIs: a failed check run on the latest commit counts as a failed pipeline, and review threads are the discussions. A cheap REST check runs before Copilot is started. A Run is queued only when, since the last handled point, there is at least one of these:
 
 - a new comment or discussion by **someone other than you**,
 - a failed pipeline on the latest commit,
@@ -149,7 +163,7 @@ Further rules:
   Failed pipelines and conflicts count in both modes.
 
 - **Run now** can also be asked to review existing unresolved discussions.
-- GitLab REST credentials are required. If they are missing or invalid, or can't access the MR, the Watch moves to **Needs you** after a limited number of retries for temporary failures. It doesn't fall back silently.
+- GitLab or GitHub credentials are required. If they are missing or invalid, or can't access the MR, the Watch moves to **Needs you** after a limited number of retries for temporary failures. It doesn't fall back silently.
 
 ### Jira
 

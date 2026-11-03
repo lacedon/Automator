@@ -7,10 +7,12 @@ export type ParsedTarget = {
   normalizedTarget: string;
   displayUrl: string;
   gitlab?: { conn: string; host: string; projectPath: string; iid: number; apiProjectId: string };
+  github?: { conn: string; host: string; owner: string; repo: string; number: number; apiProjectId: string };
   jira?: { conn: string; host: string; key: string };
 };
 
 const MR_PATH = /^\/(.+?)\/-\/merge_requests\/(\d+)(?:\/.*)?$/;
+const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/.*)?$/;
 const JIRA_KEY = /^[A-Za-z][A-Za-z0-9_]+-\d+$/;
 const JIRA_BROWSE_PATH = /\/browse\/([^/]+)\/?$/;
 
@@ -70,6 +72,20 @@ export function parseTarget(input: string, config: Config, repository?: string):
       normalizedTarget: `gitlab:${host}/${projectPath}!${iid}`,
       displayUrl: `${url.protocol}//${host}/${projectPath}/-/merge_requests/${iid}`,
       gitlab: { conn: gitlabConn, host, projectPath, iid, apiProjectId: encodeURIComponent(projectPath) },
+    });
+  }
+
+  const pr = PR_PATH.exec(url.pathname);
+  const githubConn = Object.entries(config.github).find(([, c]) => hostOf(c.host) === host)?.[0];
+  if (pr && githubConn !== undefined) {
+    const owner = pr[1]!;
+    const repo = pr[2]!;
+    const number = Number(pr[3]);
+    return ok({
+      kind: 'mr',
+      normalizedTarget: `github:${host}/${owner}/${repo}#${number}`,
+      displayUrl: `${url.protocol}//${host}/${owner}/${repo}/pull/${number}`,
+      github: { conn: githubConn, host, owner, repo, number, apiProjectId: `${owner}/${repo}` },
     });
   }
 

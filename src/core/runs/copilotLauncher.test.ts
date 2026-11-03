@@ -105,7 +105,7 @@ describe('createCopilotLauncher', () => {
 
   test('omits --secret-env-vars when no secret names are configured', async () => {
     const s = setup();
-    const launcher = createCopilotLauncher(s.config, { gitlab: {}, jira: {}, envNames: [] });
+    const launcher = createCopilotLauncher(s.config, { gitlab: {}, github: {}, jira: {}, envNames: [] });
     const proc = launcher.start({
       cwd: s.repo,
       prompt: 'hi',
@@ -217,7 +217,10 @@ describe('createCopilotLauncher', () => {
 
 describe('childEnv', () => {
   test('removes secret names and keeps the rest', () => {
-    const env = childEnv({ A: '1', GITLAB_TOKEN: 's', B: '2' }, { gitlab: {}, jira: {}, envNames: ['GITLAB_TOKEN'] });
+    const env = childEnv(
+      { A: '1', GITLAB_TOKEN: 's', B: '2' },
+      { gitlab: {}, github: {}, jira: {}, envNames: ['GITLAB_TOKEN'] },
+    );
     expect(env).toEqual({ A: '1', B: '2' });
   });
 });

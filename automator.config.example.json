@@ -10,6 +10,7 @@
     }
   },
   "gitlab": { "corp": { "host": "https://gitlab.example.com", "tokenEnv": "GITLAB_TOKEN" } },
+  "github": { "public": { "host": "github.com", "tokenEnv": "AUTOMATOR_GITHUB_TOKEN" } },
   "jira": {
     "enabled": false,
     "connections": {

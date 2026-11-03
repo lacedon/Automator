@@ -11,7 +11,7 @@ export type EditableConfig = Omit<ConfigInput, 'gitlab' | 'jira' | 'prompts'> & 
 };
 
 const editableFields = ['dataDir', 'copilotBin', 'repositories', 'schedule', 'runs', 'cleanup', 'teams'] as const;
-const repositoryFields = ['folder', 'gitlab', 'jira', 'validate'] as const;
+const repositoryFields = ['folder', 'gitlab', 'github', 'jira', 'validate'] as const;
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
@@ -120,7 +120,7 @@ function assertSameKeys(current: RecordValue, edited: RecordValue, name: string)
 
 function mergeConfig(raw: RecordValue, input: EditableConfig): RecordValue {
   const edited = projectConfig(input as unknown as RecordValue, input.jira);
-  const currentGitlab = connectionKeys(raw.gitlab, 'gitlab');
+  const currentGitlab = connectionKeys(raw.gitlab ?? {}, 'gitlab');
   const editedGitlab = connectionKeys(edited.gitlab, 'gitlab');
   const currentJira = isRecord(raw.jira) ? raw.jira : {};
   const currentJiraConnections = currentJira.connections ?? {};
