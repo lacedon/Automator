@@ -22,48 +22,46 @@ type ReviewJson = {
   html_url: string;
 };
 type CheckRunJson = { id: number; conclusion: string | null };
-type ThreadsJson = {
-  data?: {
-    repository?: {
-      pullRequest?: {
-        reviewThreads: {
-          pageInfo: { hasNextPage: boolean; endCursor: string | null };
-          nodes: {
-            id: string;
-            isResolved: boolean;
-            comments: {
-              nodes: {
-                databaseId: number;
-                author: { login: string; databaseId?: number } | null;
-                body: string;
-                createdAt: string;
-                url: string;
-              }[];
-            };
-          }[];
-        };
+type GqlComment = {
+  databaseId: number;
+  author: { login: string; databaseId?: number } | null;
+  body: string;
+  createdAt: string;
+  url: string;
+};
+type GqlComments = { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: GqlComment[] };
+type GqlResponse<T> = { data?: T; errors?: { type?: string; message: string }[] };
+type ThreadsData = {
+  repository?: {
+    pullRequest?: {
+      reviewThreads: {
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        nodes: { id: string; isResolved: boolean; comments: GqlComments }[];
       };
     };
   };
-  errors?: { message: string }[];
 };
+type ThreadCommentsData = { node?: { comments: GqlComments } | null };
+
+const COMMENT_FIELDS = `databaseId author { login ... on User { databaseId } ... on Bot { databaseId } } body createdAt url`;
+const COMMENTS_FIELDS = `pageInfo { hasNextPage endCursor } nodes { ${COMMENT_FIELDS} }`;
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       reviewThreads(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
-        nodes {
-          id
-          isResolved
-          comments(first: 100) {
-            nodes { databaseId author { login ... on User { databaseId } ... on Bot { databaseId } } body createdAt url }
-          }
-        }
+        nodes { id isResolved comments(first: 100) { ${COMMENTS_FIELDS} } }
       }
     }
   }
 }`;
+
+const THREAD_COMMENTS_QUERY = `query($id: ID!, $after: String) {
+  node(id: $id) { ... on PullRequestReviewThread { comments(first: 100, after: $after) { ${COMMENTS_FIELDS} } } }
+}`;
+
+const AUTH_ERROR_TYPES = new Set(['FORBIDDEN', 'INSUFFICIENT_SCOPES', 'NOT_FOUND']);
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
@@ -122,35 +120,60 @@ export function createGitHubClient(
     return all;
   }
 
+  async function query<T>(text: string, variables: Record<string, unknown>): Promise<T> {
+    const res = await fetchImpl(graphql, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: text, variables }),
+    });
+    const json = (await res.json()) as GqlResponse<T>;
+    if (json.data === undefined || json.errors !== undefined) {
+      const first = json.errors?.[0];
+      throw new HttpError(
+        first?.message ?? 'GitHub GraphQL returned no data',
+        null,
+        first?.type !== undefined && AUTH_ERROR_TYPES.has(first.type),
+      );
+    }
+    return json.data;
+  }
+
+  const toNote = (c: GqlComment): ReviewNote => ({
+    id: c.databaseId,
+    system: false,
+    authorId: c.author?.databaseId ?? 0,
+    authorUsername: c.author?.login ?? 'ghost',
+    body: c.body,
+    createdAt: c.createdAt,
+    url: c.url,
+  });
+
+  async function threadComments(threadId: string, first: GqlComments): Promise<GqlComment[]> {
+    const all = [...first.nodes];
+    let page = first.pageInfo;
+    while (page.hasNextPage) {
+      const data = await query<ThreadCommentsData>(THREAD_COMMENTS_QUERY, { id: threadId, after: page.endCursor });
+      if (data.node === undefined || data.node === null) break;
+      all.push(...data.node.comments.nodes);
+      page = data.node.comments.pageInfo;
+    }
+    return all;
+  }
+
   async function reviewThreads(projectId: string, iid: number): Promise<ReviewDiscussion[]> {
     const { owner, name } = splitProject(projectId);
     const result: ReviewDiscussion[] = [];
     let after: string | null = null;
     for (;;) {
-      const res = await fetchImpl(graphql, {
-        method: 'POST',
-        headers: { ...headers(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: THREADS_QUERY, variables: { owner, name, number: iid, after } }),
-      });
-      const json = (await res.json()) as ThreadsJson;
-      const threads = json.data?.repository?.pullRequest?.reviewThreads;
-      if (threads === undefined) {
-        throw new HttpError(json.errors?.[0]?.message ?? 'GitHub GraphQL returned no review threads', null, false);
-      }
+      const data: ThreadsData = await query<ThreadsData>(THREADS_QUERY, { owner, name, number: iid, after });
+      const threads = data.repository?.pullRequest?.reviewThreads;
+      if (threads === undefined) throw new HttpError('GitHub pull request not found', 404, true);
       for (const t of threads.nodes) {
         result.push({
           id: t.id,
           resolvable: true,
           resolved: t.isResolved,
-          notes: t.comments.nodes.map((c) => ({
-            id: c.databaseId,
-            system: false,
-            authorId: c.author?.databaseId ?? 0,
-            authorUsername: c.author?.login ?? 'ghost',
-            body: c.body,
-            createdAt: c.createdAt,
-            url: c.url,
-          })),
+          notes: (await threadComments(t.id, t.comments)).map(toNote),
         });
       }
       if (!threads.pageInfo.hasNextPage) return result;
@@ -166,7 +189,7 @@ export function createGitHubClient(
     async mr(projectId, iid): Promise<ReviewRequest> {
       const pr = (await (await get(`/repos/${projectId}/pulls/${iid}`)).json()) as PullJson;
       const runs = await paginate<CheckRunJson>(
-        `/repos/${projectId}/commits/${pr.head.sha}/check-runs`,
+        `/repos/${projectId}/commits/${pr.head.sha}/check-runs?filter=latest`,
         (j) => (j as { check_runs: CheckRunJson[] }).check_runs,
       );
       const failed = runs.filter((r) => r.conclusion !== null && FAILED_CONCLUSIONS.has(r.conclusion));

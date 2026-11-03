@@ -24,6 +24,8 @@ type Fixture = {
   reviews?: unknown[];
   checkRuns?: { id: number; conclusion: string | null }[];
   threads?: unknown[];
+  replies?: unknown[];
+  graphqlError?: { type: string; message: string };
 };
 
 function prJson(overrides: Record<string, unknown> = {}) {
@@ -48,11 +50,12 @@ function comment(id: number, user: typeof me, body: string) {
   };
 }
 
-function thread(id: string, resolved: boolean, commentId: number, author: typeof me) {
+function thread(id: string, resolved: boolean, commentId: number, author: typeof me, more = false) {
   return {
     id,
     isResolved: resolved,
     comments: {
+      pageInfo: { hasNextPage: more, endCursor: more ? 'c1' : null },
       nodes: [
         {
           databaseId: commentId,
@@ -96,9 +99,18 @@ function setup(fixture: Fixture = {}) {
       `${API}/repos/acme/app/pulls/7/reviews`,
       ({ request }) => auth(request) ?? HttpResponse.json(fixture.reviews ?? []),
     ),
-    http.post(`${API}/graphql`, ({ request }) => {
+    http.post(`${API}/graphql`, async ({ request }) => {
       const failure = auth(request);
       if (failure) return failure;
+      if (fixture.graphqlError) return HttpResponse.json({ errors: [fixture.graphqlError] });
+      const body = (await request.json()) as { query: string };
+      if (body.query.includes('node(id')) {
+        return HttpResponse.json({
+          data: {
+            node: { comments: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: fixture.replies ?? [] } },
+          },
+        });
+      }
       return HttpResponse.json({
         data: {
           repository: {
@@ -201,6 +213,30 @@ describe('createGitHubClient', () => {
     const discussions = await client.discussions('acme/app', 7);
     expect(discussions.flatMap((d) => d.notes.map((n) => n.id))).toEqual([10, 11, 20, 30]);
     expect(discussions.find((d) => d.id === 't1')).toMatchObject({ resolvable: true, resolved: false });
+  });
+
+  test('fetches further comments of a long review thread', async () => {
+    const { client } = setup({
+      threads: [thread('t1', false, 30, anna, true)],
+      replies: [
+        {
+          databaseId: 31,
+          author: { login: 'anna', databaseId: 2 },
+          body: 'late reply',
+          createdAt: '2026-10-20T10:00:00Z',
+          url: 'u',
+        },
+      ],
+    });
+    const [t] = await client.discussions('acme/app', 7);
+    expect(t!.notes.map((n) => n.id)).toEqual([30, 31]);
+  });
+
+  test('GraphQL permission errors are auth failures, other errors are not', async () => {
+    const forbidden = setup({ graphqlError: { type: 'FORBIDDEN', message: 'Resource not accessible' } });
+    await expect(forbidden.client.discussions('acme/app', 7)).rejects.toMatchObject({ auth: true });
+    const other = setup({ graphqlError: { type: 'INTERNAL', message: 'oops' } });
+    await expect(other.client.discussions('acme/app', 7)).rejects.toMatchObject({ auth: false });
   });
 
   test('missing token is an auth failure', async () => {
