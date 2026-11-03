@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import type { Agent, AgentAssignment, OperationTemplate, WorkflowType } from '@core/index';
 import {
@@ -44,7 +45,7 @@ export function buildAgentDeletionMessage(
         .join('; ')}. Each of these slots will have no Agent and block Runs until you assign another one.`;
 }
 
-function AgentForm({ agent }: { agent?: Agent }) {
+export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
   const [state, formAction, pending] = useActionState(saveAgent, null);
   const idPrefix = `agent-${agent?.id ?? 'new'}`;
   const invalid = state?.error.code === 'INVALID_INPUT' ? state.error.field : null;
@@ -76,7 +77,7 @@ function AgentForm({ agent }: { agent?: Agent }) {
         <textarea
           id={`${idPrefix}-instructions`}
           name="instructions"
-          rows={agent ? 5 : 4}
+          rows={rows ?? (agent ? 5 : 4)}
           defaultValue={echoed('instructions', agent?.instructions ?? '')}
         />
         {agent && agent.instructions.trim() === '' && (
@@ -114,8 +115,11 @@ function AgentCard({
     <div className="card">
       <div className="card-title">{agent.name}</div>
       <p className="muted field-hint">{served}</p>
-      <AgentForm agent={agent} />
-      <div className="field">
+      <p className="agent-preview">{agent.instructions.trim() === '' ? 'No instructions yet.' : agent.instructions}</p>
+      <div className="field agent-card-actions">
+        <Link href={`/settings/agents/${agent.id}`} className="btn btn-primary">
+          Open settings
+        </Link>
         <ConfirmDialog
           danger
           label="Delete Agent"

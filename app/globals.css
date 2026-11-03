@@ -994,3 +994,28 @@ textarea:focus {
   border: 0;
   padding: 0;
 }
+
+/* Dedicated Agent page */
+
+.main:has(.agent-page) {
+  max-width: none;
+}
+
+.agent-page textarea {
+  width: 100%;
+  min-height: 50vh;
+  resize: vertical;
+}
+
+.agent-preview {
+  white-space: pre-wrap;
+  max-height: 6em;
+  overflow: hidden;
+  color: var(--text-muted);
+}
+
+.agent-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
