@@ -108,7 +108,7 @@ export function ConfigForm({ initial }: { initial: EditableConfig }) {
   };
 
   return (
-    <form onSubmit={submit} className="watch-form">
+    <form onSubmit={submit} className="watch-form config-form">
       {state !== null && <ErrorBox error={state.error} />}
       {Object.entries(config).map(([key, value]) => (
         <ConfigValue key={key} value={value} path={[key]} onChange={update} />

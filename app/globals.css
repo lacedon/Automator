@@ -643,6 +643,10 @@ textarea:focus {
   max-width: 620px;
 }
 
+.config-form {
+  max-width: 1000px;
+}
+
 .watch-form > .error-box {
   margin: 0 0 12px;
   padding: 9px 12px;
