@@ -109,5 +109,9 @@ describe('createCore', () => {
 
     expect(core.read.watchList({}).rows[0]!.nextCheck).toEqual({ kind: 'in', text: 'in 9m' });
     expect(core.read.navCounts()).toEqual({ watches: 1, queued: 0 });
+    expect(core.agents.resolve('pages', 'mr-watch')).toMatchObject({
+      assignmentScope: 'default',
+      agent: { instructions: '' },
+    });
   });
 });

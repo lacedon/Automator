@@ -46,7 +46,7 @@ function fakeCopilot() {
 }
 
 function setup(opts: { onLockLost?: () => void } = {}) {
-  const config = testConfig({ prompts: { dir: path.resolve('prompts') } });
+  const config = testConfig();
   const clock = fakeClock();
   const copilot = fakeCopilot();
   const notified: NeedsYouEvent[] = [];
@@ -59,6 +59,7 @@ function setup(opts: { onLockLost?: () => void } = {}) {
       },
     },
   });
+  core.db.prepare("UPDATE agents SET instructions = 'Test Agent instructions.'").run();
   acquireWorkerLock(core.db, clock, process.pid, () => false);
   const loop = new WorkerLoop(core, opts);
   cleanups.push(() => {

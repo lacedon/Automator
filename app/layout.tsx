@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <TopBar />
+        <TopBar counts={counts} />
         <div className="shell">
           <Sidebar counts={counts} />
           <main className="main">{children}</main>

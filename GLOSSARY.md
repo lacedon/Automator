@@ -31,6 +31,19 @@ A Run requested directly by the user without an associated Watch. It happens onc
 An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same Copilot session.
 _Avoid_: continuation, reopen
 
+**Workflow type**:
+The kind of work a Run performs: MR Watch, Jira Watch, Free Watch, Ticket Ad-hoc, or free-form Ad-hoc.
+_Avoid_: Trigger
+
+**Agent**:
+A reusable set of instructions selected for a Repository and Workflow type.
+
+**Agent assignment**:
+The selection of one Agent for a Workflow type, either for a specific Repository or as the installation-wide default.
+
+**Operation template**:
+Optional shared instructions for a kind of operation, subordinate to an Agent's instructions.
+
 **Needs you**:
 A Watch state indicating that follow-up requires a human decision before automatic work can continue.
 

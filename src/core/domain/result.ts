@@ -6,6 +6,7 @@ export type AppError =
   | { code: 'INVALID_TARGET'; message: string }
   | { code: 'MISSING_INSTRUCTIONS' }
   | { code: 'INVALID_INPUT'; field: string; message: string }
+  | { code: 'RESTART_FAILED'; message: string }
   | { code: 'INVALID_STATE'; state: WatchState | RunStatus; action: string }
   | { code: 'RUN_IN_PROGRESS'; runId: number }
   | { code: 'JIRA_DISABLED' }

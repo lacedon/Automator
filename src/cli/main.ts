@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { Command, CommanderError, InvalidArgumentError, Option } from 'commander';
 import {
   bootstrap,
@@ -14,6 +15,7 @@ import {
 export interface CliIo {
   out(s: string): void;
   err(s: string): void;
+  confirm(prompt: string): Promise<boolean>;
 }
 
 const USAGE_ERROR = 2;
@@ -59,6 +61,7 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
       return 'Cancel the running Run first';
     case 'INVALID_TARGET':
     case 'INVALID_INPUT':
+    case 'RESTART_FAILED':
       return error.message;
     case 'MISSING_INSTRUCTIONS':
       return 'Free-form Watches need --instructions';
@@ -97,6 +100,61 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
     .configureOutput({ writeOut: (s) => io.out(s.trimEnd()), writeErr: (s) => io.err(s.trimEnd()) });
 
   const watch = program.command('watch').description('Manage Watches');
+
+  program
+    .command('prompts')
+    .description('Manage prompt profiles')
+    .command('import-legacy')
+    .description('Import legacy prompt files into local Agent profiles')
+    .requiredOption('--repo <name>', 'Repository name from the config')
+    .option('--source <directory>', 'directory containing legacy prompt files')
+    .action(async (opts: { repo: string; source?: string }) => {
+      const current = getCore();
+      if (opts.repo !== 'inspire-mbdp-pages') {
+        io.err('Legacy prompt import is only supported for Repository "inspire-mbdp-pages".');
+        code = DOMAIN_ERROR;
+        return;
+      }
+      if (!Object.hasOwn(current.config.repositories, opts.repo)) {
+        io.err(
+          `Unknown Repository "${opts.repo}". Known: ${Object.keys(current.config.repositories).sort().join(', ')}`,
+        );
+        code = DOMAIN_ERROR;
+        return;
+      }
+
+      const source =
+        opts.source === undefined ? path.join(current.config.configDir, 'prompts') : path.resolve(opts.source);
+      const promptFiles = {
+        'mr-watch': 'mr.md',
+        'jira-watch': 'jira.md',
+        'ticket-adhoc': 'jira-adhoc.md',
+      } as const;
+      const prompts = {} as Record<keyof typeof promptFiles, string>;
+      for (const [workflowType, filename] of Object.entries(promptFiles) as [keyof typeof promptFiles, string][]) {
+        const file = path.join(source, filename);
+        try {
+          prompts[workflowType] = fs.readFileSync(file, 'utf8');
+        } catch (e) {
+          throw new Error(`Cannot read legacy prompt file ${file}: ${(e as Error).message}`, { cause: e });
+        }
+      }
+
+      io.out(`Legacy prompt source: ${source}`);
+      io.out(`SQLite database: ${current.dataDir.db}`);
+      io.out(`Repository: ${opts.repo}`);
+      if (!(await io.confirm('Import these legacy prompts?'))) {
+        io.out('Import cancelled; no changes made.');
+        return;
+      }
+
+      const result = current.agents.importLegacyPrompts(opts.repo, prompts);
+      io.out(
+        result === 'imported'
+          ? `Legacy prompts imported for Repository ${opts.repo}.`
+          : `Legacy prompts were already imported for Repository ${opts.repo}.`,
+      );
+    });
 
   watch
     .command('add <target>')

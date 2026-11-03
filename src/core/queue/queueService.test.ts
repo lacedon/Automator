@@ -478,3 +478,42 @@ describe('QueueService.requestFollowUp', () => {
     expect(statuses(ctx.db)).toHaveLength(1);
   });
 });
+
+describe('QueueService workflow types', () => {
+  const workflowOf = (db: Database, id: number) =>
+    (db.prepare('SELECT workflow_type FROM runs WHERE id = ?').get(id) as { workflow_type: string }).workflow_type;
+
+  test.each([
+    ['mr', 'mr-watch'],
+    ['jira', 'jira-watch'],
+    ['free', 'free-watch'],
+  ] as const)('a %s Watch Run persists %s', (kind, expected) => {
+    const { db, queue } = setup();
+    const watchId = insertWatch(db, { kind });
+    const run = queue.enqueueWatch({ watchId, repository: 'pages', trigger: 'manual', reason: 'r', model: 'm' });
+    expect(run.workflowType).toBe(expected);
+    queue.enqueueWatch({ watchId, repository: 'pages', trigger: 'schedule', reason: 'again', model: 'm' });
+    expect(workflowOf(db, run.id)).toBe(expected);
+  });
+
+  test('ad-hoc Runs persist ticket-adhoc or free-adhoc', async () => {
+    const { queue } = setup({ ticketTitle: async () => 'Title' });
+    const free = await queue.requestAdhoc({ repository: 'pages', prompt: 'do it' });
+    const ticket = await queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-1' });
+    expect(free.ok && free.value.run.workflowType).toBe('free-adhoc');
+    expect(ticket.ok && ticket.value.run.workflowType).toBe('ticket-adhoc');
+  });
+
+  test('follow-ups inherit the root Run workflow type through the chain', async () => {
+    const ctx = setup({ ticketTitle: async () => 'Title' });
+    const root = await ctx.queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-1' });
+    if (!root.ok) throw new Error('enqueue failed');
+    ctx.db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(root.value.run.id);
+    const first = ctx.queue.requestFollowUp(root.value.run.id, 'one');
+    if (!first.ok) throw new Error('follow-up failed');
+    ctx.db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(first.value.run.id);
+    const second = ctx.queue.requestFollowUp(first.value.run.id, 'two');
+    expect(first.value.run.workflowType).toBe('ticket-adhoc');
+    expect(second.ok && second.value.run.workflowType).toBe('ticket-adhoc');
+  });
+});

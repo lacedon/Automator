@@ -12,6 +12,7 @@ import { precheckFor, type Prechecks } from '../prechecks/index';
 import type { Snapshot } from '../prechecks/types';
 import type { CopilotExit, CopilotLauncher, RunningProcess } from './copilotLauncher';
 import { applyOutcome, type RunFinal } from './outcomeApplier';
+import type { AgentService } from '../agents/agentService';
 import { buildAdhocPrompt, buildWatchPrompt } from './promptBuilder';
 import { closeWatch } from '../watches/needsYou';
 
@@ -50,6 +51,7 @@ export interface RunExecutorDeps {
   dataDir: DataDir;
   launcher: CopilotLauncher;
   prechecks: Prechecks;
+  agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;
   onNeedsYou(e: NeedsYouEvent): Promise<void>;
 }
@@ -252,11 +254,21 @@ export class RunExecutor {
     if (!fs.existsSync(repo.folder))
       return failure('REPOSITORY_UNAVAILABLE', `Repository folder not found: ${repo.folder}`);
 
+    const { agent, template } = this.deps.agents.resolve(run.repository, run.workflowType);
+    const agentInstructions = agent?.instructions.trim() ?? '';
+    if (agentInstructions === '') {
+      return failure(
+        'PROMPT_FAILED',
+        `No Agent instructions assigned for Repository "${run.repository}" and Workflow type "${run.workflowType}"`,
+      );
+    }
+    const operationTemplate = template?.instructions ?? null;
+
     const resultPath = dataDir.copilotResultPath(run.id);
     let prompt: string;
     if (run.watchId === null) {
       try {
-        prompt = buildAdhocPrompt({ run, config, resultPath });
+        prompt = buildAdhocPrompt({ run, config, resultPath, agentInstructions, operationTemplate });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));
       }
@@ -289,6 +301,8 @@ export class RunExecutor {
           config,
           resultPath,
           hasJiraToken: watch.kind === 'jira' && prechecks.jira.hasToken(watch),
+          agentInstructions,
+          operationTemplate,
         });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));

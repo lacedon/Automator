@@ -7,6 +7,7 @@ import { openDb, type Database } from './db/open';
 import { systemClock, type Clock, type NeedsYouEvent } from './domain/types';
 import { DataDir } from './files/dataDir';
 import { CleanupService } from './cleanup/cleanupService';
+import { AgentService } from './agents/agentService';
 import { createTeamsNotifier, type Notifier } from './notify/teamsNotifier';
 import { createGitLabClient, type GitLabClient } from './prechecks/gitlabClient';
 import type { GitLabPrecheckDeps } from './prechecks/gitlab';
@@ -20,6 +21,7 @@ import { Scheduler } from './scheduler/scheduler';
 import { WatchService, type WatchServiceDeps } from './watches/watchService';
 
 export { ConfigError, loadConfig, loadDotenv, resolveSecrets, type Secrets } from './config/load';
+export { readEditableConfig, writeEditableConfig, type EditableConfig } from './config/editor';
 export type { Config } from './config/schema';
 export type { Database } from './db/open';
 export * from './domain/types';
@@ -30,6 +32,7 @@ export { allowedActions, nextState, type WatchAction } from './domain/watchState
 export { parseTarget, type ParsedTarget } from './domain/targets';
 export { DataDir } from './files/dataDir';
 export { CleanupService } from './cleanup/cleanupService';
+export { AgentService } from './agents/agentService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';
 export type { JiraClient, JiraIssue } from './prechecks/jiraClient';
@@ -74,6 +77,7 @@ export interface Core {
   scheduler: Scheduler;
   executor: RunExecutor;
   cleanup: CleanupService;
+  agents: AgentService;
   notifier: Notifier;
   read: ReadModels;
   close(): void;
@@ -141,7 +145,17 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
   const queue = new QueueService(db, clock, dataDir, config, {
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
-  const executorDeps: RunExecutorDeps = { db, clock, config, dataDir, launcher: copilot, prechecks, onNeedsYou };
+  const agents = new AgentService(db);
+  const executorDeps: RunExecutorDeps = {
+    db,
+    clock,
+    config,
+    dataDir,
+    launcher: copilot,
+    prechecks,
+    agents,
+    onNeedsYou,
+  };
 
   return {
     config,
@@ -154,6 +168,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     scheduler: new Scheduler({ db, clock, config, queue, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, dataDir }),
+    agents,
     notifier,
     read: createReadModels({ db, config, clock, dataDir }),
     close() {

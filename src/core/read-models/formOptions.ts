@@ -1,5 +1,4 @@
-import path from 'node:path';
-import type { InitialReview, WatchKind } from '../domain/types';
+import type { InitialReview } from '../domain/types';
 import type { ReadDeps } from './deps';
 
 export type FormOptions = {
@@ -9,7 +8,6 @@ export type FormOptions = {
   intervals: { mr: number; default: number };
   initialReview: InitialReview;
   jiraEnabled: boolean;
-  defaultPromptFiles: Record<WatchKind, string | null>;
 };
 
 export function formOptions({ config }: ReadDeps): FormOptions {
@@ -25,11 +23,5 @@ export function formOptions({ config }: ReadDeps): FormOptions {
     intervals: { ...config.schedule.intervals },
     initialReview: runs.initialReview,
     jiraEnabled: config.jira.enabled,
-    // Free-form Watches have no default prompt; their instructions are the whole task.
-    defaultPromptFiles: {
-      mr: path.join(config.prompts.dir, 'mr.md'),
-      jira: path.join(config.prompts.dir, 'jira.md'),
-      free: null,
-    },
   };
 }

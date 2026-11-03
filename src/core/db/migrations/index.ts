@@ -102,4 +102,82 @@ ALTER TABLE runs ADD COLUMN parent_run_id INTEGER REFERENCES runs(id) ON DELETE 
 CREATE INDEX ix_run_parent ON runs(parent_run_id);
 `,
   },
+  {
+    version: 4,
+    sql: `ALTER TABLE runs ADD COLUMN workflow_type TEXT NOT NULL DEFAULT 'free-adhoc'
+  CHECK (workflow_type IN ('mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc'));
+
+UPDATE runs
+SET workflow_type = CASE
+  WHEN watch_id IS NOT NULL THEN (
+    SELECT CASE kind
+      WHEN 'mr' THEN 'mr-watch'
+      WHEN 'jira' THEN 'jira-watch'
+      WHEN 'free' THEN 'free-watch'
+    END
+    FROM watches
+    WHERE watches.id = runs.watch_id
+  )
+  ELSE CASE WHEN ticket_key IS NOT NULL THEN 'ticket-adhoc' ELSE 'free-adhoc' END
+END
+WHERE parent_run_id IS NULL;
+
+WITH RECURSIVE inherited(run_id, workflow_type) AS (
+  SELECT id, workflow_type FROM runs WHERE parent_run_id IS NULL
+  UNION
+  SELECT child.id, inherited.workflow_type
+  FROM runs AS child
+  JOIN inherited ON child.parent_run_id = inherited.run_id
+)
+UPDATE runs
+SET workflow_type = COALESCE((
+    SELECT inherited.workflow_type
+    FROM inherited
+    WHERE inherited.run_id = runs.id
+    LIMIT 1
+  ), workflow_type)
+WHERE parent_run_id IS NOT NULL;
+
+CREATE TABLE agents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workflow_type TEXT NOT NULL CHECK (workflow_type IN ('mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc')),
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE agent_assignments (
+  repository TEXT,
+  workflow_type TEXT NOT NULL CHECK (workflow_type IN ('mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc')),
+  agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX ux_agent_assignment_default
+  ON agent_assignments(workflow_type) WHERE repository IS NULL;
+CREATE UNIQUE INDEX ux_agent_assignment_repository
+  ON agent_assignments(repository, workflow_type) WHERE repository IS NOT NULL;
+
+CREATE TABLE operation_templates (
+  workflow_type TEXT PRIMARY KEY CHECK (workflow_type IN ('mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc')),
+  instructions TEXT NOT NULL
+);
+
+WITH workflows(workflow_type) AS (
+  VALUES ('mr-watch'), ('jira-watch'), ('free-watch'), ('ticket-adhoc'), ('free-adhoc')
+)
+INSERT INTO agents (workflow_type, name, instructions, created_at, updated_at)
+SELECT workflow_type, 'Default', '', CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+       CAST(strftime('%s', 'now') AS INTEGER) * 1000
+FROM workflows;
+
+INSERT INTO agent_assignments (repository, workflow_type, agent_id)
+SELECT NULL, workflow_type, id FROM agents;
+`,
+  },
+  {
+    version: 5,
+    sql: `ALTER TABLE agents DROP COLUMN workflow_type;
+`,
+  },
 ];

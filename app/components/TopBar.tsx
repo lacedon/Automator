@@ -1,11 +1,13 @@
 import Link from 'next/link';
+import { MobileNavigation } from './Sidebar';
 
-export function TopBar() {
+export function TopBar({ counts }: { counts: { watches: number; queued: number } }) {
   return (
     <header className="topbar">
       <Link href="/" className="brand">
-        ⚙ Automator
+        Automator
       </Link>
+      <MobileNavigation counts={counts} />
       <span className="spacer" />
       <Link href="/watches/new" className="btn btn-secondary">
         + Watch

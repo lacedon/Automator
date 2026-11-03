@@ -1,7 +1,7 @@
 'use client';
 
 import { unstable_rethrow } from 'next/navigation';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import type { AppError } from '@core/index';
 import type { ActionResult } from '../actions/types';
 import { ErrorBox, errorMessage } from './ErrorBox';
@@ -12,6 +12,7 @@ type Props = {
   confirmLabel: string;
   dismissLabel?: string;
   action: () => Promise<ActionResult<unknown>>;
+  prepare?: () => Promise<ActionResult<string>>;
   danger?: boolean;
   disabledReason?: string;
   className?: string;
@@ -23,13 +24,51 @@ export function ConfirmDialog({
   confirmLabel,
   dismissLabel = 'Back',
   action,
+  prepare,
   danger,
   disabledReason,
   className,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<AppError | string | null>(null);
+  const [preparationError, setPreparationError] = useState<AppError | string | null>(null);
+  const [preparedMessage, setPreparedMessage] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const preparationLock = useRef(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (preparedMessage !== null && !dialog.current?.open) dialog.current?.showModal();
+  }, [preparedMessage]);
+
+  const open = async () => {
+    if (prepare === undefined) {
+      dialog.current?.showModal();
+      return;
+    }
+    if (preparationLock.current) return;
+    preparationLock.current = true;
+    setPreparing(true);
+    setPreparationError(null);
+    try {
+      const result = await prepare();
+      if (!result.ok) {
+        setPreparationError(result.error);
+        return;
+      }
+      if (result.value === undefined) {
+        setPreparationError('No confirmation details were returned.');
+        return;
+      }
+      setPreparedMessage(result.value);
+    } catch (e) {
+      unstable_rethrow(e);
+      setPreparationError(errorMessage(e));
+    } finally {
+      preparationLock.current = false;
+      setPreparing(false);
+    }
+  };
 
   const confirm = () =>
     startTransition(async () => {
@@ -53,9 +92,10 @@ export function ConfirmDialog({
       <button
         type="button"
         className={className ?? (danger ? 'btn btn-danger' : 'btn btn-secondary')}
-        disabled={disabledReason !== undefined}
+        disabled={disabledReason !== undefined || preparing}
         title={disabledReason}
-        onClick={() => dialog.current?.showModal()}
+        aria-busy={preparing}
+        onClick={open}
       >
         {label}
       </button>
@@ -65,9 +105,13 @@ export function ConfirmDialog({
         onCancel={(e) => {
           if (pending) e.preventDefault();
         }}
-        onClose={() => setError(null)}
+        onClose={() => {
+          setError(null);
+          setPreparationError(null);
+          setPreparedMessage(null);
+        }}
       >
-        <p>{message}</p>
+        <p>{preparedMessage ?? message}</p>
         {error !== null && <ErrorBox error={error} />}
         <div className="actions">
           <button
@@ -88,6 +132,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </dialog>
+      {preparationError !== null && <ErrorBox error={preparationError} />}
     </>
   );
 }

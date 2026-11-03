@@ -1,4 +1,5 @@
 export type WatchKind = 'mr' | 'jira' | 'free';
+export type WorkflowType = 'mr-watch' | 'jira-watch' | 'free-watch' | 'ticket-adhoc' | 'free-adhoc';
 export type WatchState = 'active' | 'paused' | 'needs_you' | 'closed';
 export type RunStatus = 'queued' | 'running' | 'finished';
 export type Trigger = 'schedule' | 'manual' | 'adhoc';
@@ -44,6 +45,7 @@ export interface Watch {
 export interface Run {
   id: number;
   watchId: number | null;
+  workflowType: WorkflowType;
   repository: string;
   status: RunStatus;
   trigger: Trigger;
@@ -73,6 +75,25 @@ export interface Run {
   promptPath: string | null;
   transcriptPath: string | null;
   resultPath: string | null;
+}
+
+export interface Agent {
+  id: number;
+  name: string;
+  instructions: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AgentAssignment {
+  repository: string | null;
+  workflowType: WorkflowType;
+  agentId: number | null;
+}
+
+export interface OperationTemplate {
+  workflowType: WorkflowType;
+  instructions: string;
 }
 
 export interface NeedsYouEvent {
