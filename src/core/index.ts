@@ -21,6 +21,7 @@ import { Scheduler } from './scheduler/scheduler';
 import { WatchService, type WatchServiceDeps } from './watches/watchService';
 
 export { ConfigError, loadConfig, loadDotenv, resolveSecrets, type Secrets } from './config/load';
+export { readEditableConfig, writeEditableConfig, type EditableConfig } from './config/editor';
 export type { Config } from './config/schema';
 export type { Database } from './db/open';
 export * from './domain/types';
