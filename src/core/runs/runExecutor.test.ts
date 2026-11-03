@@ -6,9 +6,10 @@ import { testConfig, type DeepPartial } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
 import { resolveSecrets } from '../config/load';
 import type { Config } from '../config/schema';
+import { AgentService } from '../agents/agentService';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
-import type { NeedsYouEvent, Run, WatchKind } from '../domain/types';
+import type { NeedsYouEvent, Run, WatchKind, WorkflowType } from '../domain/types';
 import { DataDir } from '../files/dataDir';
 import { createReadModels } from '../read-models/index';
 import { QueueService } from '../queue/queueService';
@@ -74,8 +75,11 @@ function setup(opts: SetupOpts = {}) {
     events.push(e);
   });
   const currentBranch = vi.fn(async () => 'feat/x');
+  t.db.prepare("UPDATE agents SET instructions = 'Default test Agent instructions.'").run();
+  const agents = new AgentService(t.db);
   const executor = new RunExecutor({
     db: t.db,
+    agents,
     clock,
     config,
     dataDir,
@@ -84,7 +88,7 @@ function setup(opts: SetupOpts = {}) {
     currentBranch,
     onNeedsYou,
   });
-  return { db: t.db, clock, config, dataDir, executor, starts, events, onNeedsYou, currentBranch };
+  return { db: t.db, agents, clock, config, dataDir, executor, starts, events, onNeedsYou, currentBranch };
 }
 
 function addWatch(db: Database, kind: WatchKind = 'mr', repository = 'pages'): number {
@@ -97,17 +101,29 @@ function addWatch(db: Database, kind: WatchKind = 'mr', repository = 'pages'): n
   return id;
 }
 
+function defaultWorkflowType(db: Database, watchId: number | null): WorkflowType {
+  if (watchId === null) return 'free-adhoc';
+  const row = db.prepare('SELECT kind FROM watches WHERE id = ?').get(watchId) as { kind: WatchKind };
+  return `${row.kind}-watch` as WorkflowType;
+}
+
 function claim(
   db: Database,
   startedAt: number,
   watchId: number | null,
-  extra: { adhocPrompt?: string; repository?: string; parentRunId?: number; sessionId?: string } = {},
+  extra: {
+    adhocPrompt?: string;
+    repository?: string;
+    parentRunId?: number;
+    sessionId?: string;
+    workflowType?: WorkflowType;
+  } = {},
 ): Run {
   return toRun(
     db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, parent_run_id, session_id, model, queued_at, started_at)
-         VALUES (?, ?, 'running', ?, ?, 'new comment', ?, ?, ?, 'm1', ?, ?) RETURNING *`,
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, parent_run_id, session_id, model, queued_at, started_at, workflow_type)
+         VALUES (?, ?, 'running', ?, ?, 'new comment', ?, ?, ?, 'm1', ?, ?, ?) RETURNING *`,
       )
       .get(
         watchId,
@@ -119,6 +135,7 @@ function claim(
         extra.sessionId ?? null,
         startedAt,
         startedAt,
+        extra.workflowType ?? defaultWorkflowType(db, watchId),
       ),
   );
 }
@@ -528,12 +545,78 @@ describe('RunExecutor', () => {
     });
   });
 
-  test('missing default prompt file is PROMPT_FAILED', async () => {
-    const s = setup({ config: { prompts: { dir: '/nonexistent/prompts' } } });
-    const watchId = addWatch(s.db);
-    const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
+  const cases: [string, WorkflowType, () => (s: ReturnType<typeof setup>) => Run][] = [
+    ['mr Watch', 'mr-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'mr'))],
+    ['jira Watch', 'jira-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'jira'))],
+    ['free Watch', 'free-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'free'))],
+    ['ticket ad-hoc', 'ticket-adhoc', () => (s) => claim(s.db, s.clock.now(), null, { workflowType: 'ticket-adhoc' })],
+    ['free ad-hoc', 'free-adhoc', () => (s) => claim(s.db, s.clock.now(), null, { workflowType: 'free-adhoc' })],
+  ];
+
+  test.each(cases)('%s Run resolves its assigned Agent and template', async (_name, type, make) => {
+    const s = setup({ config: { jira: { enabled: true } } });
+    const agent = s.agents.createAgent({ name: 'A', instructions: `AGENT-FOR-${type}` });
+    s.agents.assign('pages', type, agent.id);
+    s.agents.setTemplate(type, `TEMPLATE-FOR-${type}`);
+    const final = await s.executor.execute(make()(s));
+    const prompt = fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8');
+    expect(prompt).toContain(`AGENT-FOR-${type}`);
+    expect(prompt).toContain(`TEMPLATE-FOR-${type}`);
+    expect(prompt.indexOf(`AGENT-FOR-${type}`)).toBeLessThan(prompt.indexOf(`TEMPLATE-FOR-${type}`));
+    expect(s.starts).toHaveLength(1);
+  });
+
+  test('an empty template does not block the Run', async () => {
+    const s = setup();
+    s.agents.setTemplate('mr-watch', null);
+    const final = await s.executor.execute(claim(s.db, s.clock.now(), addWatch(s.db)));
+    expect(final.error).toBeNull();
+    expect(s.starts).toHaveLength(1);
+  });
+
+  test('a follow-up uses the Agent of the inherited workflow type', async () => {
+    const s = setup();
+    const agent = s.agents.createAgent({ name: 'T', instructions: 'TICKET-AGENT' });
+    s.agents.assign('pages', 'ticket-adhoc', agent.id);
+    const parent = claim(s.db, s.clock.now(), null, { workflowType: 'ticket-adhoc' });
+    s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(parent.id);
+    const run = claim(s.db, s.clock.now(), null, {
+      adhocPrompt: 'More',
+      parentRunId: parent.id,
+      sessionId: 'parent-session',
+      workflowType: 'ticket-adhoc',
+    });
+    const final = await s.executor.execute(run);
+    expect(fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8')).toContain('TICKET-AGENT');
+  });
+
+  test.each([
+    [
+      'blank',
+      (s: ReturnType<typeof setup>) =>
+        s.agents.assign('pages', 'mr-watch', s.agents.createAgent({ name: 'B', instructions: '  \n' }).id),
+    ],
+    [
+      'blocked',
+      (s: ReturnType<typeof setup>) =>
+        s.db
+          .prepare(
+            "INSERT INTO agent_assignments (repository, workflow_type, agent_id) VALUES ('pages', 'mr-watch', NULL)",
+          )
+          .run(),
+    ],
+    [
+      'absent',
+      (s: ReturnType<typeof setup>) =>
+        s.db.prepare("DELETE FROM agent_assignments WHERE workflow_type = 'mr-watch'").run(),
+    ],
+  ])('%s Agent is PROMPT_FAILED without launching Copilot', async (_name, arrange) => {
+    const s = setup();
+    arrange(s);
+    const final = await s.executor.execute(claim(s.db, s.clock.now(), addWatch(s.db)));
     expect(final.error?.code).toBe('PROMPT_FAILED');
-    expect(final.error?.message).toContain('/nonexistent/prompts/mr.md');
+    expect(final.error?.message).toContain('"pages"');
+    expect(final.error?.message).toContain('"mr-watch"');
     expect(final).toMatchObject({ promptPath: null, transcriptPath: null });
     expect(s.starts).toHaveLength(0);
   });

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { AgentService } from '../agents/agentService';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
 import type { NeedsYouEvent } from '../domain/types';
@@ -41,6 +42,7 @@ function setup() {
   });
   const deps = {
     db: t.db,
+    agents: new AgentService(t.db),
     clock,
     config,
     dataDir,

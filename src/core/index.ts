@@ -144,8 +144,17 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
   const queue = new QueueService(db, clock, dataDir, config, {
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
-  const executorDeps: RunExecutorDeps = { db, clock, config, dataDir, launcher: copilot, prechecks, onNeedsYou };
   const agents = new AgentService(db);
+  const executorDeps: RunExecutorDeps = {
+    db,
+    clock,
+    config,
+    dataDir,
+    launcher: copilot,
+    prechecks,
+    agents,
+    onNeedsYou,
+  };
 
   return {
     config,

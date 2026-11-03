@@ -3,7 +3,7 @@ import type { Database } from '../db/open';
 import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
 import { parseTarget } from '../domain/targets';
-import type { Clock, Run, RunStatus, WatchState } from '../domain/types';
+import type { Clock, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
 import { unknownRepositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 
@@ -70,8 +70,9 @@ export class QueueService {
           .get(input.watchId) as { extra_instructions: string | null } | undefined;
         const row = this.db
           .prepare(
-            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, extra_instructions, review_unresolved, model, queued_at)
-           VALUES (@watchId, @repository, 'queued', @trigger, @priority, @reason, @extra, @reviewUnresolved, @model, @now)
+            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, extra_instructions, review_unresolved, model, queued_at, workflow_type)
+           VALUES (@watchId, @repository, 'queued', @trigger, @priority, @reason, @extra, @reviewUnresolved, @model, @now,
+             (SELECT CASE kind WHEN 'mr' THEN 'mr-watch' WHEN 'jira' THEN 'jira-watch' ELSE 'free-watch' END FROM watches WHERE id = @watchId))
            ON CONFLICT (watch_id) WHERE status = 'queued' DO UPDATE SET
              priority = min(priority, excluded.priority),
              trigger = CASE WHEN excluded.trigger = 'manual' THEN 'manual' ELSE trigger END,
@@ -98,10 +99,18 @@ export class QueueService {
   }
 
   enqueueAdhoc(input: EnqueueAdhocInput): Run {
+    const inherited =
+      input.parentRunId === undefined
+        ? undefined
+        : (
+            this.db.prepare('SELECT workflow_type FROM runs WHERE id = ?').get(input.parentRunId) as
+              { workflow_type: WorkflowType } | undefined
+          )?.workflow_type;
+    const workflowType = inherited ?? (input.ticketKey === undefined ? 'free-adhoc' : 'ticket-adhoc');
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, parent_run_id, session_id, queued_at)
-         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, parent_run_id, session_id, queued_at, workflow_type)
+         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -113,6 +122,7 @@ export class QueueService {
         input.parentRunId ?? null,
         input.sessionId ?? null,
         this.clock.now(),
+        workflowType,
       );
     return toRun(row);
   }

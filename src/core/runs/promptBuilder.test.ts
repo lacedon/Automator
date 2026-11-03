@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
@@ -8,6 +7,7 @@ import type { EventSummary, Snapshot } from '../prechecks/types';
 import { ADHOC_RULES, buildAdhocPrompt, buildWatchPrompt, FIXED_RULES, MAX_EVENTS_CHARS } from './promptBuilder';
 
 const RESULT_PATH = '/data/runs/7/copilot-result.json';
+const AGENT = 'Agent: handle new outside comments.';
 const MR_URL = 'https://gitlab.example.com/group/pages/-/merge_requests/12';
 
 afterEach(() => vi.unstubAllEnvs());
@@ -107,6 +107,8 @@ function watchPrompt(partial: Partial<WatchInput> = {}): string {
     config: config(),
     resultPath: RESULT_PATH,
     hasJiraToken: false,
+    agentInstructions: AGENT,
+    operationTemplate: null,
     ...partial,
   });
 }
@@ -118,10 +120,11 @@ function eventsSection(prompt: string): string {
 
 describe('buildWatchPrompt', () => {
   test('sections appear in spec order', () => {
-    const prompt = watchPrompt();
+    const prompt = watchPrompt({ operationTemplate: 'Template: reply briefly.' });
     const headings = [
       '## Rules',
-      '## Default instructions',
+      '## Agent instructions',
+      '## Operation template',
       '## Watch',
       '## This Run',
       '## Recent Runs',
@@ -131,7 +134,8 @@ describe('buildWatchPrompt', () => {
     const positions = headings.map((h) => prompt.indexOf(`${h}\n`));
     expect(positions.every((p) => p >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-    expect(prompt).toContain('Handle new outside comments');
+    expect(prompt).toContain(AGENT);
+    expect(prompt).toContain('Template: reply briefly.');
   });
 
   test('fixed rules list every never-allowed action', () => {
@@ -154,7 +158,7 @@ describe('buildWatchPrompt', () => {
 
   test('MR prompt names the source branch in the pre-action checklist', () => {
     const prompt = watchPrompt({ snapshot: snapshot({ sourceBranch: 'feature/new-name' }) });
-    const rules = prompt.slice(prompt.indexOf('## Rules'), prompt.indexOf('## Default instructions'));
+    const rules = prompt.slice(prompt.indexOf('## Rules'), prompt.indexOf('## Agent instructions'));
     expect(rules).toContain('Re-read the current state of the MR');
     expect(rules).toContain('Make sure you are on the MR source branch `feature/new-name`');
     expect(rules).toContain('git switch feature/new-name');
@@ -165,17 +169,21 @@ describe('buildWatchPrompt', () => {
     expect(rules).toContain('Commit and push only to the MR source branch `feature/new-name`');
   });
 
-  test('MR default instructions ignore allowed-to-fail jobs on every target branch', () => {
-    const prompt = watchPrompt();
-    const defaults = prompt.slice(prompt.indexOf('## Default instructions'), prompt.indexOf('## Watch\n'));
-    expect(defaults).toContain(
-      'Ignore failed jobs marked `allow_failure: true` on every target branch, including `qa` and `release/*`.',
+  test('orders fixed rules, Agent instructions, template, then Watch text and events', () => {
+    const prompt = watchPrompt({
+      operationTemplate: 'TEMPLATE-TEXT',
+      watch: watch({ instructions: 'WATCH-TEXT' }),
+    });
+    const order = [FIXED_RULES, AGENT, 'TEMPLATE-TEXT', 'WATCH-TEXT', 'Please rename foo'].map((t) =>
+      prompt.indexOf(t),
     );
-    expect(defaults).toContain('Do not fix them or finish with outcome "needs-you" because of them.');
-    expect(defaults).toContain('If only allowed-to-fail jobs failed, the pipeline needs no action.');
-    expect(defaults).toContain('fix failed pipeline jobs that are not allowed to fail');
-    expect(defaults).not.toContain('ask for help when a job that is allowed to fail has failed');
-    expect(defaults).not.toContain('`qa`: fix it like any other failed job');
+    expect(order.every((p) => p >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+  });
+
+  test('a blank template adds no section and a template never replaces fixed rules', () => {
+    expect(watchPrompt({ operationTemplate: '  \n' })).not.toContain('## Operation template');
+    expect(watchPrompt({ operationTemplate: 'T' })).toContain(FIXED_RULES);
   });
 
   test('free-form has no default instructions section', () => {
@@ -188,7 +196,6 @@ describe('buildWatchPrompt', () => {
       }),
       snapshot: snapshot({ events: [], cursorCandidate: {}, sourceBranch: undefined }),
     });
-    expect(prompt).not.toContain('## Default instructions');
     expect(prompt).not.toContain('source branch `');
     expect(prompt).toContain('Check the page');
   });
@@ -202,15 +209,12 @@ describe('buildWatchPrompt', () => {
     });
     const without = watchPrompt({ watch: jira, snapshot: jiraSnapshot, hasJiraToken: false });
     expect(without).toContain('check the ticket through MCP');
-    expect(without).toContain('Do not change code unless the Watch instructions');
+    expect(without).toContain('change code only if the Watch instructions below explicitly allow it');
     const withToken = watchPrompt({ watch: jira, snapshot: jiraSnapshot, hasJiraToken: true });
     expect(withToken).not.toContain('through MCP');
   });
 
-  test('jira reply-only default is code-owned, independent of jira.md', () => {
-    const dir = path.resolve('test-results', 'tmp', 'empty-prompts');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'jira.md'), '');
+  test('jira reply-only default stays code-owned, independent of Agent instructions', () => {
     const prompt = watchPrompt({
       watch: watch({ kind: 'jira', targetUrl: 'https://jira.example.com/browse/ABC-1', mrSourceBranch: null }),
       snapshot: snapshot({
@@ -218,7 +222,7 @@ describe('buildWatchPrompt', () => {
         cursorCandidate: { lastChangelogId: null, lastCommentId: null },
         sourceBranch: undefined,
       }),
-      config: testConfig({ prompts: { dir } }),
+      agentInstructions: 'Anything',
     });
     const watchPart = prompt.slice(prompt.indexOf('## Watch'), prompt.indexOf('## This Run'));
     expect(watchPart).toContain(
@@ -299,9 +303,9 @@ describe('buildWatchPrompt', () => {
     );
   });
 
-  test('missing default prompt file throws naming the path', () => {
+  test('does not read prompt files', () => {
     const cfg = testConfig({ prompts: { dir: path.resolve('test-results', 'no-prompts') } });
-    expect(() => watchPrompt({ config: cfg })).toThrow(path.join(cfg.prompts.dir, 'mr.md'));
+    expect(() => watchPrompt({ config: cfg })).not.toThrow();
   });
 });
 
@@ -311,13 +315,14 @@ describe('buildAdhocPrompt', () => {
       run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'Bump the lodash version' }),
       config: config(),
       resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: null,
     });
     expect(prompt).toContain(ADHOC_RULES);
     expect(prompt).toContain('Bump the lodash version');
     expect(prompt).toContain(`write exactly this JSON to \`${RESULT_PATH}\``);
     expect(prompt).toContain('- `npm test`');
     expect(prompt).not.toContain('## Watch');
-    expect(prompt).not.toContain('## Default instructions');
     expect(prompt).not.toContain('## Recent Runs');
     expect(prompt).not.toContain('## Ticket');
   });
@@ -327,6 +332,8 @@ describe('buildAdhocPrompt', () => {
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, sessionId: 's', adhocPrompt: 'More' }),
       config: testConfig(),
       resultPath: '/r.json',
+      agentInstructions: AGENT,
+      operationTemplate: null,
     });
     expect(prompt).toContain('## Follow-up message');
   });
@@ -336,6 +343,8 @@ describe('buildAdhocPrompt', () => {
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: 7, adhocPrompt: 'Use the staging URL' }),
       config: config(),
       resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: null,
     });
     expect(prompt).toContain('## Follow-up message');
     expect(prompt).toContain('This continues the earlier conversation in this session.');
@@ -349,9 +358,24 @@ describe('buildAdhocPrompt', () => {
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, adhocPrompt: 'Bump it' }),
       config: config(),
       resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: null,
     });
     expect(prompt).toContain('## Request');
     expect(prompt).not.toContain('## Follow-up message');
+  });
+
+  test('orders fixed rules, Agent instructions, template, then the Request', () => {
+    const prompt = buildAdhocPrompt({
+      run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'REQUEST-TEXT' }),
+      config: config(),
+      resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: 'TEMPLATE-TEXT',
+    });
+    const order = [ADHOC_RULES, AGENT, 'TEMPLATE-TEXT', 'REQUEST-TEXT'].map((t) => prompt.indexOf(t));
+    expect(order.every((p) => p >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
   });
 
   describe('rules', () => {
@@ -360,6 +384,8 @@ describe('buildAdhocPrompt', () => {
         run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'Anything' }),
         config: config(),
         resultPath: RESULT_PATH,
+        agentInstructions: AGENT,
+        operationTemplate: null,
       });
 
     test('leave branching to the prompt instead of escalating on branch state', () => {
@@ -401,14 +427,16 @@ describe('buildAdhocPrompt', () => {
         }),
         config: config(),
         resultPath: RESULT_PATH,
+        agentInstructions: AGENT,
+        operationTemplate: null,
       });
 
-    test('names the Ticket with its link and title and adds the default Ticket instructions', () => {
+    test('names the Ticket with its link and title and places it after the Agent instructions', () => {
       const prompt = linked();
       expect(prompt).toContain('## Ticket');
       expect(prompt).toContain('ABC-123: Fix login redirect');
       expect(prompt).toContain('https://jira.example.com/browse/ABC-123');
-      expect(prompt).toContain(fs.readFileSync(path.resolve('prompts', 'jira-adhoc.md'), 'utf8').trim());
+      expect(prompt.indexOf(AGENT)).toBeLessThan(prompt.indexOf('## Ticket'));
       expect(prompt).toContain('Use the existing helper');
     });
 

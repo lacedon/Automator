@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
 import type { EventSummary, Snapshot } from '../prechecks/types';
@@ -35,10 +33,11 @@ export function buildWatchPrompt(input: {
   config: Config;
   resultPath: string;
   hasJiraToken: boolean;
+  agentInstructions: string;
+  operationTemplate: string | null;
 }): string {
   const { watch, run, snapshot, recent, config, resultPath, hasJiraToken } = input;
-  const sections = [rulesSection(watch, snapshot)];
-  if (watch.kind !== 'free') sections.push(`## Default instructions\n\n${readDefaultPrompt(config, watch.kind)}`);
+  const sections = [rulesSection(watch, snapshot), ...agentSections(input.agentInstructions, input.operationTemplate)];
   sections.push(
     watchSection(watch),
     runSection(watch, run, snapshot, hasJiraToken),
@@ -70,12 +69,16 @@ Stop, change nothing further, and finish with outcome "needs-you" instead of gue
 - the checkout has uncommitted changes, an unfinished merge or rebase (never stash, reset or discard existing work),
 - a request is unclear or is a design disagreement.`;
 
-export function buildAdhocPrompt(input: { run: Run; config: Config; resultPath: string }): string {
+export function buildAdhocPrompt(input: {
+  run: Run;
+  config: Config;
+  resultPath: string;
+  agentInstructions: string;
+  operationTemplate: string | null;
+}): string {
   const { run, config, resultPath } = input;
-  const sections = [`## Rules\n\n${ADHOC_RULES}`];
-  if (run.ticketKey !== null) {
-    sections.push(ticketSection(run, config), `## Default instructions\n\n${readDefaultPrompt(config, 'jira-adhoc')}`);
-  }
+  const sections = [`## Rules\n\n${ADHOC_RULES}`, ...agentSections(input.agentInstructions, input.operationTemplate)];
+  if (run.ticketKey !== null) sections.push(ticketSection(run, config));
   const message = run.adhocPrompt?.trim() || '(none)';
   sections.push(
     run.parentRunId === null && run.sessionId === null
@@ -114,13 +117,10 @@ ${FIXED_RULES}
 Commit and push only to the MR source branch \`${branch}\`.`;
 }
 
-function readDefaultPrompt(config: Config, kind: 'mr' | 'jira' | 'jira-adhoc'): string {
-  const file = path.join(config.prompts.dir, `${kind}.md`);
-  try {
-    return fs.readFileSync(file, 'utf8').trim();
-  } catch (e) {
-    throw new Error(`Default prompt file not readable: ${file}`, { cause: e });
-  }
+function agentSections(agentInstructions: string, operationTemplate: string | null): string[] {
+  const sections = [`## Agent instructions\n\n${agentInstructions.trim()}`];
+  if (operationTemplate?.trim()) sections.push(`## Operation template\n\n${operationTemplate.trim()}`);
+  return sections;
 }
 
 function watchSection(watch: Watch): string {
