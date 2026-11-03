@@ -66,7 +66,7 @@ git commit -m "feat: persist workflow and agent profiles"
 **Interfaces:**
 
 - Consumes: `WorkflowType`, `Agent`, `AgentAssignment`, and `OperationTemplate` from Task 1.
-- Produces `AgentService.listAgents(): Agent[]`, `listAssignments(): AgentAssignment[]`, `getAgent(id: number): Agent | null`, `createAgent(input: { name: string; instructions: string }): Agent`, `updateAgent(id: number, input: { name: string; instructions: string }): Agent | null`, `assignmentReferences(id: number): AgentAssignment[]`, `deleteAgent(id: number): AgentAssignment[] | null`, `assign(repository: string | null, workflowType: WorkflowType, agentId: number): void`, `clearRepositoryOverride(repository: string, workflowType: WorkflowType): void`, `getTemplate(workflowType: WorkflowType): OperationTemplate | null`, `setTemplate(workflowType: WorkflowType, instructions: string | null): void`, and `resolve(repository: string, workflowType: WorkflowType): { agent: Agent | null; template: OperationTemplate | null; assignmentScope: 'repository' | 'default' | 'blocked' }`.
+- Produces `AgentService.listAgents(): Agent[]`, `listAssignments(): AgentAssignment[]`, `getAgent(id: number): Agent | null`, `createAgent(input: { name: string; instructions: string }): Agent`, `updateAgent(id: number, input: { name: string; instructions: string }): Agent | null`, `assignmentReferences(id: number): AgentAssignment[]`, `deleteAgent(id: number): AgentAssignment[] | null`, `assign(repository: string | null, workflowType: WorkflowType, agentId: number): void`, `clearRepositoryOverride(repository: string, workflowType: WorkflowType): void`, `getTemplate(workflowType: WorkflowType): OperationTemplate | null`, `setTemplate(workflowType: WorkflowType, instructions: string | null): void`, `resolve(repository: string, workflowType: WorkflowType): { agent: Agent | null; template: OperationTemplate | null; assignmentScope: 'repository' | 'default' | 'blocked' }`, and `importLegacyPrompts(repository: string, prompts: Pick<Record<WorkflowType, string>, 'mr-watch' | 'jira-watch' | 'ticket-adhoc'>): 'imported' | 'already-imported'`.
 - `resolve` returns the Repository-specific assignment when present, otherwise the installation default; a null Agent in an existing slot returns no Agent and suppresses fallback.
 
 - [ ] **Step 1: Write failing tests** for profile CRUD, assignment reference listing, repository override/default fallback, explicit-null blocking, clearing an override, and optional templates.
@@ -149,6 +149,8 @@ git commit -m "feat: add agent settings"
 - Adds `automator prompts import-legacy --repo <name> [--source <directory>]`.
 - Extends `CliIo` with required `confirm(prompt: string): Promise<boolean>`; update the CLI test helper and have the executable supply a `readline/promises` implementation.
 - Import reads only `mr.md`, `jira.md`, and `jira-adhoc.md`, shows the source, SQLite path, and Repository key without printing prompt content, and writes profiles/assignments transactionally.
+- Names the imported profiles `<repository> / MR Watch`, `<repository> / Jira Watch`, and `<repository> / Ticket Ad-hoc`.
+- Calls `AgentService.importLegacyPrompts` so profile creation, assignments, conflict detection, and the migration marker share one SQLite transaction.
 - A migration marker makes successful imports safe to repeat. Conflicting assignments abort without writes.
 
 - [ ] **Step 1: Write failing CLI tests** for preview without confirmation, declined import, missing Repository/source, transactional conflict, repeat import, and successful mappings.

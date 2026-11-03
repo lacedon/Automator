@@ -38,7 +38,7 @@
 **Interfaces:**
 
 - Produces `EditableConfig`, an allowlisted projection of non-secret config values. It includes existing connection keys and non-secret host/base URL/status fields, but excludes `tokenEnv` and `emailEnv`.
-- `EditableConfig = Omit<z.input<ReturnType<typeof createConfigSchema>>, 'gitlab' | 'jira'> & { gitlab: Record<string, { host: string }>; jira: { enabled: boolean; connections: Record<string, { baseUrl: string; doneStatusIds?: string[] }> } }`.
+- `EditableConfig = Omit<z.input<ReturnType<typeof createConfigSchema>>, 'gitlab' | 'jira' | 'prompts'> & { gitlab: Record<string, { host: string }>; jira: { enabled: boolean; connections: Record<string, { baseUrl: string; doneStatusIds?: string[] }> } }`.
 - Produces `readEditableConfig(configPath: string): EditableConfig`.
 - Produces `writeEditableConfig(configPath: string, input: EditableConfig): void`; it merges allowed edits into the original raw JSON, validates with `createConfigSchema` and `findReferenceIssues`, then atomically replaces the file.
 - Web edits may not add/remove connection records because their environment-variable bindings are intentionally local-JSON-only.
