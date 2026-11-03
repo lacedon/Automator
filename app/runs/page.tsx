@@ -5,6 +5,7 @@ import { EmptyState } from '../components/EmptyState';
 import { RunPill } from '../components/Pill';
 import { RunItem, TRIGGER_NAME } from '../components/RunMeta';
 import { getCore } from '../lib/core';
+import { currentScope } from '../lib/scope';
 import { formatDateTime, formatTook } from '../lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -122,7 +123,12 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
     repo: pick(params.repo),
   };
   const core = getCore();
-  const runs = core.read.runList({ outcome: filter.outcome, trigger: filter.trigger, repository: filter.repo });
+  const runs = core.read.runList({
+    outcome: filter.outcome,
+    trigger: filter.trigger,
+    repository: filter.repo,
+    project: await currentScope(),
+  });
   const repositories = core.read.formOptions().repositories.map((r) => r.name);
   const filtered = filter.outcome !== undefined || filter.trigger !== undefined || filter.repo !== undefined;
 

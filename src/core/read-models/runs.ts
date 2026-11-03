@@ -1,8 +1,18 @@
 import { toRun } from '../db/rows';
 import type { Config } from '../config/schema';
-import type { Interrupted, Outcome, ResultStatus, Run, RunError, RunStatus, Trigger } from '../domain/types';
+import type {
+  Interrupted,
+  ProjectScope,
+  Outcome,
+  ResultStatus,
+  Run,
+  RunError,
+  RunStatus,
+  Trigger,
+} from '../domain/types';
 import { jiraBrowseUrl } from '../prechecks/jiraClient';
 import type { ReadDeps } from './deps';
+import { scopeFilter } from './scope';
 
 export type TicketLink = { key: string; title: string | null; url: string | null };
 
@@ -37,7 +47,12 @@ export type RunRow = {
   resultPath: string | null;
 };
 
-export type RunFilter = { outcome?: Outcome | 'error'; trigger?: Trigger; repository?: string };
+export type RunFilter = {
+  outcome?: Outcome | 'error';
+  trigger?: Trigger;
+  repository?: string;
+  project?: ProjectScope;
+};
 
 export const RUNS_WITH_TITLE =
   'SELECT r.*, w.title AS watch_title FROM runs r LEFT JOIN watches w ON w.id = r.watch_id';
@@ -77,7 +92,9 @@ export function toRunRow(run: RunWithTitle, config: Config): RunRow {
   };
 }
 
-export function runList({ db, config }: ReadDeps, f: RunFilter): RunRow[] {
+export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
+  const { db, config } = deps;
+  const inScope = scopeFilter(deps, f.project ?? null);
   return db
     .prepare(
       `${RUNS_WITH_TITLE}
@@ -88,5 +105,7 @@ export function runList({ db, config }: ReadDeps, f: RunFilter): RunRow[] {
        ORDER BY r.id DESC`,
     )
     .all({ outcome: f.outcome ?? null, trigger: f.trigger ?? null, repository: f.repository ?? null })
-    .map((row) => toRunRow(toRunWithTitle(row), config));
+    .map(toRunWithTitle)
+    .filter((run) => inScope(run.repository))
+    .map((run) => toRunRow(run, config));
 }

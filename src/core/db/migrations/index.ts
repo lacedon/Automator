@@ -180,4 +180,20 @@ SELECT NULL, workflow_type, id FROM agents;
     sql: `ALTER TABLE agents DROP COLUMN workflow_type;
 `,
   },
+  {
+    version: 6,
+    sql: `CREATE TABLE projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE project_repositories (
+  repository TEXT PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_project_repositories_project ON project_repositories(project_id);
+`,
+  },
 ];

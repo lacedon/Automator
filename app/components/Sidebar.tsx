@@ -20,6 +20,7 @@ function NavigationItems({
     { href: '/queue', label: 'Queue', count: counts.queued },
     { href: '/runs', label: 'Runs' },
     { href: '/adhoc', label: 'Ad-hoc' },
+    { href: '/projects', label: 'Projects' },
     { href: '/settings/agents', label: 'Settings' },
   ];
   return items.map(({ href, label, count }) => {

@@ -7,6 +7,7 @@ import { RelativeTime } from '../components/RelativeTime';
 import { KIND_LABEL, WatchFilters, type WatchFilterParams } from '../components/WatchFilters';
 import { ResumeButton, WatchRowMenu } from '../components/WatchRowMenu';
 import { getCore } from '../lib/core';
+import { currentScope } from '../lib/scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,7 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
     kind: filter.kind,
     repository: filter.repo,
     q: filter.q,
+    project: await currentScope(),
   });
   const { repositories, jiraEnabled } = core.read.formOptions();
   const filtered =

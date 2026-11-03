@@ -111,3 +111,12 @@ export interface Clock {
 }
 
 export const systemClock: Clock = { now: () => Date.now() };
+
+export interface Project {
+  id: number;
+  name: string;
+  repositories: string[];
+}
+
+// null: all work; 'none': work of repositories that belong to no Project; number: one Project.
+export type ProjectScope = number | 'none' | null;

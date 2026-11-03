@@ -9,6 +9,7 @@ import { RelativeTime } from './components/RelativeTime';
 import { ResumeForm } from './components/ResumeForm';
 import { RunItem } from './components/RunMeta';
 import { getCore } from './lib/core';
+import { currentScope } from './lib/scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,8 +95,8 @@ function RecentRuns({ runs }: { runs: RunRow[] }) {
   );
 }
 
-export default function HomePage() {
-  const { needsYou, running, recent } = getCore().read.homeView();
+export default async function HomePage() {
+  const { needsYou, running, recent } = getCore().read.homeView(await currentScope());
   return (
     <>
       <NeedsYou cards={needsYou} />

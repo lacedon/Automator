@@ -317,8 +317,8 @@ describe('read models', () => {
     const options = read.formOptions();
 
     expect(options.repositories).toEqual([
-      { name: 'pages', folder: config.repositories.pages!.folder, host: 'https://gitlab.example.com' },
-      { name: 'api', folder: config.repositories.api!.folder, host: 'https://gitlab.example.com' },
+      { name: 'pages', folder: config.repositories.pages!.folder, host: 'https://gitlab.example.com', project: null },
+      { name: 'api', folder: config.repositories.api!.folder, host: 'https://gitlab.example.com', project: null },
     ]);
     expect(options.models).toEqual(['claude-sonnet-4.5', 'gpt-5']);
     expect(options.defaultModel).toBe('claude-sonnet-4.5');

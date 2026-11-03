@@ -1,5 +1,6 @@
-import type { Trigger } from '../domain/types';
+import type { ProjectScope, Trigger } from '../domain/types';
 import type { ReadDeps } from './deps';
+import { scopeFilter } from './scope';
 import { RUNS_WITH_TITLE, ticketLink, toRunWithTitle, type RunWithTitle, type TicketLink } from './runs';
 
 export type RunningCard = {
@@ -74,6 +75,15 @@ export function waitingRows(deps: ReadDeps): QueueRow[] {
     });
 }
 
-export function queueView(deps: ReadDeps): { running: RunningCard | null; waiting: QueueRow[] } {
-  return { running: toRunningCard(runningRun(deps), deps), waiting: waitingRows(deps) };
+// Queue positions stay global: the queue is shared by all Projects, so a Project sees its real place in line.
+export function queueView(
+  deps: ReadDeps,
+  scope: ProjectScope = null,
+): { running: RunningCard | null; waiting: QueueRow[] } {
+  const inScope = scopeFilter(deps, scope);
+  const running = runningRun(deps);
+  return {
+    running: running && inScope(running.repository) ? toRunningCard(running, deps) : null,
+    waiting: waitingRows(deps).filter((row) => inScope(row.repository)),
+  };
 }

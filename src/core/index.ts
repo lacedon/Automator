@@ -14,6 +14,7 @@ import type { GitLabPrecheckDeps } from './prechecks/gitlab';
 import { createGitHubClient, type GitHubClient } from './prechecks/githubClient';
 import { createPrechecks } from './prechecks/index';
 import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
+import { ProjectService } from './projects/projectService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
 import { createCopilotLauncher, type CopilotLauncher } from './runs/copilotLauncher';
@@ -34,6 +35,7 @@ export { parseTarget, type ParsedTarget } from './domain/targets';
 export { DataDir } from './files/dataDir';
 export { CleanupService } from './cleanup/cleanupService';
 export { AgentService } from './agents/agentService';
+export { ProjectService } from './projects/projectService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';
 export type { GitHubClient } from './prechecks/githubClient';
@@ -82,6 +84,7 @@ export interface Core {
   executor: RunExecutor;
   cleanup: CleanupService;
   agents: AgentService;
+  projects: ProjectService;
   notifier: Notifier;
   read: ReadModels;
   close(): void;
@@ -186,6 +189,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, dataDir }),
     agents,
+    projects: new ProjectService(db, config, () => clock.now()),
     notifier,
     read: createReadModels({ db, config, clock, dataDir }),
     close() {

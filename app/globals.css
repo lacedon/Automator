@@ -959,3 +959,38 @@ textarea:focus {
     padding-left: 16px;
   }
 }
+
+/* Projects */
+
+.topbar {
+  border-top: 3px solid var(--project-accent, transparent);
+}
+
+.main {
+  box-shadow: inset 3px 0 0 var(--project-accent, transparent);
+}
+
+.project-switcher {
+  max-width: 180px;
+}
+
+.project-card {
+  margin-top: 12px;
+}
+
+.project-card-head,
+.project-create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-repos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+  border: 0;
+  padding: 0;
+}

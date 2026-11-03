@@ -35,6 +35,10 @@ _Avoid_: continuation, reopen
 The kind of work a Run performs: MR Watch, Jira Watch, Free Watch, Ticket Ad-hoc, or free-form Ad-hoc.
 _Avoid_: Trigger
 
+**Project**:
+A named group of Repositories used to separate work visually. A Repository belongs to at most one Project; Repositories without one are "Unassigned". Selecting a Project in the top bar scopes Home, Watches, Queue, Runs and Ad-hoc to its Repositories and tints the UI with the Project's colour.
+_Avoid_: Workspace
+
 **Agent**:
 A reusable set of instructions selected for a Repository and Workflow type.
 
