@@ -110,7 +110,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 | Jira Ticket | Ticket key/URL                      | Look at changes and comments, and reply when the next step is clear |
 | Free-form   | Any URL + **required** instructions | Follow the Watch's instructions                                     |
 
-Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model.
+Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model. Each Agent opens in its own page (`/settings/agents/<id>`) from Settings for editing with the full window.
 
 ### Watch states
 
