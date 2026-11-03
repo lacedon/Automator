@@ -13,7 +13,7 @@ A named codebase associated with a local working folder. Each Watch identifies t
 _Avoid_: Workspace, project (when referring to the configured Repository)
 
 **Watch kind**:
-The type of outside item a Watch points to: a GitLab merge request, a Jira ticket, or a free-form item (any URL plus instructions).
+The type of outside item a Watch points to: a GitLab merge request, a GitHub pull request, a Jira ticket, or a free-form item (any URL plus instructions).
 _Avoid_: Type, category
 
 **Ticket**:

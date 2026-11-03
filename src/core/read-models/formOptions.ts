@@ -16,7 +16,8 @@ export function formOptions({ config }: ReadDeps): FormOptions {
     repositories: Object.entries(config.repositories).map(([name, repo]) => ({
       name,
       folder: repo.folder,
-      host: config.gitlab[repo.gitlab]?.host ?? null,
+      host:
+        (repo.gitlab && config.gitlab[repo.gitlab]?.host) || (repo.github && config.github[repo.github]?.host) || null,
     })),
     models: [...new Set([runs.defaultModel, ...runs.models])],
     defaultModel: runs.defaultModel,

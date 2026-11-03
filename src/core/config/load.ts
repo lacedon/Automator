@@ -15,6 +15,7 @@ export type Env = Record<string, string | undefined>;
 
 export type Secrets = {
   gitlab: Record<string, string | undefined>;
+  github: Record<string, string | undefined>;
   jira: Record<string, { email?: string; token?: string }>;
   envNames: string[];
 };
@@ -47,6 +48,11 @@ export function resolveSecrets(config: Config, env: Env): Secrets {
     envNames.add(conn.tokenEnv);
     gitlab[name] = env[conn.tokenEnv];
   }
+  const github: Secrets['github'] = {};
+  for (const [name, conn] of Object.entries(config.github)) {
+    envNames.add(conn.tokenEnv);
+    github[name] = env[conn.tokenEnv];
+  }
   const jira: Secrets['jira'] = {};
   for (const [name, conn] of Object.entries(config.jira.connections)) {
     if (conn.emailEnv) envNames.add(conn.emailEnv);
@@ -56,7 +62,7 @@ export function resolveSecrets(config: Config, env: Env): Secrets {
       token: conn.tokenEnv ? env[conn.tokenEnv] : undefined,
     };
   }
-  return { gitlab, jira, envNames: [...envNames] };
+  return { gitlab, github, jira, envNames: [...envNames] };
 }
 
 export function loadDotenv(configDir: string): void {

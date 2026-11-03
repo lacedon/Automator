@@ -11,6 +11,7 @@ import { AgentService } from './agents/agentService';
 import { createTeamsNotifier, type Notifier } from './notify/teamsNotifier';
 import { createGitLabClient, type GitLabClient } from './prechecks/gitlabClient';
 import type { GitLabPrecheckDeps } from './prechecks/gitlab';
+import { createGitHubClient, type GitHubClient } from './prechecks/githubClient';
 import { createPrechecks } from './prechecks/index';
 import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
 import { QueueService } from './queue/queueService';
@@ -35,6 +36,8 @@ export { CleanupService } from './cleanup/cleanupService';
 export { AgentService } from './agents/agentService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';
+export type { GitHubClient } from './prechecks/githubClient';
+export type { ReviewClient, ReviewDiscussion, ReviewNote, ReviewRequest } from './prechecks/reviewClient';
 export type { JiraClient, JiraIssue } from './prechecks/jiraClient';
 export {
   MAX_FOLLOW_UP_CHARS,
@@ -61,6 +64,7 @@ export { resolveJiraDoneNames } from './worker/jiraDoneNames';
 export interface Deps {
   clock: Clock;
   gitlab: (conn: string) => GitLabClient;
+  github: (conn: string) => GitHubClient;
   jira: (conn: string) => JiraClient;
   copilot: CopilotLauncher;
   notifier: Notifier;
@@ -91,29 +95,39 @@ function upsertMeta(db: Database, key: string, value: string): void {
 }
 
 // Keyed by a token hash too: a token of another user must not reuse the old identity.
-function metaMeCache(db: Database, gitlab: Deps['gitlab'], secrets: Secrets): GitLabPrecheckDeps['meCache'] {
+function metaMeCache(
+  db: Database,
+  host: 'gitlab' | 'github',
+  clientFor: Deps['gitlab'] | Deps['github'],
+  secrets: Secrets,
+): GitLabPrecheckDeps['meCache'] {
   return {
     async get(conn) {
-      const key = `gitlab_me:${conn}`;
+      const key = `${host}_me:${conn}`;
       const tokenHash = createHash('sha256')
-        .update(secrets.gitlab[conn] ?? '')
+        .update(secrets[host][conn] ?? '')
         .digest('hex')
         .slice(0, 16);
       const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
       const cached =
         row === undefined ? null : (JSON.parse(row.value) as { id: number; username: string; tokenHash?: string });
       if (cached !== null && cached.tokenHash === tokenHash) return { id: cached.id, username: cached.username };
-      const { id, username } = await gitlab(conn).me();
+      const { id, username } = await clientFor(conn).me();
       upsertMeta(db, key, JSON.stringify({ id, username, tokenHash }));
       return { id, username };
     },
   };
 }
 
-function gitlabPreview(gitlab: Deps['gitlab']): NonNullable<WatchServiceDeps['preview']> {
+function mrPreview(deps: Pick<Deps, 'gitlab' | 'github'>): NonNullable<WatchServiceDeps['preview']> {
   return async (target) => {
-    if (target.kind !== 'mr' || target.gitlab === undefined) return null;
-    const mr = await gitlab(target.gitlab.conn).mr(target.gitlab.apiProjectId, target.gitlab.iid);
+    if (target.kind !== 'mr') return null;
+    const mr = target.gitlab
+      ? await deps.gitlab(target.gitlab.conn).mr(target.gitlab.apiProjectId, target.gitlab.iid)
+      : target.github
+        ? await deps.github(target.github.conn).mr(target.github.apiProjectId, target.github.number)
+        : null;
+    if (mr === null) return null;
     return { title: mr.title, state: mr.state, sourceBranch: mr.sourceBranch };
   };
 }
@@ -128,6 +142,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
   const deps: Deps = {
     clock: overrides.clock ?? systemClock,
     gitlab: overrides.gitlab ?? ((conn) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn])),
+    github: overrides.github ?? ((conn) => createGitHubClient(config.github[conn]!.host, secrets.github[conn])),
     jira: overrides.jira ?? ((conn) => createJiraClient(config.jira.connections[conn]!, secrets.jira[conn] ?? {})),
     copilot,
     notifier: overrides.notifier ?? createTeamsNotifier({ db, config, launcher: copilot, dataDir, secrets }),
@@ -139,8 +154,10 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     config,
     secrets,
     gitlabClientFor: deps.gitlab,
+    githubClientFor: deps.github,
     jiraClientFor: deps.jira,
-    gitlabMeCache: metaMeCache(db, deps.gitlab, secrets),
+    gitlabMeCache: metaMeCache(db, 'gitlab', deps.gitlab, secrets),
+    githubMeCache: metaMeCache(db, 'github', deps.github, secrets),
   });
   const queue = new QueueService(db, clock, dataDir, config, {
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
@@ -163,7 +180,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     dataDir,
     deps,
     executorDeps,
-    watches: new WatchService({ db, clock, config, queue, dataDir, preview: gitlabPreview(deps.gitlab) }),
+    watches: new WatchService({ db, clock, config, queue, dataDir, preview: mrPreview(deps) }),
     queue,
     scheduler: new Scheduler({ db, clock, config, queue, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),

@@ -83,3 +83,24 @@ test('rejects non-http input', () => {
     if (!r.ok) expect(r.error.code).toBe('INVALID_TARGET');
   }
 });
+
+test('normalizes GitHub pull request URL', () => {
+  const withGithub: Config = {
+    ...config,
+    github: { gh: { host: 'github.com', tokenEnv: 'GITHUB_TOKEN' } },
+  };
+  const r = parseTarget('https://GitHub.com/acme/app/pull/7/files?x=1#n', withGithub);
+  expect(r).toEqual({
+    ok: true,
+    value: {
+      kind: 'mr',
+      normalizedTarget: 'github:github.com/acme/app#7',
+      displayUrl: 'https://github.com/acme/app/pull/7',
+      github: { conn: 'gh', host: 'github.com', owner: 'acme', repo: 'app', number: 7, apiProjectId: 'acme/app' },
+    },
+  });
+});
+
+test('GitHub pull request URL without a GitHub connection is a free-form target', () => {
+  expect(parsed('https://github.com/acme/app/pull/7').kind).toBe('free');
+});

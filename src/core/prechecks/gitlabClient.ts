@@ -1,31 +1,10 @@
 import { fetchWithRetry, HttpError, type FetchLike } from '../http/fetchWithRetry';
+import type { ReviewClient, ReviewDiscussion, ReviewNote, ReviewRequest } from './reviewClient';
 
-export type GitLabMr = {
-  title: string;
-  state: string;
-  sha: string;
-  sourceBranch: string;
-  detailedMergeStatus: string;
-  headPipeline: { id: number; status: string; sha: string } | null;
-  webUrl: string;
-};
-
-export type GitLabNote = {
-  id: number;
-  system: boolean;
-  authorId: number;
-  authorUsername: string;
-  body: string;
-  createdAt: string;
-};
-
-export type GitLabDiscussion = { id: string; resolvable: boolean; resolved: boolean; notes: GitLabNote[] };
-
-export interface GitLabClient {
-  me(): Promise<{ id: number; username: string }>;
-  mr(projectId: string, iid: number): Promise<GitLabMr>;
-  discussions(projectId: string, iid: number): Promise<GitLabDiscussion[]>;
-}
+export type GitLabMr = ReviewRequest;
+export type GitLabNote = ReviewNote;
+export type GitLabDiscussion = ReviewDiscussion;
+export type GitLabClient = ReviewClient;
 
 type NoteJson = {
   id: number;

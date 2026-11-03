@@ -143,7 +143,7 @@ export function WatchForm(props: Props) {
               className={inputClass('target')}
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              placeholder="https://gitlab.example.com/group/project/-/merge_requests/42, PROJ-123 or any URL"
+              placeholder="GitLab MR or GitHub PR URL, PROJ-123 or any URL"
               autoComplete="off"
             />
             {detected !== null && <DetectedKind detected={detected} />}
