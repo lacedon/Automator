@@ -1,1 +1,0 @@
-Follow the Watch instructions.

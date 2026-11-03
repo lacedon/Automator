@@ -92,6 +92,25 @@ function legacyPromptSource(core: Core): string {
 }
 
 describe('runCli', () => {
+  test('defaults the legacy source to the config directory without prompt configuration', async () => {
+    const core = setup({ legacyRepo: true });
+    const source = path.join(core.config.configDir, 'prompts');
+    fs.renameSync(legacyPromptSource(core), source);
+    const before = core.agents.listAgents();
+
+    const r = await cliWith(core, ['prompts', 'import-legacy', '--repo', 'inspire-mbdp-pages']);
+
+    expect(r.code).toBe(0);
+    expect(r.out).toEqual([
+      `Legacy prompt source: ${source}`,
+      `SQLite database: ${core.dataDir.db}`,
+      'Repository: inspire-mbdp-pages',
+      'Import cancelled; no changes made.',
+    ]);
+    expect(r.confirmationPrompts).toEqual(['Import these legacy prompts?']);
+    expect(core.agents.listAgents()).toEqual(before);
+  });
+
   test('previews source and destination before asking for confirmation without exposing prompt text', async () => {
     const core = setup({ legacyRepo: true });
     const source = legacyPromptSource(core);

@@ -57,9 +57,15 @@ describe('loadConfig', () => {
     expect(config.cleanup).toEqual({ enabled: true, everyDays: 7, retainClosedDays: 30 });
     expect(config.dataDir).toBe(path.join(os.homedir(), '.automator'));
     expect(config.copilotBin).toBe('copilot');
-    expect(config.prompts.dir).toBe(path.join(dir, 'prompts'));
+    expect(config).not.toHaveProperty('prompts');
     expect(config.configDir).toBe(dir);
     expect(config.teams).toBeUndefined();
+  });
+
+  test('ignores legacy prompt directories in existing configuration', () => {
+    const { file } = writeConfig({ repositories: {}, gitlab: {}, prompts: { dir: './legacy-prompts' } });
+    const config = loadConfig({ path: file, env: {} });
+    expect(config).not.toHaveProperty('prompts');
   });
 
   test('applies teams defaults when teams is present', () => {

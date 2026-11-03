@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig, type DeepPartial } from '../../../test/helpers/config';
@@ -326,11 +325,7 @@ describe('read models', () => {
     expect(options.intervals).toEqual({ mr: 15 * MIN, default: 120 * MIN });
     expect(options.initialReview).toBe('baseline-only');
     expect(options.jiraEnabled).toBe(false);
-    expect(options.defaultPromptFiles).toEqual({
-      mr: path.join(config.prompts.dir, 'mr.md'),
-      jira: path.join(config.prompts.dir, 'jira.md'),
-      free: null,
-    });
+    expect(options).not.toHaveProperty('defaultPromptFiles');
   });
 
   test('adhoc view lists ad-hoc Runs newest first with queue position', () => {

@@ -122,7 +122,8 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
         return;
       }
 
-      const source = opts.source === undefined ? current.config.prompts.dir : path.resolve(opts.source);
+      const source =
+        opts.source === undefined ? path.join(current.config.configDir, 'prompts') : path.resolve(opts.source);
       const promptFiles = {
         'mr-watch': 'mr.md',
         'jira-watch': 'jira.md',

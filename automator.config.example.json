@@ -32,7 +32,6 @@
     "initialReview": "baseline-only",
     "denyTools": []
   },
-  "prompts": { "dir": "./prompts" },
   "cleanup": { "enabled": true, "everyDays": 7, "retainClosedDays": 30 },
   "teams": {
     "chatId": "19:abc@thread.v2",

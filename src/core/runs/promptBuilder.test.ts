@@ -14,7 +14,6 @@ afterEach(() => vi.unstubAllEnvs());
 
 function config(validate: string[] = ['npm test']): Config {
   return testConfig({
-    prompts: { dir: path.resolve('prompts') },
     repositories: { pages: { validate } },
   });
 }
@@ -321,7 +320,7 @@ describe('buildWatchPrompt', () => {
   });
 
   test('does not read prompt files', () => {
-    const cfg = testConfig({ prompts: { dir: path.resolve('test-results', 'no-prompts') } });
+    const cfg = testConfig({ configDir: path.resolve('test-results', 'no-prompts') });
     expect(() => watchPrompt({ config: cfg })).not.toThrow();
   });
 });

@@ -92,7 +92,6 @@ export function createConfigSchema(configDir: string) {
       })
       .prefault({})
       .transform(({ timeoutMinutes, ...rest }) => ({ timeoutMs: timeoutMinutes * 60_000, ...rest })),
-    prompts: z.object({ dir: pathField.prefault('./prompts') }).prefault({}),
     cleanup: z
       .object({
         enabled: z.boolean().default(true),

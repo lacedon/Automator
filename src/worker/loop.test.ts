@@ -46,7 +46,7 @@ function fakeCopilot() {
 }
 
 function setup(opts: { onLockLost?: () => void } = {}) {
-  const config = testConfig({ prompts: { dir: path.resolve('prompts') } });
+  const config = testConfig();
   const clock = fakeClock();
   const copilot = fakeCopilot();
   const notified: NeedsYouEvent[] = [];

@@ -47,7 +47,6 @@ function setup(opts: SetupOpts = {}) {
   const clock = fakeClock();
   const config = testConfig({
     copilotBin: FAKE,
-    prompts: { dir: path.resolve('prompts') },
     ...opts.config,
     runs: { timeoutMs: 1500, ...opts.config?.runs },
   });

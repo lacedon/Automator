@@ -20,8 +20,8 @@ type Props = { options: FormOptions } & (
 const PREVIEW_DEBOUNCE_MS = 500;
 const REVIEW_MODES: readonly InitialReview[] = ['baseline-only', 'unresolved'];
 const PLACEHOLDER: Record<WatchKind, string> = {
-  mr: 'Added to the default MR prompt…',
-  jira: 'Added to the default Jira prompt…',
+  mr: 'Additional instructions for this MR Watch…',
+  jira: 'Additional instructions for this Jira Watch…',
   free: 'What Copilot should do on every check…',
 };
 
@@ -128,7 +128,6 @@ export function WatchForm(props: Props) {
   const inputClass = (field: string) => (invalid === field ? 'input-err' : undefined);
   const repo = options.repositories.find((r) => r.name === repository);
   const otherModels = options.models.filter((m) => m !== options.defaultModel);
-  const promptFile = kind === null ? null : options.defaultPromptFiles[kind];
 
   return (
     <form action={formAction} onSubmit={submit} className="watch-form">
@@ -211,16 +210,10 @@ export function WatchForm(props: Props) {
           onChange={(e) => setInstructions(e.target.value)}
           placeholder={kind === null ? undefined : PLACEHOLDER[kind]}
         />
-        {promptFile !== null && (
-          <div className="field-hint muted">
-            Default prompt: <code>{promptFile}</code>
-          </div>
-        )}
-        {kind === 'free' && (
-          <div className="field-hint muted">
-            Free-form Watches have no default prompt: the instructions are the whole task.
-          </div>
-        )}
+        <div className="field-hint muted">
+          Runs also use the Agent and optional operation template configured in{' '}
+          <Link href="/settings/agents">Agent Settings</Link>.
+        </div>
       </div>
 
       <div className="field-row">
