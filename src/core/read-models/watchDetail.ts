@@ -51,7 +51,7 @@ function lastHandledLines(kind: Watch['kind'], cursor: Cursor | null): string[] 
 }
 
 export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null {
-  const { db, config } = deps;
+  const { db, config, repositories } = deps;
   const row = db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
   if (row === undefined) return null;
   const watch = toWatch(row);
@@ -61,7 +61,7 @@ export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null 
   const runs = db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id = ? AND r.status <> 'queued' ORDER BY r.id DESC`)
     .all(id)
-    .map((r) => toRunRow(toRunWithTitle(r), deps.config));
+    .map((r) => toRunRow(toRunWithTitle(r), deps.config, deps.repositories));
 
   return {
     watch,
@@ -70,7 +70,7 @@ export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null 
     nextCheck: nextCheckFor(watch, src, deps),
     settings: {
       repository: watch.repository,
-      folder: config.repositories[watch.repository]?.folder ?? null,
+      folder: repositories.get(watch.repository)?.folder ?? null,
       intervalMs: intervalFor(watch, config),
       intervalIsDefault: watch.intervalMs === null,
       model: watch.model ?? config.runs.defaultModel,

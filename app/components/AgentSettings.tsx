@@ -22,7 +22,7 @@ type Props = {
   agents: Agent[];
   assignments: AgentAssignment[];
   templates: OperationTemplate[];
-  repositories: string[];
+  repositories: { name: string; status: string[] }[];
   workflows: { type: WorkflowType; label: string }[];
 };
 
@@ -196,6 +196,15 @@ function AssignmentSelect({
   );
 }
 
+function RepositoryStatus({ status }: { status: string[] }) {
+  if (status.length === 0) return null;
+  return (
+    <p className="field-hint" role="status">
+      Repository setup needs attention: {status.join('; ')}
+    </p>
+  );
+}
+
 function TemplateForm({
   workflowType,
   template,
@@ -267,17 +276,19 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
               agents={agents}
               onResult={onResult}
             />
-            {repositories.map((repository) => (
-              <AssignmentSelect
-                key={repository}
-                id={`${repository}-${type}`}
-                label={repository}
-                repository={repository}
-                workflowType={type}
-                slot={slot(repository, type)}
-                agents={agents}
-                onResult={onResult}
-              />
+            {repositories.map(({ name, status }) => (
+              <div key={name}>
+                <AssignmentSelect
+                  id={`${name}-${type}`}
+                  label={name}
+                  repository={name}
+                  workflowType={type}
+                  slot={slot(name, type)}
+                  agents={agents}
+                  onResult={onResult}
+                />
+                <RepositoryStatus status={status} />
+              </div>
             ))}
             <TemplateForm workflowType={type} template={templates.find((t) => t.workflowType === type)} />
           </div>

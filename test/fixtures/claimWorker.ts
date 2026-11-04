@@ -4,10 +4,13 @@ import { systemClock } from '../../src/core/domain/types';
 import { DataDir } from '../../src/core/files/dataDir';
 import { QueueService } from '../../src/core/queue/queueService';
 import { testConfig } from '../helpers/config';
+import { RepositoryService } from '../../src/core/repositories/repositoryService';
 
 const { file, root, barrier } = workerData as { file: string; root: string; barrier: SharedArrayBuffer };
 const db = openDb(file);
-const queue = new QueueService(db, systemClock, new DataDir(root), testConfig());
+const config = testConfig();
+const repositories = new RepositoryService(db, config);
+const queue = new QueueService(db, systemClock, new DataDir(root), config, repositories);
 
 const gate = new Int32Array(barrier);
 Atomics.add(gate, 0, 1);

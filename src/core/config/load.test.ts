@@ -85,8 +85,8 @@ describe('loadConfig', () => {
     expect(error.message).toContain('teams.chatId');
   });
 
-  test('expands ~ and keeps spaces in repository folder', () => {
-    const { dir, file } = writeConfig({
+  test('ignores legacy repositories at runtime', () => {
+    const { file } = writeConfig({
       ...fullConfig,
       repositories: {
         pages: { folder: '~/My Work/pages', gitlab: 'corp', validate: [] },
@@ -94,29 +94,26 @@ describe('loadConfig', () => {
       },
     });
     const config = loadConfig({ path: file, env: {} });
-    expect(config.repositories.pages.folder).toBe(path.join(os.homedir(), 'My Work/pages'));
-    expect(config.repositories.local.folder).toBe(path.join(dir, 'x'));
+    expect(config).not.toHaveProperty('repositories');
   });
 
-  test('rejects unknown connection reference', () => {
+  test('ignores unknown legacy repository connection references', () => {
     const { file } = writeConfig({
       ...fullConfig,
       repositories: { pages: { folder: '/x', gitlab: 'nope', validate: [] } },
     });
-    const error = captureError(() => loadConfig({ path: file, env: {} }));
-    expect(error).toBeInstanceOf(ConfigError);
-    expect(error.message).toContain('repositories.pages.gitlab');
+    expect(loadConfig({ path: file, env: {} })).not.toHaveProperty('repositories');
   });
 
-  test('rejects unknown jira connection reference', () => {
+  test('ignores unknown legacy Jira connection references', () => {
     const { file } = writeConfig({
       ...fullConfig,
       repositories: { pages: { folder: '/x', gitlab: 'corp', jira: 'nope', validate: [] } },
     });
-    expect(() => loadConfig({ path: file, env: {} })).toThrow('repositories.pages.jira');
+    expect(loadConfig({ path: file, env: {} })).not.toHaveProperty('repositories');
   });
 
-  test('reports unknown connection references together with other issues', () => {
+  test('reports config issues without validating legacy repository references', () => {
     const { file } = writeConfig({
       ...fullConfig,
       copilotBin: 42,
@@ -125,16 +122,14 @@ describe('loadConfig', () => {
     const error = captureError(() => loadConfig({ path: file, env: {} }));
     expect(error).toBeInstanceOf(ConfigError);
     expect(error.message).toContain('copilotBin');
-    expect(error.message).toContain('repositories.pages.gitlab');
-    expect(error.message).toContain('repositories.pages.jira');
   });
 
-  test('reference check tolerates malformed repositories and connections', () => {
-    const { file } = writeConfig({ repositories: { a: 'oops', b: { gitlab: 7 } }, gitlab: 'nope', jira: 5 });
-    const error = captureError(() => loadConfig({ path: file, env: {} }));
-    expect(error).toBeInstanceOf(ConfigError);
-    expect(error.message).toContain('repositories.a');
-    expect(error.message).toContain('gitlab');
+  test('ignores malformed legacy repository data at config-load time', () => {
+    const { file } = writeConfig({
+      repositories: { a: 'oops', b: { gitlab: 7 } },
+      gitlab: {},
+    });
+    expect(loadConfig({ path: file, env: {} })).not.toHaveProperty('repositories');
   });
 
   test('reports all issues at once', () => {
@@ -206,7 +201,7 @@ describe('loadConfig', () => {
       ...fullConfig,
       repositories: { pages: { folder: '/definitely/does/not/exist', gitlab: 'corp', validate: [] } },
     });
-    expect(loadConfig({ path: file, env: {} }).repositories.pages.folder).toBe('/definitely/does/not/exist');
+    expect(loadConfig({ path: file, env: {} })).not.toHaveProperty('repositories');
   });
 
   test('doneStatusIds distinguishes absent from empty', () => {

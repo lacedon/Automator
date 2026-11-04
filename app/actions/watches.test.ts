@@ -26,11 +26,16 @@ let core: Core;
 
 beforeEach(() => {
   mrLookup.mockReset();
-  core = createCore(testConfig(), {
-    clock: fakeClock(),
-    notifier: { async notifyNeedsYou() {} },
-    gitlab: () => ({ mr: mrLookup }) as unknown as GitLabClient,
-  });
+  const config = testConfig();
+  core = createCore(
+    config,
+    {
+      clock: fakeClock(),
+      notifier: { async notifyNeedsYou() {} },
+      gitlab: () => ({ mr: mrLookup }) as unknown as GitLabClient,
+    },
+    { repositories: config.repositories },
+  );
   holder.core = core;
   revalidatePath.mockClear();
   redirect.mockClear();

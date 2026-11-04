@@ -1,4 +1,5 @@
 import type { Config } from '../config/schema';
+import type { Repository } from '../repositories/repositoryService';
 import { fetchWithRetry, HttpError, type FetchLike } from '../http/fetchWithRetry';
 
 export type JiraIssue = {
@@ -74,9 +75,9 @@ export function jiraBaseUrl(baseUrl: string): string {
 }
 
 // null when the Repository has no Jira connection.
-export function jiraBrowseUrl(config: Config, repository: string, key: string): string | null {
-  const connection = config.repositories[repository]?.jira;
-  const conn = connection === undefined ? undefined : config.jira.connections[connection];
+export function jiraBrowseUrl(config: Config, repository: Repository | null, key: string): string | null {
+  const connection = repository?.jira;
+  const conn = connection == null ? undefined : config.jira.connections[connection];
   return conn === undefined ? null : `${jiraBaseUrl(conn.baseUrl)}/browse/${key}`;
 }
 

@@ -23,7 +23,10 @@ export default function AgentSettingsPage() {
         agents={core.agents.listAgents()}
         assignments={core.agents.listAssignments()}
         templates={templates}
-        repositories={Object.keys(core.config.repositories)}
+        repositories={core.repositories.list().map((repository) => ({
+          name: repository.name,
+          status: core.repositories.status(repository.name),
+        }))}
         workflows={WORKFLOWS}
       />
     </>

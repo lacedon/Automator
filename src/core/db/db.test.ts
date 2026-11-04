@@ -89,12 +89,20 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
-  test('migrate is idempotent and sets user_version 6', () => {
+  test('migrate is idempotent and sets user_version 7', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(6);
+    expect(db.pragma('user_version', { simple: true })).toBe(7);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(6);
+    expect(db.pragma('user_version', { simple: true })).toBe(7);
+    expect(db.pragma('table_info(repositories)')).toEqual([
+      expect.objectContaining({ name: 'name' }),
+      expect.objectContaining({ name: 'folder' }),
+      expect.objectContaining({ name: 'gitlab' }),
+      expect.objectContaining({ name: 'github' }),
+      expect.objectContaining({ name: 'jira' }),
+      expect.objectContaining({ name: 'validate_json' }),
+    ]);
     expect(db.pragma('table_info(agents)')).toEqual([
       expect.objectContaining({ name: 'id' }),
       expect.objectContaining({ name: 'name' }),
@@ -114,6 +122,7 @@ describe('db', () => {
       'operation_templates',
       'project_repositories',
       'projects',
+      'repositories',
       'runs',
       'watches',
       'worker_lock',
@@ -195,7 +204,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(6);
+    expect(db.pragma('user_version', { simple: true })).toBe(7);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

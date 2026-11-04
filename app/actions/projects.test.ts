@@ -15,7 +15,12 @@ const { createProject, renameProject, deleteProject, setProjectRepositories, sel
 let core: Core;
 
 beforeEach(() => {
-  core = createCore(testConfig(), { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } });
+  const config = testConfig();
+  core = createCore(
+    config,
+    { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } },
+    { repositories: config.repositories },
+  );
   holder.core = core;
   jar.set.mockClear();
   jar.delete.mockClear();
@@ -40,7 +45,7 @@ test('rename, set repositories and delete work through the service', async () =>
   const project = core.projects.create('A');
   if (!project.ok) throw new Error('setup');
   const id = project.value.id;
-  const repo = Object.keys(core.config.repositories)[0]!;
+  const repo = core.repositories.list()[0]!.name;
   expect(await renameProject(id, 'B')).toEqual({ ok: true });
   expect(await setProjectRepositories(id, [repo])).toEqual({ ok: true });
   expect(core.projects.get(id)).toMatchObject({ name: 'B', repositories: [repo] });

@@ -2,6 +2,7 @@ import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
 import type { EventSummary, Snapshot } from '../prechecks/types';
 import { jiraBrowseUrl } from '../prechecks/jiraClient';
+import type { Repository } from '../repositories/repositoryService';
 
 export const MAX_EVENTS_CHARS = 100_000;
 const RECENT_RUNS = 3;
@@ -31,19 +32,19 @@ export function buildWatchPrompt(input: {
   run: Run;
   snapshot: Snapshot;
   recent: RecentRun[];
-  config: Config;
+  repository: Repository;
   resultPath: string;
   hasJiraToken: boolean;
   agentInstructions: string;
   operationTemplate: string | null;
 }): string {
-  const { watch, run, snapshot, recent, config, resultPath, hasJiraToken } = input;
+  const { watch, run, snapshot, recent, repository, resultPath, hasJiraToken } = input;
   const sections = [rulesSection(watch, snapshot), ...agentSections(input.agentInstructions, input.operationTemplate)];
   sections.push(
     watchSection(watch),
     runSection(watch, run, snapshot, hasJiraToken),
     recentSection(recent),
-    validationSection(config, watch.repository),
+    validationSection(repository),
     resultSection(resultPath),
   );
   return join(sections);
@@ -74,28 +75,29 @@ Stop, change nothing further, and finish with outcome "needs-you" instead of gue
 export function buildAdhocPrompt(input: {
   run: Run;
   config: Config;
+  repository: Repository;
   resultPath: string;
   agentInstructions: string;
   operationTemplate: string | null;
 }): string {
-  const { run, config, resultPath } = input;
+  const { run, config, repository, resultPath } = input;
   const sections = [`## Rules\n\n${ADHOC_RULES}`, ...agentSections(input.agentInstructions, input.operationTemplate)];
-  if (run.ticketKey !== null) sections.push(ticketSection(run, config));
+  if (run.ticketKey !== null) sections.push(ticketSection(run, config, repository));
   const message = run.adhocPrompt?.trim() || '(none)';
   sections.push(
     run.parentRunId === null && run.sessionId === null
       ? `## Request\n\nRepository: ${run.repository}\n\n${message}`
       : `## Follow-up message\n\nThis continues the earlier conversation in this session.\n\nRepository: ${run.repository}\n\n${message}`,
-    validationSection(config, run.repository),
+    validationSection(repository),
     resultSection(resultPath),
   );
   return join(sections);
 }
 
-function ticketSection(run: Run, config: Config): string {
+function ticketSection(run: Run, config: Config, repository: Repository): string {
   const heading = run.ticketTitle === null ? run.ticketKey : `${run.ticketKey}: ${run.ticketTitle}`;
   const lines = ['## Ticket', '', `- ${heading}`];
-  const url = jiraBrowseUrl(config, run.repository, run.ticketKey!);
+  const url = jiraBrowseUrl(config, repository, run.ticketKey!);
   if (url !== null) lines.push(`- ${url}`);
   return lines.join('\n');
 }
@@ -199,8 +201,8 @@ function recentSection(recent: RecentRun[]): string {
   return `## Recent Runs\n\n${lines.join('\n')}`;
 }
 
-function validationSection(config: Config, repository: string): string {
-  const commands = config.repositories[repository]?.validate ?? [];
+function validationSection(repository: Repository): string {
+  const commands = repository.validate;
   if (commands.length === 0) return '## Validation\n\nNone configured: escalate before pushing.';
   return `## Validation\n\nRun these from the Repository folder before you commit or push:\n\n${commands.map((c) => `- \`${c}\``).join('\n')}`;
 }

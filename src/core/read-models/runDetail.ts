@@ -50,7 +50,7 @@ export async function runDetail(deps: ReadDeps, id: number): Promise<RunDetailVi
   return {
     run,
     watchTitle,
-    ticket: ticketLink(run, config),
+    ticket: ticketLink(run, config, deps.repositories),
     tookMs: tookMs(run),
     transcript,
     result,

@@ -29,6 +29,9 @@ export default function ConfigurationSettingsPage() {
       <p>
         <Link href="/settings/agents">Open Agent Settings →</Link>
       </p>
+      <p>
+        <Link href="/settings/repositories">Open Repository Settings →</Link>
+      </p>
       {error !== null ? <ErrorBox error={error} /> : config !== undefined && <ConfigForm initial={config} />}
       <section aria-labelledby="restart-application-heading">
         <h2 id="restart-application-heading" className="section-h">

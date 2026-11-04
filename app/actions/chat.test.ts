@@ -13,7 +13,12 @@ const { sendRunMessage } = await import('./chat');
 let core: Core;
 
 beforeEach(() => {
-  core = createCore(testConfig(), { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } });
+  const config = testConfig();
+  core = createCore(
+    config,
+    { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } },
+    { repositories: config.repositories },
+  );
   holder.core = core;
   revalidatePath.mockClear();
 });

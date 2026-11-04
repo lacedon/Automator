@@ -35,5 +35,20 @@ export function testConfig(overrides: DeepPartial<Config> = {}): Config {
     gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
     jira: { connections: { corp: { baseUrl: 'https://jira.example.com', tokenEnv: 'JIRA_TOKEN' } } },
   });
-  return merge({ ...parsed, configDir: root }, overrides) as Config;
+  return merge(
+    {
+      ...parsed,
+      configDir: root,
+      repositories: {
+        pages: {
+          folder: path.join(root, 'repos', 'pages'),
+          gitlab: 'corp',
+          jira: 'corp',
+          validate: [],
+        },
+        api: { folder: path.join(root, 'repos', 'api'), gitlab: 'corp', validate: [] },
+      },
+    },
+    overrides,
+  ) as Config;
 }

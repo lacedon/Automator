@@ -17,8 +17,9 @@ function refresh(): void {
 }
 
 function unknownRepository(name: string): AppError | null {
-  const known = Object.keys(getCore().config.repositories);
-  return known.includes(name) ? null : { code: 'UNKNOWN_REPOSITORY', name, known, attemptFile: null };
+  const repositories = getCore().repositories;
+  const known = repositories.list().map((repository) => repository.name);
+  return repositories.get(name) !== null ? null : { code: 'UNKNOWN_REPOSITORY', name, known, attemptFile: null };
 }
 
 const AGENT_FIELDS = ['id', 'name', 'instructions'] as const;

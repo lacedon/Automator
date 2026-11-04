@@ -1,12 +1,14 @@
 import type { Config } from '../config/schema';
 import { parseTarget } from '../domain/targets';
 import type { Watch } from '../domain/types';
+import type { RepositoryReader } from '../repositories/repositoryService';
 import type { GitLabClient } from './gitlabClient';
 import { MrPrecheck, type Me, type ReviewHost } from './mrPrecheck';
 
 export type GitLabPrecheckDeps = {
   clientFor(conn: string): GitLabClient;
   config: Config;
+  repositories: RepositoryReader;
   meCache: { get(conn: string): Promise<Me> };
 };
 
@@ -16,7 +18,7 @@ export class GitLabPrecheck extends MrPrecheck {
       name: 'gitlab',
       ciName: 'pipeline',
       async connect(w: Watch) {
-        const parsed = parseTarget(w.targetUrl, deps.config, w.repository);
+        const parsed = parseTarget(w.targetUrl, deps.config, deps.repositories.get(w.repository));
         if (!parsed.ok) throw new Error(`Invalid MR target ${w.targetUrl}`);
         const gitlab = parsed.value.gitlab;
         if (gitlab === undefined) throw new Error(`Not a GitLab merge request: ${w.targetUrl}`);

@@ -50,15 +50,19 @@ function setup(opts: { onLockLost?: () => void } = {}) {
   const clock = fakeClock();
   const copilot = fakeCopilot();
   const notified: NeedsYouEvent[] = [];
-  const core = createCore(config, {
-    clock,
-    copilot: copilot.launcher,
-    notifier: {
-      async notifyNeedsYou(e) {
-        notified.push(e);
+  const core = createCore(
+    config,
+    {
+      clock,
+      copilot: copilot.launcher,
+      notifier: {
+        async notifyNeedsYou(e) {
+          notified.push(e);
+        },
       },
     },
-  });
+    { repositories: config.repositories },
+  );
   core.db.prepare("UPDATE agents SET instructions = 'Test Agent instructions.'").run();
   acquireWorkerLock(core.db, clock, process.pid, () => false);
   const loop = new WorkerLoop(core, opts);
