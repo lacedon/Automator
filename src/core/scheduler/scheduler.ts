@@ -7,6 +7,7 @@ import { precheckFor, type Prechecks } from '../prechecks/index';
 import type { PrecheckResult } from '../prechecks/types';
 import type { QueueService } from '../queue/queueService';
 import { closeWatch, enterNeedsYou } from '../watches/needsYou';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 const MAX_CHECK_FAILURES = 3;
 
@@ -15,6 +16,7 @@ export interface SchedulerDeps {
   clock: Clock;
   config: Config;
   queue: QueueService;
+  repositories: Pick<RepositoryService, 'status'>;
   prechecks: Prechecks;
   onNeedsYou(e: NeedsYouEvent): void | Promise<void>;
 }
@@ -73,7 +75,14 @@ export class Scheduler {
   }
 
   private check(watch: Watch): Promise<PrecheckResult> {
-    const { prechecks } = this.deps;
+    const { prechecks, repositories } = this.deps;
+    const issues = repositories.status(watch.repository);
+    if (issues.length > 0) {
+      return Promise.resolve({
+        kind: 'blocked',
+        message: `Repository "${watch.repository}" is invalid: ${issues.join('; ')}`,
+      });
+    }
     if (watch.kind === 'jira' && !prechecks.jira.hasToken(watch)) {
       return Promise.resolve({ kind: 'changed', reason: 'interval' });
     }
@@ -110,6 +119,9 @@ export class Scheduler {
             break;
           case 'close':
             closeWatch(db, watchId, result.reason, now);
+            return false;
+          case 'blocked':
+            needsYou(result.message);
             return false;
           case 'failed':
             failures = watch.checkFailures + 1;

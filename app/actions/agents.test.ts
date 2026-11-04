@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { createCore, type Core } from '@core/index';
+import { AgentSettings } from '../components/AgentSettings';
 import { fakeClock } from '../../test/helpers/clock';
 import { testConfig } from '../../test/helpers/config';
 
@@ -14,7 +17,12 @@ const { saveAgent, assignAgent, clearRepositoryAgent, saveTemplate, agentDeletio
 let core: Core;
 
 beforeEach(() => {
-  core = createCore(testConfig(), { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } });
+  const config = testConfig();
+  core = createCore(
+    config,
+    { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } },
+    { repositories: config.repositories },
+  );
   holder.core = core;
   revalidatePath.mockClear();
 });
@@ -55,6 +63,7 @@ test('saveAgent rejects a blank name and keeps the submitted values', async () =
 });
 
 test('assignAgent sets default and Repository assignments', async () => {
+  core.config.repositories = {};
   const agent = core.agents.createAgent({ name: 'A', instructions: 'x' });
   expect(await assignAgent(null, 'mr-watch', agent.id)).toEqual({ ok: true });
   expect(await assignAgent('pages', 'jira-watch', agent.id)).toEqual({ ok: true });
@@ -75,6 +84,31 @@ test('assignAgent validates Workflow, Repository and Agent', async () => {
   });
   expect(await assignAgent('pages', 'mr-watch', 9999)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
   expect(core.agents.listAssignments()).toEqual(before);
+});
+
+test('Agent Settings shows actionable status for an invalid persisted Repository', () => {
+  const missingFolder = `${core.config.configDir}/missing-agent-repository`;
+  core.db
+    .prepare(
+      `INSERT INTO repositories (name, folder, gitlab, github, jira, validate_json)
+       VALUES ('broken', ?, 'corp', NULL, 'missing-jira', '[]')`,
+    )
+    .run(missingFolder);
+  const status = core.repositories.status('broken');
+  const markup = renderToStaticMarkup(
+    createElement(AgentSettings, {
+      agents: [],
+      assignments: [],
+      templates: [],
+      repositories: [{ name: 'broken', status }],
+      workflows: [{ type: 'mr-watch', label: 'MR Watch' }],
+    }),
+  );
+
+  expect(markup).toContain('Repository setup needs attention');
+  expect(markup).toContain(`Folder does not exist: ${missingFolder}`);
+  expect(markup).toContain('Unknown Jira connection &quot;missing-jira&quot;');
+  expect(markup).not.toContain('GITLAB_TOKEN');
 });
 
 test('clearRepositoryAgent removes only the Repository override', async () => {

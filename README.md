@@ -48,13 +48,15 @@ Set up and start:
 
 ```sh
 npm install
-cp automator.config.example.json automator.config.json   # then edit Repositories, connections, Teams chat
+cp automator.config.example.json automator.config.json   # then edit connections and Teams chat
 cp .env.example .env                                     # then fill in GITLAB_TOKEN (and Jira tokens if used)
 npm run build
 npm start
 ```
 
 `npm start` runs the dashboard and the worker together. Open <http://127.0.0.1:4317> (set `PORT` to change the port).
+
+Add your local codebases on **Settings → Repositories**. If your existing `automator.config.json` has a `repositories` section, Automator imports it into SQLite the first time it starts with that database. After import, the database is the source of truth; later edits to the legacy config section are ignored.
 
 Ctrl-C stops the dashboard at once, but the worker first waits for the active Run to finish (up to `runs.timeoutMinutes`) and records its result. Press Ctrl-C again (a second or more later) to force it to stop: the active Copilot process is killed, and on the next start the Run is marked interrupted and its Watch moves to Needs you.
 
@@ -95,7 +97,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 
 - **Single user, localhost only.** No login. The dashboard answers only requests whose `Host` is `127.0.0.1`, `localhost` or `[::1]` (403 otherwise), so a web page can't reach it through DNS rebinding.
 - **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs Copilot. Both use the same SQLite database.
-- **Repositories:** the configuration maps Repository names to local folders and to service connections (GitLab and/or GitHub host and credential, and the Jira connection where needed). A Repository names a `gitlab` and/or a `github` connection; a target URL picks the connection whose host matches. Every Watch and ad-hoc Run must name a Repository. Copilot starts directly in that folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
+- **Repositories:** Repository records are managed in Settings and stored in SQLite. Each names a local folder, a GitLab and/or GitHub connection, an optional Jira connection, and validation commands. Connection hosts and credential environment-variable references remain in config. Every Watch and ad-hoc Run refers to a Repository by name; target URLs are matched against its named service connections. Copilot starts directly in the folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
 - **One global queue:** all Copilot Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.
 - **Fresh session per Run:** every Run starts a new Copilot session. Its prompt includes the Watch instructions, summaries of recent Runs and any resolution note you left.
 
@@ -265,7 +267,7 @@ Failures:
 ## Configuration and storage
 
 - A validated, gitignored local **JSON config** holds:
-  - Repository mappings and service connections,
+  - GitLab, GitHub and Jira service connections,
   - schedules and working hours,
   - Jira settings,
   - cleanup settings,
@@ -274,9 +276,12 @@ Failures:
 
   A credential-free example config is committed.
 
+- **Repositories** (local folders, connection names and validation commands) are stored in SQLite and managed on **Settings → Repositories**. Existing config entries are imported once when the database is empty; after import, the legacy `repositories` section is ignored.
+- A Repository must have a GitLab or GitHub connection and a valid local folder. Its configured validation commands are run as part of Runs. A Repository with Watches cannot be deleted; deleting one never deletes its local files.
+
 - **Secrets** (GitLab and Jira tokens) are read from environment variables or a gitignored `.env`. They are never added to prompts or result files.
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
-- The Settings page edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
+- Settings manages Repositories and edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
 - Restart is a separate, confirmed Settings action. The supervisor drains active work before restarting the web process and worker.
 
 ## Cleanup

@@ -1,6 +1,7 @@
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
+import { testRepositoryReader } from '../../../test/helpers/repositories';
 import {
   comment,
   history,
@@ -84,6 +85,7 @@ function setup(fixture: JiraFixture = {}, opts: { config?: Config; env?: Env } =
   const clients: string[] = [];
   const precheck = new JiraPrecheck({
     config,
+    repositories: testRepositoryReader(config),
     secrets,
     clientFor: (conn) => {
       clients.push(conn);
@@ -512,6 +514,7 @@ describe('createPrechecks', () => {
     const prechecks = createPrechecks({
       config,
       secrets: resolveSecrets(config, defaultEnv),
+      repositories: testRepositoryReader(config),
     });
     expect(precheckFor(prechecks, 'mr')).toBe(prechecks.mr);
     expect(precheckFor(prechecks, 'jira')).toBeInstanceOf(JiraPrecheck);

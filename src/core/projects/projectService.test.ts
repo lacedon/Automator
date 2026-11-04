@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import { DataDir } from '../files/dataDir';
 import { createReadModels } from '../read-models/index';
 import { ProjectService } from './projectService';
@@ -19,8 +20,9 @@ function setup() {
     cleanup();
     fs.rmSync(config.configDir, { recursive: true, force: true });
   });
-  const projects = new ProjectService(db, config);
-  const read = createReadModels({ db, config, clock: fakeClock(), dataDir: new DataDir(config.dataDir) });
+  const repositories = testRepositories(db, config);
+  const projects = new ProjectService(db, repositories);
+  const read = createReadModels({ db, config, clock: fakeClock(), dataDir: new DataDir(config.dataDir), repositories });
   return { db, projects, read };
 }
 
@@ -64,8 +66,21 @@ describe('ProjectService', () => {
       ok: false,
       error: { code: 'UNKNOWN_REPOSITORY', name: 'nope' },
     });
+
     expect(projects.setRepositories(999, [])).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
     expect(projects.delete(999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+
+  test('Repository membership validation uses the SQLite list', () => {
+    const { db, projects } = setup();
+    const project = projects.create('A');
+    if (!project.ok) throw new Error('setup');
+    db.prepare('DELETE FROM repositories WHERE name = ?').run('pages');
+
+    expect(projects.setRepositories(project.value.id, ['pages'])).toMatchObject({
+      ok: false,
+      error: { code: 'UNKNOWN_REPOSITORY', name: 'pages', known: ['api'] },
+    });
   });
 
   test('deleting a Project unassigns its repositories', () => {
@@ -112,8 +127,8 @@ describe('Project scope in read models', () => {
     if (!a.ok) throw new Error('setup');
     projects.setRepositories(a.value.id, ['pages']);
     expect(read.formOptions().repositories.map((r) => [r.name, r.project])).toEqual([
-      ['pages', 'A'],
       ['api', null],
+      ['pages', 'A'],
     ]);
   });
 });

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { loadConfig, loadDotenv, resolveSecrets, type Secrets } from './config/load';
+import { loadConfig, loadDotenv, readRawConfig, resolveSecrets, type Secrets } from './config/load';
 import type { Config } from './config/schema';
 import { migrate } from './db/migrate';
 import { openDb, type Database } from './db/open';
@@ -15,6 +15,8 @@ import { createGitHubClient, type GitHubClient } from './prechecks/githubClient'
 import { createPrechecks } from './prechecks/index';
 import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
 import { ProjectService } from './projects/projectService';
+import { importLegacyRepositories } from './repositories/legacyImport';
+import { RepositoryService } from './repositories/repositoryService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
 import { createCopilotLauncher, type CopilotLauncher } from './runs/copilotLauncher';
@@ -36,6 +38,7 @@ export { DataDir } from './files/dataDir';
 export { CleanupService } from './cleanup/cleanupService';
 export { AgentService } from './agents/agentService';
 export { ProjectService } from './projects/projectService';
+export { RepositoryService, type Repository, type RepositoryInput } from './repositories/repositoryService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';
 export type { GitHubClient } from './prechecks/githubClient';
@@ -85,6 +88,7 @@ export interface Core {
   cleanup: CleanupService;
   agents: AgentService;
   projects: ProjectService;
+  repositories: RepositoryService;
   notifier: Notifier;
   read: ReadModels;
   close(): void;
@@ -135,11 +139,13 @@ function mrPreview(deps: Pick<Deps, 'gitlab' | 'github'>): NonNullable<WatchServ
   };
 }
 
-export function createCore(config: Config, overrides: Partial<Deps> = {}): Core {
+export function createCore(config: Config, overrides: Partial<Deps> = {}, legacyConfig?: unknown): Core {
   const secrets = resolveSecrets(config, process.env);
   const dataDir = new DataDir(config.dataDir);
   const db = openDb(dataDir.db);
   migrate(db);
+  if (legacyConfig !== undefined) importLegacyRepositories(db, legacyConfig, config.configDir);
+  const repositories = new RepositoryService(db, config);
 
   const copilot = overrides.copilot ?? createCopilotLauncher(config, secrets);
   const deps: Deps = {
@@ -156,13 +162,14 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
   const prechecks = createPrechecks({
     config,
     secrets,
+    repositories,
     gitlabClientFor: deps.gitlab,
     githubClientFor: deps.github,
     jiraClientFor: deps.jira,
     gitlabMeCache: metaMeCache(db, 'gitlab', deps.gitlab, secrets),
     githubMeCache: metaMeCache(db, 'github', deps.github, secrets),
   });
-  const queue = new QueueService(db, clock, dataDir, config, {
+  const queue = new QueueService(db, clock, dataDir, config, repositories, {
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
   const agents = new AgentService(db);
@@ -170,6 +177,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     db,
     clock,
     config,
+    repositories,
     dataDir,
     launcher: copilot,
     prechecks,
@@ -183,15 +191,16 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     dataDir,
     deps,
     executorDeps,
-    watches: new WatchService({ db, clock, config, queue, dataDir, preview: mrPreview(deps) }),
+    watches: new WatchService({ db, clock, config, repositories, queue, dataDir, preview: mrPreview(deps) }),
     queue,
-    scheduler: new Scheduler({ db, clock, config, queue, prechecks, onNeedsYou }),
+    scheduler: new Scheduler({ db, clock, config, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, dataDir }),
     agents,
-    projects: new ProjectService(db, config, () => clock.now()),
+    projects: new ProjectService(db, repositories, () => clock.now()),
+    repositories,
     notifier,
-    read: createReadModels({ db, config, clock, dataDir }),
+    read: createReadModels({ db, config, clock, dataDir, repositories }),
     close() {
       if (db.open) db.close();
     },
@@ -201,5 +210,5 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
 export function bootstrap(opts: { configPath?: string } = {}): Core {
   const file = path.resolve(opts.configPath ?? process.env.AUTOMATOR_CONFIG ?? 'automator.config.json');
   loadDotenv(path.dirname(file));
-  return createCore(loadConfig({ path: file }));
+  return createCore(loadConfig({ path: file }), {}, readRawConfig(file));
 }

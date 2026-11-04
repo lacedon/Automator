@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig, type DeepPartial } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
@@ -42,7 +43,8 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const config = testConfig(opts.configOverrides);
-  const queue = new QueueService(t.db, clock, new DataDir(path.dirname(t.file)), config);
+  const repositories = testRepositories(t.db, config);
+  const queue = new QueueService(t.db, clock, new DataDir(path.dirname(t.file)), config, repositories);
   const script = opts.script ?? (() => ({ kind: 'unchanged' }));
   const mr = stubPrecheck(script);
   const jira = stubPrecheck(script);
@@ -55,7 +57,7 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   const onNeedsYou = vi.fn((e: NeedsYouEvent): void | Promise<void> => {
     events.push(e);
   });
-  const scheduler = new Scheduler({ db: t.db, clock, config, queue, prechecks, onNeedsYou });
+  const scheduler = new Scheduler({ db: t.db, clock, config, queue, repositories, prechecks, onNeedsYou });
   return { db: t.db, clock, config, scheduler, mrCalls: mr.calls, jiraCalls: jira.calls, events, onNeedsYou };
 }
 
@@ -177,6 +179,24 @@ describe('Scheduler.tick', () => {
     });
     expect(events).toMatchObject([
       { watchId: id, runId: null, reason: 'GitLab token rejected (401)', teamsStatus: 'pending' },
+    ]);
+  });
+
+  test('invalid Repository moves a scheduled Watch to needs_you before precheck', async () => {
+    const { db, clock, scheduler, mrCalls, events } = setup({
+      configOverrides: { teams: { chatId: 'chat-1' } },
+    });
+    const id = dueWatch(db, clock.now() - MIN);
+    db.prepare('UPDATE repositories SET gitlab = ? WHERE name = ?').run('missing-connection', 'pages');
+
+    expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
+    expect(watch(db, id)).toMatchObject({
+      state: 'needs_you',
+      needsYouReason: expect.stringContaining('Unknown GitLab connection "missing-connection"'),
+    });
+    expect(mrCalls).toEqual([]);
+    expect(events).toMatchObject([
+      { watchId: id, reason: expect.stringContaining('Unknown GitLab connection "missing-connection"') },
     ]);
   });
 

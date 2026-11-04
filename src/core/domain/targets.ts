@@ -1,6 +1,7 @@
 import type { Config } from '../config/schema';
 import { err, ok, type Result } from './result';
 import type { WatchKind } from './types';
+import type { Repository } from '../repositories/repositoryService';
 
 export type ParsedTarget = {
   kind: WatchKind;
@@ -40,11 +41,11 @@ function jiraTarget(conn: string, baseUrl: string, key: string): ParsedTarget {
   };
 }
 
-export function parseTarget(input: string, config: Config, repository?: string): Result<ParsedTarget> {
+export function parseTarget(input: string, config: Config, repository?: Repository | null): Result<ParsedTarget> {
   const trimmed = input.trim();
 
   if (JIRA_KEY.test(trimmed)) {
-    const conn = repository === undefined ? undefined : config.repositories[repository]?.jira;
+    const conn = repository?.jira ?? undefined;
     const connection = conn === undefined ? undefined : config.jira.connections[conn];
     if (conn === undefined || connection === undefined)
       return invalid('Jira key needs a Repository with a Jira connection');
@@ -63,8 +64,9 @@ export function parseTarget(input: string, config: Config, repository?: string):
   const host = url.host.toLowerCase();
 
   const mr = MR_PATH.exec(url.pathname);
-  const gitlabConn = Object.entries(config.gitlab).find(([, c]) => hostOf(c.host) === host)?.[0];
-  if (mr && gitlabConn !== undefined) {
+  const gitlabConn = repository?.gitlab;
+  const gitlabConfig = gitlabConn === null || gitlabConn === undefined ? undefined : config.gitlab[gitlabConn];
+  if (mr && gitlabConn !== null && gitlabConn !== undefined && gitlabConfig && hostOf(gitlabConfig.host) === host) {
     const projectPath = mr[1]!;
     const iid = Number(mr[2]);
     return ok({
@@ -76,8 +78,9 @@ export function parseTarget(input: string, config: Config, repository?: string):
   }
 
   const pr = PR_PATH.exec(url.pathname);
-  const githubConn = Object.entries(config.github).find(([, c]) => hostOf(c.host) === host)?.[0];
-  if (pr && githubConn !== undefined) {
+  const githubConn = repository?.github;
+  const githubConfig = githubConn === null || githubConn === undefined ? undefined : config.github[githubConn];
+  if (pr && githubConn !== null && githubConn !== undefined && githubConfig && hostOf(githubConfig.host) === host) {
     const owner = pr[1]!;
     const repo = pr[2]!;
     const number = Number(pr[3]);
@@ -90,9 +93,10 @@ export function parseTarget(input: string, config: Config, repository?: string):
   }
 
   const browse = JIRA_BROWSE_PATH.exec(url.pathname);
-  const jiraConn = Object.entries(config.jira.connections).find(([, c]) => hostOf(c.baseUrl) === host);
-  if (browse && JIRA_KEY.test(browse[1]!) && jiraConn) {
-    return ok(jiraTarget(jiraConn[0], jiraConn[1].baseUrl, browse[1]!));
+  const jiraConnectionName = repository?.jira;
+  const jiraConn = jiraConnectionName ? config.jira.connections[jiraConnectionName] : undefined;
+  if (browse && JIRA_KEY.test(browse[1]!) && jiraConnectionName && jiraConn && hostOf(jiraConn.baseUrl) === host) {
+    return ok(jiraTarget(jiraConnectionName, jiraConn.baseUrl, browse[1]!));
   }
 
   url.hash = '';

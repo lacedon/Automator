@@ -196,4 +196,16 @@ CREATE TABLE project_repositories (
 CREATE INDEX ix_project_repositories_project ON project_repositories(project_id);
 `,
   },
+  {
+    version: 7,
+    sql: `CREATE TABLE repositories (
+  name TEXT PRIMARY KEY COLLATE NOCASE,
+  folder TEXT NOT NULL,
+  gitlab TEXT,
+  github TEXT,
+  jira TEXT,
+  validate_json TEXT NOT NULL
+);
+`,
+  },
 ];

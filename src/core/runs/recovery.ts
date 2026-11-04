@@ -19,7 +19,7 @@ export async function recoverInterruptedRuns(deps: RunExecutorDeps): Promise<num
   const runs = deps.db.prepare("SELECT * FROM runs WHERE status = 'running' ORDER BY id").all().map(toRun);
   for (const run of runs) {
     if (run.pid !== null && run.pid > 0) killGroupIfAlive(run.pid);
-    const folder = deps.config.repositories[run.repository]?.folder;
+    const folder = deps.repositories.get(run.repository)?.folder;
     const branch =
       folder !== undefined && fs.existsSync(folder) ? await (deps.currentBranch ?? gitCurrentBranch)(folder) : null;
     await finalizeRun(deps, run, {

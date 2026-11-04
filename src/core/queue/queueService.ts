@@ -4,8 +4,9 @@ import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
 import { parseTarget } from '../domain/targets';
 import type { Clock, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
-import { unknownRepositoryError } from '../files/attempts';
+import { repositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 export interface EnqueueWatchInput {
   watchId: number;
@@ -59,6 +60,7 @@ export class QueueService {
     private readonly clock: Clock,
     private readonly dataDir: DataDir,
     private readonly config: Config,
+    private readonly repositories: RepositoryService,
     private readonly deps: QueueDeps = {},
   ) {}
 
@@ -162,8 +164,8 @@ export class QueueService {
             field: 'run',
             message: 'This Run has no Copilot session to continue',
           });
-        const unknown = unknownRepositoryError(this.config, this.dataDir, parent.repository, this.clock.now());
-        if (unknown) return err(unknown);
+        const invalidRepository = repositoryError(this.repositories, this.dataDir, parent.repository, this.clock.now());
+        if (invalidRepository) return err(invalidRepository);
         return ok({
           run: this.enqueueAdhoc({
             repository: parent.repository,
@@ -178,14 +180,14 @@ export class QueueService {
   }
 
   async requestAdhoc(input: AdhocRequest): Promise<Result<{ run: Run; warning?: string }>> {
-    const unknown = unknownRepositoryError(this.config, this.dataDir, input.repository, this.clock.now());
-    if (unknown) return err(unknown);
+    const invalidRepository = repositoryError(this.repositories, this.dataDir, input.repository, this.clock.now());
+    if (invalidRepository) return err(invalidRepository);
     let ticket: { key: string; title: string | null } | undefined;
     let warning: string | undefined;
     const prompt = input.prompt?.trim() || null;
     if (input.ticket !== undefined) {
       if (!this.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
-      const target = parseTarget(input.ticket, this.config, input.repository);
+      const target = parseTarget(input.ticket, this.config, this.repositories.get(input.repository));
       if (!target.ok)
         return err({
           code: 'INVALID_INPUT',

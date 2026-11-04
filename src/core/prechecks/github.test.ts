@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
+import { testRepositoryReader } from '../../../test/helpers/repositories';
 import type { MrCursor, Watch } from '../domain/types';
 import { fetchWithRetry } from '../http/fetchWithRetry';
 import { GitHubPrecheck } from './github';
@@ -131,9 +132,13 @@ function setup(fixture: Fixture = {}) {
   );
   const noSleep = (url: string, init: RequestInit) => fetchWithRetry(url, init, { sleep: async () => {} });
   const client = () => createGitHubClient('github.com', 'test-token', noSleep);
-  const config = testConfig({ github: { gh: { host: 'github.com', tokenEnv: 'GITHUB_TOKEN' } } });
+  const config = testConfig({
+    github: { gh: { host: 'github.com', tokenEnv: 'GITHUB_TOKEN' } },
+    repositories: { pages: { github: 'gh' } },
+  });
   const precheck = new GitHubPrecheck({
     config,
+    repositories: testRepositoryReader(config),
     clientFor: client,
     meCache: { get: async () => ({ id: me.id, username: me.login }) },
   });
@@ -322,9 +327,13 @@ describe('GitHubPrecheck', () => {
 
   test('bad credentials are an auth failure', async () => {
     setup();
-    const config = testConfig({ github: { gh: { host: 'github.com', tokenEnv: 'GITHUB_TOKEN' } } });
+    const config = testConfig({
+      github: { gh: { host: 'github.com', tokenEnv: 'GITHUB_TOKEN' } },
+      repositories: { pages: { github: 'gh' } },
+    });
     const precheck = new GitHubPrecheck({
       config,
+      repositories: testRepositoryReader(config),
       clientFor: () =>
         createGitHubClient('github.com', 'wrong', (u, i) => fetchWithRetry(u, i, { sleep: async () => {} })),
       meCache: { get: async () => ({ id: 1, username: 'me' }) },

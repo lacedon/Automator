@@ -10,7 +10,7 @@ export type FormOptions = {
   jiraEnabled: boolean;
 };
 
-export function formOptions({ config, db }: ReadDeps): FormOptions {
+export function formOptions({ config, db, repositories }: ReadDeps): FormOptions {
   const { runs } = config;
   const projectOf = new Map(
     (
@@ -20,10 +20,10 @@ export function formOptions({ config, db }: ReadDeps): FormOptions {
     ).map((r) => [r.repository, r.name]),
   );
   return {
-    repositories: Object.entries(config.repositories).map(([name, repo]) => ({
-      name,
+    repositories: repositories.list().map((repo) => ({
+      name: repo.name,
       folder: repo.folder,
-      project: projectOf.get(name) ?? null,
+      project: projectOf.get(repo.name) ?? null,
       host:
         (repo.gitlab && config.gitlab[repo.gitlab]?.host) || (repo.github && config.github[repo.github]?.host) || null,
     })),

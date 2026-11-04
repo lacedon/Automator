@@ -30,7 +30,7 @@ export function adhocView(deps: ReadDeps, scope: ProjectScope = null): { rows: A
     .map(toRunWithTitle)
     .filter((run) => inScope(run.repository))
     .map((withTitle) => {
-      const run = toRunRow(withTitle, deps.config);
+      const run = toRunRow(withTitle, deps.config, deps.repositories);
       return {
         id: run.id,
         prompt: run.adhocPrompt ?? '',

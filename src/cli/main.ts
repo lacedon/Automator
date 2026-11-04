@@ -115,10 +115,20 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
         code = DOMAIN_ERROR;
         return;
       }
-      if (!Object.hasOwn(current.config.repositories, opts.repo)) {
+      if (current.repositories.get(opts.repo) === null) {
         io.err(
-          `Unknown Repository "${opts.repo}". Known: ${Object.keys(current.config.repositories).sort().join(', ')}`,
+          `Unknown Repository "${opts.repo}". Known: ${current.repositories
+            .list()
+            .map((repository) => repository.name)
+            .sort()
+            .join(', ')}`,
         );
+        code = DOMAIN_ERROR;
+        return;
+      }
+      const repositoryIssues = current.repositories.status(opts.repo);
+      if (repositoryIssues.length > 0) {
+        io.err(`Repository "${opts.repo}" is invalid: ${repositoryIssues.join('; ')}`);
         code = DOMAIN_ERROR;
         return;
       }
