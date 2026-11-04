@@ -266,6 +266,57 @@ describe('read models', () => {
     expect(read.runList({})).toHaveLength(3);
   });
 
+  test('run history searches task, prompt, ticket, result, error and ID without treating wildcards specially', () => {
+    const { db, read } = setup();
+    const watch = insertWatch(db, { title: 'Review café navigation' });
+    const watched = insertRun(db, { watch_id: watch, summary: 'Updated layout' });
+    const adhoc = insertRun(db, {
+      trigger: 'adhoc',
+      adhoc_prompt: 'Check 100% of tasks',
+      ticket_key: 'ABC-123',
+      ticket_title: 'Fix redirect',
+      error_json: JSON.stringify({ code: 'OFFLINE', message: 'Connection unavailable' }),
+    });
+    insertRun(db, { status: 'queued', adhoc_prompt: 'café' });
+
+    expect(read.runList({ q: 'CAFÉ' }).map((r) => r.id)).toEqual([watched]);
+    expect(read.runList({ q: 'layout' }).map((r) => r.id)).toEqual([watched]);
+    expect(read.runList({ q: '100%' }).map((r) => r.id)).toEqual([adhoc]);
+    expect(read.runList({ q: 'ABC-123' }).map((r) => r.id)).toEqual([adhoc]);
+    expect(read.runList({ q: 'redirect' }).map((r) => r.id)).toEqual([adhoc]);
+    expect(read.runList({ q: 'unavailable' }).map((r) => r.id)).toEqual([adhoc]);
+    expect(read.runList({ q: `#${watched}` }).map((r) => r.id)).toEqual([watched]);
+    expect(read.runList({ q: '%' })).toHaveLength(1);
+    expect(read.runList({ q: 'not present' })).toEqual([]);
+  });
+
+  test('run history date range includes its start, excludes the next day and uses queued time before execution', () => {
+    const { db, read } = setup();
+    const from = Date.parse('2026-11-04T00:00:00Z');
+    const before = Date.parse('2026-11-05T00:00:00Z');
+    insertRun(db, { started_at: from - 1 });
+    const first = insertRun(db, { started_at: from });
+    const last = insertRun(db, { started_at: before - 1 });
+    insertRun(db, { started_at: before });
+    const failed = insertRun(db, { queued_at: from + 1, started_at: null, result_status: 'error' });
+    insertRun(db, { queued_at: from + 1, status: 'queued' });
+
+    expect(read.runList({ startedFrom: from, startedBefore: before }).map((r) => r.id)).toEqual([failed, last, first]);
+    expect(read.runList({ startedFrom: from, startedBefore: before, outcome: 'error' }).map((r) => r.id)).toEqual([
+      failed,
+    ]);
+  });
+
+  test('resolved historical outcomes do not become current Home blockers', () => {
+    const { db, read } = setup();
+    const watch = insertWatch(db, { state: 'active' });
+    insertRun(db, { watch_id: watch, outcome: 'needs-you', result_status: 'success' });
+    insertRun(db, { watch_id: watch, result_status: 'error' });
+
+    expect(read.homeView().needsYou).toEqual([]);
+    expect(read.homeView().recent).toHaveLength(2);
+  });
+
   test('run history uses the persisted provider after the global provider changes', async () => {
     const { db, read } = setup({ provider: 'codex' });
     const legacy = insertRun(db, { provider: 'copilot' });

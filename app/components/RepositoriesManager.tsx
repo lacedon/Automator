@@ -1,6 +1,7 @@
 'use client';
 
 import { unstable_rethrow } from 'next/navigation';
+import Link from 'next/link';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import type { AppError, Repository } from '@core/index';
 import { createRepository, deleteRepository, updateRepository } from '../actions/repositories';
@@ -8,7 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox, errorMessage } from './ErrorBox';
 
 type Connections = { gitlab: string[]; github: string[]; jira: string[] };
-type RepositoryRow = { repository: Repository; status: string[] };
+type RepositoryRow = { repository: Repository; status: string[]; projectName: string | null };
 
 function ConnectionSelect({
   group,
@@ -136,6 +137,7 @@ function CreateRepository({ connections }: { connections: Connections }) {
 function RepositoryCard({
   repository,
   status,
+  projectName,
   connections,
   index,
 }: RepositoryRow & { connections: Connections; index: number }) {
@@ -160,8 +162,11 @@ function RepositoryCard({
   };
 
   return (
-    <section className="card">
+    <section className="card" aria-label={repository.name}>
       <h2 className="card-title">{repository.name}</h2>
+      <p className="muted">
+        Project: {projectName ?? 'Unassigned'} · <Link href="/settings/projects">Manage project membership</Link>
+      </p>
       {status.length > 0 && (
         <p className="field-hint" role="status">
           Repository setup needs attention: {status.join('; ')}

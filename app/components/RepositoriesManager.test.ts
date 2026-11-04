@@ -25,7 +25,11 @@ test('shows invalid imported Repository diagnostics and explains deletion safety
   const markup = renderToStaticMarkup(
     createElement(RepositoriesManager, {
       repositories: [
-        { repository, status: ['Folder does not exist: /missing/legacy', 'Unknown GitLab connection "retired"'] },
+        {
+          repository,
+          status: ['Folder does not exist: /missing/legacy', 'Unknown GitLab connection "retired"'],
+          projectName: 'Legacy project',
+        },
       ],
       connections: { gitlab: ['corp'], github: ['public'], jira: ['work'] },
     }),
@@ -36,6 +40,8 @@ test('shows invalid imported Repository diagnostics and explains deletion safety
   expect(markup).toMatch(/local files are never deleted/i);
   expect(markup).toContain('Repository with Watches cannot be deleted');
   expect(markup).toContain('retired');
+  expect(markup).toContain('Legacy project');
+  expect(markup).toContain('href="/settings/projects"');
   expect(markup).not.toContain('<option value="retired">');
 });
 
@@ -58,6 +64,7 @@ test('settings page passes connection names only, not credential environment bin
       list: () => [repository],
       status: () => ['Folder does not exist: /missing/legacy'],
     },
+    projects: { list: () => [] },
   };
   const markup = renderToStaticMarkup(createElement(RepositorySettingsPage));
   expect(markup).toContain('corp');

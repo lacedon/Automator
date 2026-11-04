@@ -6,9 +6,11 @@ export const dynamic = 'force-dynamic';
 
 export default function RepositorySettingsPage() {
   const core = getCore();
+  const projects = core.projects.list();
   const repositories = core.repositories.list().map((repository) => ({
     repository,
     status: core.repositories.status(repository.name),
+    projectName: projects.find((project) => project.repositories.includes(repository.name))?.name ?? null,
   }));
   const connections = {
     gitlab: Object.keys(core.config.gitlab),
@@ -18,7 +20,7 @@ export default function RepositorySettingsPage() {
 
   return (
     <>
-      <h1 className="page-title">Repository Settings</h1>
+      <h1 className="page-title">Repositories</h1>
       <p className="muted">
         Manage Repository folders and connection references. Credentials remain in the application configuration and
         environment.

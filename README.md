@@ -180,7 +180,7 @@ If a Repository's folder later disappears, its existing Watches move to **Needs 
 
 ### Projects
 
-Projects group Repositories so unrelated work stays visually apart. Manage them on the **Projects** page: create, rename, delete, and choose which Repositories each contains (a Repository belongs to at most one Project). The top-bar switcher scopes the dashboard to **All projects**, one Project, or **Unassigned** Repositories, and tints the UI with that Project's colour. Deleting a Project only unassigns its Repositories. Existing Repositories start unassigned, and the selection is remembered in a browser cookie.
+Projects group Repositories so unrelated work stays visually apart. Manage them under **Settings → Projects**: create, rename, delete, and choose which Repositories each contains (a Repository belongs to at most one Project). The top-bar switcher scopes the dashboard to **All projects**, one Project, or **Unassigned** Repositories, and tints the UI with that Project's colour. Deleting a Project only unassigns its Repositories. Existing Repositories start unassigned, and the selection is remembered in a browser cookie. The old `/projects` link redirects to Settings.
 
 ## Checking and scheduling
 
@@ -335,6 +335,10 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Watches that 
 - Queue view and Run history, with completed transcripts and result files
 - **Run now** with optional extra instructions
 - Ad-hoc Runs (pick a Repository, optionally a Jira Ticket, and enter a prompt), with explicit cancellation
+- **Home** prioritizes current Needs you Watches and links to their decision/resume flow, followed by the running Run, the next three queued items and five recent completions. Historical failures do not become current blockers.
+- **Runs** is searchable execution history, with outcome, Repository, trigger and inclusive local-date filters. Dates use start time (queue time for Runs that never started). Historical Needs you outcomes remain visible even after resolution.
+- **Settings** groups Projects, Repositories, Agents and Configuration. Manage Repository folders, named service connections and validation commands directly under Repositories, alongside Project membership. Repository changes are stored in SQLite and take effect without restarting; credentials remain in Configuration and environment variables.
+- The project switcher remains in the header; Settings always covers the entire installation. On narrow screens the menu includes navigation, New watch and Ad-hoc run actions.
 
 ## CLI (v1)
 
