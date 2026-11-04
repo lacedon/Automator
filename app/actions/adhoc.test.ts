@@ -82,6 +82,17 @@ test('queueAdhoc queues the Run and reports its number and position', async () =
   expect(queuedRuns()).toContainEqual({ repository: 'pages', prompt: 'p', model: 'other-model' });
 });
 
+test('queueAdhoc rejects a model not configured for the selected provider', async () => {
+  const fields = { repository: 'pages', prompt: 'p', model: 'unknown-model' };
+
+  expect(await queueAdhoc(null, form(fields))).toEqual({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'model', message: 'Model "unknown-model" is not configured for copilot' },
+    values: fields,
+  });
+  expect(queuedRuns()).toEqual([]);
+});
+
 test('queueAdhoc requires a prompt', async () => {
   const fields = { repository: 'pages', prompt: '   ', model: '' };
   expect(await queueAdhoc(null, form(fields))).toEqual({

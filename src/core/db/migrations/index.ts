@@ -208,4 +208,10 @@ CREATE INDEX ix_project_repositories_project ON project_repositories(project_id)
 );
 `,
   },
+  {
+    version: 8,
+    sql: `ALTER TABLE runs ADD COLUMN provider TEXT NOT NULL DEFAULT 'copilot'
+  CHECK (provider IN ('copilot', 'claude-code', 'codex', 'opencode'));
+`,
+  },
 ];

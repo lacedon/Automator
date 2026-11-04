@@ -4,6 +4,7 @@ import type {
   Interrupted,
   ProjectScope,
   Outcome,
+  ProviderName,
   ResultStatus,
   Run,
   RunError,
@@ -37,6 +38,7 @@ export type RunRow = {
   adhocPrompt: string | null;
   ticket: TicketLink | null;
   repository: string;
+  provider: ProviderName;
   trigger: Trigger;
   status: RunStatus;
   queuedAt: number;
@@ -82,6 +84,7 @@ export function toRunRow(run: RunWithTitle, config: Config, repositories: Reposi
     adhocPrompt: run.adhocPrompt,
     ticket: ticketLink(run, config, repositories),
     repository: run.repository,
+    provider: run.provider,
     trigger: run.trigger,
     status: run.status,
     queuedAt: run.queuedAt,

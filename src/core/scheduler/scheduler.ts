@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Config } from '../config/schema';
+import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
 import { intervalFor, isWithinWorkingHours } from '../domain/schedule';
@@ -106,6 +107,7 @@ export class Scheduler {
   // Applies one check outcome atomically; returns whether a Run was enqueued.
   private apply(watchId: number, result: PrecheckResult): boolean {
     const { db, clock, config, queue } = this.deps;
+    const modelOptions = providerOptions(config, config.provider);
     let event: NeedsYouEvent | null = null;
     const enqueued = db
       .transaction((): boolean => {
@@ -125,7 +127,7 @@ export class Scheduler {
               repository: watch.repository,
               trigger: 'schedule',
               reason: result.reason,
-              model: watch.model ?? config.runs.defaultModel,
+              model: watch.model ?? modelOptions.defaultModel,
             });
             break;
           case 'unchanged':

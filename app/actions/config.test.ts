@@ -85,6 +85,20 @@ test('saveConfig writes valid edits and revalidates the Settings layout', async 
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
 });
 
+test('saveConfig persists the selected provider and its model settings', async () => {
+  const edited = readEditableConfig(configPath);
+  edited.provider = 'codex';
+  edited.providers.codex = { bin: '/opt/codex', defaultModel: 'codex-model', models: ['codex-model', 'other'] };
+
+  expect(await saveConfig(null, form(edited))).toBeNull();
+  expect(JSON.parse(fs.readFileSync(configPath, 'utf8'))).toMatchObject({
+    provider: 'codex',
+    providers: {
+      codex: { bin: '/opt/codex', defaultModel: 'codex-model', models: ['codex-model', 'other'] },
+    },
+  });
+});
+
 test('saveConfig displays schema errors and preserves submitted editable values', async () => {
   const edited = readEditableConfig(configPath);
   edited.runs!.timeoutMinutes = 0;

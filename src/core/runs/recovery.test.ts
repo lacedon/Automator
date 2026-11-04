@@ -50,7 +50,7 @@ function setup() {
     config,
     repositories,
     dataDir,
-    launcher,
+    launchers: { copilot: launcher, 'claude-code': launcher, codex: launcher, opencode: launcher },
     prechecks,
     currentBranch: vi.fn(async () => 'main'),
     onNeedsYou,

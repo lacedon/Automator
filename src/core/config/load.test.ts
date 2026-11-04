@@ -44,6 +44,59 @@ function captureError(fn: () => unknown): Error {
 }
 
 describe('loadConfig', () => {
+  test('legacy config defaults provider to Copilot and preserves Copilot options', () => {
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      copilotBin: '/opt/copilot',
+      runs: { defaultModel: 'legacy-model', models: ['legacy-model', 'gpt-5'] },
+    });
+
+    const config = loadConfig({ path: file, env: {} });
+
+    expect(config).toMatchObject({
+      provider: 'copilot',
+      copilotBin: '/opt/copilot',
+      providers: {
+        'claude-code': { bin: 'claude', defaultModel: '', models: [] },
+        codex: { bin: 'codex', defaultModel: '', models: [] },
+        opencode: { bin: 'opencode', defaultModel: '', models: [] },
+      },
+      runs: { defaultModel: 'legacy-model', models: ['legacy-model', 'gpt-5'] },
+    });
+  });
+
+  test('provider options use the selected provider settings', () => {
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      provider: 'codex',
+      providers: {
+        codex: { bin: '/opt/codex', defaultModel: 'codex-model', models: ['codex-model', 'codex-fast'] },
+      },
+    });
+
+    const config = loadConfig({ path: file, env: {} });
+
+    expect(config).toMatchObject({
+      provider: 'codex',
+      providers: {
+        codex: { bin: '/opt/codex', defaultModel: 'codex-model', models: ['codex-model', 'codex-fast'] },
+      },
+    });
+  });
+
+  test('selected provider requires a default model', () => {
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      provider: 'codex',
+      providers: { codex: { bin: 'codex' } },
+    });
+
+    expect(() => loadConfig({ path: file, env: {} })).toThrow('providers.codex.defaultModel');
+  });
+
   test('applies defaults', () => {
     const { dir, file } = writeConfig({ repositories: {}, gitlab: {} });
     const config = loadConfig({ path: file, env: {} });

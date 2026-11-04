@@ -171,7 +171,7 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
     .description('Create a Watch for an MR, Jira ticket or other URL')
     .requiredOption('--repo <name>', 'Repository name from the config')
     .option('--interval <duration>', 'check interval, e.g. 30m', durationArg)
-    .option('--model <model>', 'Copilot model')
+    .option('--model <model>', 'model configured for the selected provider')
     .option('--instructions <text|@file>', 'instructions (required for free-form Watches)', textOrFileArg)
     .addOption(
       new Option('--initial-review <mode>', 'how existing comments are handled').choices([
@@ -230,9 +230,13 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
     .command('run')
     .description('Queue an ad-hoc Run')
     .requiredOption('--repo <name>', 'Repository name from the config')
-    .option('--prompt <text|@file>', 'prompt for Copilot (optional when --ticket is given)', textOrFileArg)
+    .option(
+      '--prompt <text|@file>',
+      'prompt for the selected provider (optional when --ticket is given)',
+      textOrFileArg,
+    )
     .option('--ticket <key|url>', 'Jira ticket to work on (key or browse URL)')
-    .option('--model <model>', 'Copilot model')
+    .option('--model <model>', 'model configured for the selected provider')
     .action(async (opts: { repo: string; prompt?: string; ticket?: string; model?: string }) => {
       const r = await getCore().queue.requestAdhoc({
         repository: opts.repo,

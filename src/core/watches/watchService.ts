@@ -1,4 +1,5 @@
 import type { Config } from '../config/schema';
+import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
 import { err, ok, type AppError, type Result } from '../domain/result';
@@ -62,6 +63,18 @@ function invalidInterval(intervalMs: number | null | undefined): AppError | null
   };
 }
 
+function invalidModel(config: Config, model: string | null | undefined): AppError | null {
+  const selected = blankToNull(model);
+  if (selected === null) return null;
+  const options = providerOptions(config, config.provider);
+  if ([options.defaultModel, ...options.models].includes(selected)) return null;
+  return {
+    code: 'INVALID_INPUT',
+    field: 'model',
+    message: `Model "${selected}" is not configured for ${config.provider}`,
+  };
+}
+
 function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === 'SQLITE_CONSTRAINT_UNIQUE';
 }
@@ -99,6 +112,8 @@ export class WatchService {
     if (target.kind === 'free' && instructions === null) return err({ code: 'MISSING_INSTRUCTIONS' });
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
+    const badModel = invalidModel(config, input.model);
+    if (badModel) return err(badModel);
 
     try {
       return this.deps.db
@@ -138,6 +153,8 @@ export class WatchService {
   update(id: number, input: UpdateWatchInput): Result<Watch> {
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
+    const badModel = invalidModel(this.deps.config, input.model);
+    if (badModel) return err(badModel);
     return this.deps.db
       .transaction((): Result<Watch> => {
         const watch = this.get(id);
@@ -334,12 +351,13 @@ export class WatchService {
     reason: string,
     opts: { extraInstructions?: string; reviewUnresolved?: boolean },
   ): Run {
+    const options = providerOptions(this.deps.config, this.deps.config.provider);
     return this.deps.queue.enqueueWatch({
       watchId: watch.id,
       repository: watch.repository,
       trigger: 'manual',
       reason,
-      model: watch.model ?? this.deps.config.runs.defaultModel,
+      model: watch.model ?? options.defaultModel,
       extraInstructions: opts.extraInstructions,
       reviewUnresolved: opts.reviewUnresolved,
     });

@@ -5,6 +5,7 @@ import { startTransition, useActionState, useEffect, useState, type FormEvent } 
 import type { AppError, FormOptions, InitialReview, PreviewTargetResult, Watch, WatchKind } from '@core/index';
 import { createWatch, previewTarget, updateWatch } from '../actions/watches';
 import { formatInterval } from '../lib/format';
+import { providerLabel } from '../lib/providerLabel';
 import { ErrorBox } from './ErrorBox';
 import { KindBadge } from './KindBadge';
 
@@ -22,7 +23,7 @@ const REVIEW_MODES: readonly InitialReview[] = ['baseline-only', 'unresolved'];
 const PLACEHOLDER: Record<WatchKind, string> = {
   mr: 'Additional instructions for this MR Watch…',
   jira: 'Additional instructions for this Jira Watch…',
-  free: 'What Copilot should do on every check…',
+  free: 'What the selected provider should do on every check…',
 };
 
 function errorField(error: AppError | undefined): string | null {
@@ -247,6 +248,7 @@ export function WatchForm(props: Props) {
               </option>
             ))}
           </select>
+          <div className="field-hint muted">Provider: {providerLabel(options.provider)}</div>
         </div>
         {kind === 'mr' && (
           <div className="field">

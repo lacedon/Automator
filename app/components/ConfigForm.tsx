@@ -1,12 +1,18 @@
 'use client';
 
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
-import type { EditableConfig } from '@core/index';
+import type { EditableConfig, ProviderName } from '@core/index';
 import { saveConfig } from '../actions/config';
 import { ErrorBox } from './ErrorBox';
+import { providerLabel } from '../lib/providerLabel';
+
+const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode'];
 
 function label(value: string): string {
-  return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
+  return value
+    .replace(/[-_]/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function updateAtPath(value: unknown, path: string[], replacement: unknown): unknown {
@@ -33,6 +39,21 @@ function ConfigValue({
 }) {
   const field = path.at(-1) ?? '';
   const id = inputId(path);
+
+  if (path.length === 1 && path[0] === 'provider') {
+    return (
+      <div className="field">
+        <label htmlFor={id}>Provider</label>
+        <select id={id} value={String(value)} onChange={(event) => onChange(path, event.target.value)}>
+          {PROVIDERS.map((provider) => (
+            <option key={provider} value={provider}>
+              {providerLabel(provider)}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   if (Array.isArray(value)) {
     const numeric = field === 'days';

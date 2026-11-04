@@ -15,6 +15,7 @@ export function writeSeedConfig(root: string): string {
     `${JSON.stringify(
       {
         dataDir: '.',
+        copilotBin: 'copilot',
         repositories: { pages: { folder: './repos/pages', gitlab: 'corp' } },
         gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
         jira: { enabled: false },

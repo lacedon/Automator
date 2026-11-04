@@ -26,7 +26,7 @@ let core: Core;
 
 beforeEach(() => {
   mrLookup.mockReset();
-  const config = testConfig();
+  const config = testConfig({ runs: { models: ['gpt-5'] } });
   core = createCore(
     config,
     {
@@ -157,6 +157,17 @@ test('createWatch creates the Watch, revalidates and redirects to it', async () 
   expect(watch!.initialReview).toBeNull();
   expect(redirect).toHaveBeenCalledWith(`/watches/${watch!.id}`);
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+});
+
+test('createWatch rejects a model not configured for the selected provider', async () => {
+  const fields = { ...watchFields, model: 'unknown-model' };
+
+  expect(await createWatch(null, form(fields))).toEqual({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'model', message: 'Model "unknown-model" is not configured for copilot' },
+    values: fields,
+  });
+  expect(core.watches.list()).toEqual([]);
 });
 
 test('createWatch keeps the default interval when the field is missing or blank and stores explicit choices', async () => {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { RunRow } from '@core/index';
 import { formatDateTime, formatTook } from '../lib/format';
+import { providerLabel } from '../lib/providerLabel';
 import { EmptyState } from './EmptyState';
 import { RunPill } from './Pill';
 
@@ -12,6 +13,7 @@ export function RunsTable({ runs }: { runs: RunRow[] }) {
         <tr>
           <th>#</th>
           <th>Trigger</th>
+          <th>Provider</th>
           <th>Started</th>
           <th>Took</th>
           <th>Outcome</th>
@@ -26,6 +28,7 @@ export function RunsTable({ runs }: { runs: RunRow[] }) {
               <Link href={`/runs/${run.id}`}>{run.id}</Link>
             </td>
             <td>{run.trigger}</td>
+            <td>{providerLabel(run.provider)}</td>
             <td className="nowrap">{run.startedAt === null ? '—' : formatDateTime(run.startedAt)}</td>
             <td className="nowrap">{run.tookMs === null ? '—' : formatTook(run.tookMs)}</td>
             <td>
