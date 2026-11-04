@@ -48,6 +48,9 @@ export type RunRow = {
 };
 
 export type RunFilter = {
+  q?: string;
+  startedFrom?: number;
+  startedBefore?: number;
   outcome?: Outcome | 'error';
   trigger?: Trigger;
   repository?: string;
@@ -102,10 +105,33 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
          AND (@trigger IS NULL OR r.trigger = @trigger)
          AND (@repository IS NULL OR r.repository = @repository)
          AND (@outcome IS NULL OR (@outcome = 'error' AND r.result_status = 'error') OR r.outcome = @outcome)
+         AND (@startedFrom IS NULL OR COALESCE(r.started_at, r.queued_at) >= @startedFrom)
+         AND (@startedBefore IS NULL OR COALESCE(r.started_at, r.queued_at) < @startedBefore)
        ORDER BY r.id DESC`,
     )
-    .all({ outcome: f.outcome ?? null, trigger: f.trigger ?? null, repository: f.repository ?? null })
+    .all({
+      outcome: f.outcome ?? null,
+      trigger: f.trigger ?? null,
+      repository: f.repository ?? null,
+      startedFrom: f.startedFrom ?? null,
+      startedBefore: f.startedBefore ?? null,
+    })
     .map(toRunWithTitle)
     .filter((run) => inScope(run.repository))
+    .filter((run) => {
+      const query = f.q?.trim().toLowerCase();
+      return (
+        !query ||
+        [
+          `#${run.id}`,
+          run.watchTitle,
+          run.adhocPrompt,
+          run.ticketKey,
+          run.ticketTitle,
+          run.summary,
+          run.error?.message,
+        ].some((value) => value != null && String(value).toLowerCase().includes(query))
+      );
+    })
     .map((run) => toRunRow(run, config));
 }

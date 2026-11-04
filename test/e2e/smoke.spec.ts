@@ -12,11 +12,13 @@ test('watches list pins needs-you first and shows jira notice', async ({ page })
   await expect(page.locator('table tbody tr.needs-row')).toHaveCount(1);
 });
 
-test('home shows needs-you card and resume moves it away', async ({ page }) => {
+test('home opens the decision flow and resume moves the item away', async ({ page }) => {
   await page.goto('/');
   const card = page.locator('.card-needs', { hasText: '!42 Add retry to export job' });
   await expect(card).toContainText('Validation failed: npm test');
-  await card.getByRole('button', { name: 'Resume', exact: true }).click();
+  await card.getByRole('link', { name: 'Review decision' }).click();
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
+  await page.goto('/');
   await expect(card).toHaveCount(0);
   await expect(page.getByText('Nothing needs you.')).toBeVisible();
 });
@@ -51,8 +53,8 @@ test('create form shows duplicate error with link to existing watch', async ({ p
 });
 
 test('run detail shows transcript, result json and prompt tabs', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('link', { name: /Replied to 2 comments, pushed fix/ }).click();
+  await page.goto('/runs?q=Replied+to+2+comments');
+  await page.locator('.run-history .task-title').click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
   const panel = page.getByRole('tabpanel');
   await expect(panel).toContainText('# Transcript of Run #');
@@ -66,7 +68,14 @@ test('run detail shows transcript, result json and prompt tabs', async ({ page }
 test('run detail auto-refreshes only while the run is not finished', async ({ page }) => {
   const refreshes: string[] = [];
   page.on('request', (req) => {
-    if (req.headers()['rsc'] === '1') refreshes.push(req.url());
+    const headers = req.headers();
+    if (
+      headers['rsc'] === '1' &&
+      headers['next-router-prefetch'] !== '1' &&
+      new URL(req.url()).pathname === new URL(page.url()).pathname
+    ) {
+      refreshes.push(req.url());
+    }
   });
 
   await page.goto('/queue');
@@ -76,8 +85,8 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
   await page.waitForTimeout(4000);
   expect(refreshes.length).toBeGreaterThan(0);
 
-  await page.goto('/');
-  await page.getByRole('link', { name: /Replied to 2 comments, pushed fix/ }).click();
+  await page.goto('/runs?q=Replied+to+2+comments');
+  await page.locator('.run-history .task-title').click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
   refreshes.length = 0;
   await page.waitForTimeout(4000);

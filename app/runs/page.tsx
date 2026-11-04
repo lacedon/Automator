@@ -2,24 +2,26 @@ import Link from 'next/link';
 import type { RunFilter, RunRow, Trigger } from '@core/index';
 import { Elapsed } from '../components/Elapsed';
 import { EmptyState } from '../components/EmptyState';
+import { ErrorBox } from '../components/ErrorBox';
 import { RunPill } from '../components/Pill';
 import { RunItem, TRIGGER_NAME } from '../components/RunMeta';
 import { getCore } from '../lib/core';
 import { currentScope } from '../lib/scope';
 import { formatDateTime, formatTook } from '../lib/format';
+import { runDates } from '../lib/runDates';
 
 export const dynamic = 'force-dynamic';
 
 type SearchParams = Record<string, string | string[] | undefined>;
 type Outcome = NonNullable<RunFilter['outcome']>;
-type Filter = { outcome?: Outcome; trigger?: Trigger; repo?: string };
+type Filter = { outcome?: Outcome; trigger?: Trigger; repo?: string; q?: string; from?: string; to?: string };
 
 const OUTCOME_CHIPS: { outcome: Outcome | undefined; label: string }[] = [
-  { outcome: undefined, label: 'All' },
-  { outcome: 'needs-you', label: 'needs-you' },
-  { outcome: 'acted', label: 'acted' },
-  { outcome: 'nothing', label: 'nothing' },
-  { outcome: 'error', label: 'errors' },
+  { outcome: undefined, label: 'All runs' },
+  { outcome: 'needs-you', label: 'Needs you' },
+  { outcome: 'error', label: 'Errors' },
+  { outcome: 'acted', label: 'Acted' },
+  { outcome: 'nothing', label: 'No action' },
 ];
 const OUTCOMES: readonly Outcome[] = ['needs-you', 'acted', 'nothing', 'error'];
 const TRIGGERS: readonly Trigger[] = ['schedule', 'manual', 'adhoc'];
@@ -39,31 +41,26 @@ function hrefFor(filter: Filter): string {
 
 function RunFilters({ filter, repositories }: { filter: Filter; repositories: string[] }) {
   return (
-    <div className="filters">
-      {OUTCOME_CHIPS.map(({ outcome, label }) => {
-        const on = filter.outcome === outcome;
-        return (
-          <Link
-            key={label}
-            href={hrefFor({ ...filter, outcome })}
-            className={on ? 'chip on' : 'chip'}
-            aria-current={on ? 'page' : undefined}
-          >
-            {label}
-          </Link>
-        );
-      })}
-      <span className="spacer" />
-      <form method="get" action="/runs" className="filter-form">
+    <>
+      <nav className="history-tabs" aria-label="Run outcome">
+        {OUTCOME_CHIPS.map(({ outcome, label }) => {
+          const on = filter.outcome === outcome;
+          return (
+            <Link key={label} href={hrefFor({ ...filter, outcome })} aria-current={on ? 'page' : undefined}>
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+      <form method="get" action="/runs" className="history-filters">
         {filter.outcome && <input type="hidden" name="outcome" value={filter.outcome} />}
-        <select name="trigger" defaultValue={filter.trigger ?? ''} aria-label="Trigger">
-          <option value="">Trigger: any</option>
-          {TRIGGERS.map((t) => (
-            <option key={t} value={t}>
-              {TRIGGER_NAME[t]}
-            </option>
-          ))}
-        </select>
+        <input
+          type="search"
+          name="q"
+          defaultValue={filter.q ?? ''}
+          aria-label="Search runs"
+          placeholder="Search task, prompt, result or run ID"
+        />
         <select name="repo" defaultValue={filter.repo ?? ''} aria-label="Repository">
           <option value="">Repository: any</option>
           {repositories.map((name) => (
@@ -72,11 +69,25 @@ function RunFilters({ filter, repositories }: { filter: Filter; repositories: st
             </option>
           ))}
         </select>
+        <select name="trigger" defaultValue={filter.trigger ?? ''} aria-label="Trigger">
+          <option value="">Trigger: any</option>
+          {TRIGGERS.map((t) => (
+            <option key={t} value={t}>
+              {TRIGGER_NAME[t]}
+            </option>
+          ))}
+        </select>
+        <label>
+          From <input type="date" name="from" defaultValue={filter.from ?? ''} aria-label="From date" />
+        </label>
+        <label>
+          To <input type="date" name="to" defaultValue={filter.to ?? ''} aria-label="To date" />
+        </label>
         <button type="submit" className="btn btn-secondary">
           Filter
         </button>
       </form>
-    </div>
+    </>
   );
 }
 
@@ -89,27 +100,25 @@ function RunListRow({ run }: { run: RunRow }) {
   const href = `/runs/${run.id}`;
   return (
     <tr>
-      <td>
-        <Link href={href}>{run.id}</Link>
-      </td>
-      <td className="cell-text">
-        <Link href={href} className="plain-link">
+      <td className="history-task">
+        <Link href={href} className="task-title">
           <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
         </Link>
+        <div className="recent-result">{run.summary ?? run.error?.message ?? 'No summary recorded.'}</div>
+        <div className="task-meta">
+          <Link href={href}>#{run.id}</Link> · {TRIGGER_NAME[run.trigger]}
+        </div>
       </td>
-      <td>{run.repository}</td>
-      <td>{TRIGGER_NAME[run.trigger]}</td>
-      <td className="nowrap">{run.startedAt === null ? '—' : formatDateTime(run.startedAt)}</td>
-      <td className="nowrap">
-        <Took run={run} />
-      </td>
-      <td>
+      <td data-label="Repository">{run.repository}</td>
+      <td data-label="Outcome">
         <RunPill run={run} />
       </td>
-      <td className="cell-text">
-        <Link href={href} className="plain-link">
-          {run.summary ?? run.error?.message ?? '—'}
-        </Link>
+      <td className="history-number" data-label={run.startedAt === null ? 'Queued' : 'Started'}>
+        {formatDateTime(run.startedAt ?? run.queuedAt)}
+        {run.startedAt === null && <div className="task-meta">Queued · never started</div>}
+      </td>
+      <td className="history-number" data-label="Duration">
+        <Took run={run} />
       </td>
     </tr>
   );
@@ -121,43 +130,66 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
     outcome: pick(params.outcome, OUTCOMES),
     trigger: pick(params.trigger, TRIGGERS),
     repo: pick(params.repo),
+    q: pick(params.q),
+    from: pick(params.from),
+    to: pick(params.to),
   };
   const core = getCore();
-  const runs = core.read.runList({
-    outcome: filter.outcome,
-    trigger: filter.trigger,
-    repository: filter.repo,
-    project: await currentScope(),
-  });
+  const dates = runDates(filter.from ?? '', filter.to ?? '');
+  const runs = dates.ok
+    ? core.read.runList({
+        outcome: filter.outcome,
+        trigger: filter.trigger,
+        repository: filter.repo,
+        project: await currentScope(),
+        q: filter.q,
+        startedFrom: dates.startedFrom,
+        startedBefore: dates.startedBefore,
+      })
+    : [];
   const repositories = core.read.formOptions().repositories.map((r) => r.name);
-  const filtered = filter.outcome !== undefined || filter.trigger !== undefined || filter.repo !== undefined;
+  const filtered = Object.values(filter).some((value) => value !== undefined);
 
   return (
-    <>
+    <div className="history-view">
+      <div className="page-heading">
+        <h1 className="page-title">Runs</h1>
+        <p className="muted">Execution history for the selected project scope.</p>
+      </div>
       <RunFilters filter={filter} repositories={repositories} />
-      {runs.length === 0 ? (
-        <EmptyState>{filtered ? 'No Runs match these filters.' : 'No Runs yet.'}</EmptyState>
+      {!dates.ok ? (
+        <ErrorBox error={dates.error} />
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Watch / prompt</th>
-              <th>Repository</th>
-              <th>Trigger</th>
-              <th>Started</th>
-              <th>Took</th>
-              <th>Outcome</th>
-              <th>Summary</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => (
-              <RunListRow key={run.id} run={run} />
-            ))}
-          </tbody>
-        </table>
+        <>
+          <p className="history-count">
+            {runs.length} {runs.length === 1 ? 'Run' : 'Runs'} · Newest first
+          </p>
+          {runs.length === 0 ? (
+            <EmptyState>{filtered ? 'No Runs match these filters.' : 'No Runs yet.'}</EmptyState>
+          ) : (
+            <table className="table run-history">
+              <thead>
+                <tr>
+                  <th>Task / result</th>
+                  <th>Repository</th>
+                  <th>Outcome</th>
+                  <th className="history-number">Started / queued</th>
+                  <th className="history-number">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => (
+                  <RunListRow key={run.id} run={run} />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
-    </>
+      <p className="history-help muted">
+        Outcomes record what happened at the time. A past Needs you Run may already be resolved. Date filters use local
+        start time, or queue time if never started.
+      </p>
+    </div>
   );
 }

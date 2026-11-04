@@ -57,7 +57,7 @@ function ConfigValue({
 
   if (typeof value === 'object' && value !== null) {
     return (
-      <fieldset className="card">
+      <fieldset className="card" id={id}>
         <legend>{label(field)}</legend>
         {Object.entries(value).map(([key, child]) => (
           <ConfigValue key={key} value={child} path={[...path, key]} onChange={onChange} />

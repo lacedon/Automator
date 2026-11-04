@@ -10,6 +10,7 @@ export function Pill({ variant, children }: { variant: PillVariant; children: Re
 
 const INTERRUPTED_LABEL = { timeout: 'timed out', cancelled: 'cancelled', 'worker-restart': 'worker restart' } as const;
 const OUTCOME_VARIANT = { 'needs-you': 'needs-you', acted: 'good', nothing: 'neutral' } as const;
+const OUTCOME_LABEL = { 'needs-you': 'Needs you', acted: 'Acted', nothing: 'No action' } as const;
 
 export const PRIORITY_LABEL: Record<Trigger, string> = { schedule: 'scheduled', manual: 'manual', adhoc: 'ad-hoc' };
 
@@ -28,7 +29,7 @@ type RunPillRun = Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrup
 export function RunPill({ run }: { run: RunPillRun }) {
   if (run.interrupted !== null) return <Pill variant="interrupted">{INTERRUPTED_LABEL[run.interrupted]}</Pill>;
   if (run.resultStatus === 'error') return <Pill variant="needs-you">error</Pill>;
-  if (run.outcome !== null) return <Pill variant={OUTCOME_VARIANT[run.outcome]}>{run.outcome}</Pill>;
+  if (run.outcome !== null) return <Pill variant={OUTCOME_VARIANT[run.outcome]}>{OUTCOME_LABEL[run.outcome]}</Pill>;
   if (run.status === 'running') return <Pill variant="running">running</Pill>;
   if (run.status === 'queued') return <Pill variant={queuedVariant(run.trigger)}>queued</Pill>;
   return <Pill variant="neutral">—</Pill>;

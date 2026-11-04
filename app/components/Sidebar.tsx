@@ -16,12 +16,10 @@ function NavigationItems({
   const pathname = usePathname();
   const items = [
     { href: '/', label: 'Home' },
-    { href: '/watches', label: 'Watches', count: counts.watches },
+    { href: '/watches', label: 'Watches' },
     { href: '/queue', label: 'Queue', count: counts.queued },
     { href: '/runs', label: 'Runs' },
-    { href: '/adhoc', label: 'Ad-hoc' },
-    { href: '/projects', label: 'Projects' },
-    { href: '/settings/agents', label: 'Settings' },
+    { href: '/settings', label: 'Settings' },
   ];
   return items.map(({ href, label, count }) => {
     const active = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
@@ -29,12 +27,12 @@ function NavigationItems({
       <Link
         key={href}
         href={href}
-        className={active ? 'nav-item active' : 'nav-item'}
+        className={`nav-item${active ? ' active' : ''}${href === '/settings' ? ' nav-settings' : ''}`}
         aria-current={active ? 'page' : undefined}
         onClick={onNavigate}
       >
         <span>{label}</span>
-        {count !== undefined && <span className="nav-count">{count}</span>}
+        {count !== undefined && count > 0 && <span className="nav-count">{count}</span>}
       </Link>
     );
   });
@@ -58,10 +56,13 @@ export function MobileNavigation({ counts }: { counts: Counts }) {
     <details className="mobile-nav">
       <summary className="mobile-nav-trigger">Menu</summary>
       <div className="mobile-nav-sheet">
-        <nav aria-label="Main">
+        <nav aria-label="Main mobile">
           <NavigationItems counts={counts} onNavigate={close} />
           <Link href="/watches/new" className="nav-item" onClick={close}>
             New watch
+          </Link>
+          <Link href="/adhoc" className="nav-item" onClick={close}>
+            Ad-hoc run
           </Link>
         </nav>
       </div>
