@@ -272,6 +272,26 @@ describe('QueueService', () => {
 });
 
 describe('QueueService.requestAdhoc', () => {
+  test('does not enqueue under a Repository name renamed during Ticket title lookup', async () => {
+    let releaseTitle!: (title: string) => void;
+    const title = new Promise<string>((resolve) => {
+      releaseTitle = resolve;
+    });
+    const { db, queue, repositories } = setup({ ticketTitle: async () => title });
+
+    const pending = queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-123' });
+    const repository = repositories.get('pages');
+    if (repository === null) throw new Error('test Repository missing');
+    expect(repositories.update('pages', { ...repository, name: 'renamed-pages' }).ok).toBe(true);
+    releaseTitle('Ticket title');
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { code: 'UNKNOWN_REPOSITORY', name: 'pages', known: ['api', 'renamed-pages'] },
+    });
+    expect(statuses(db)).toEqual([]);
+  });
+
   test('stores the Ticket key and the fetched title on the Run', async () => {
     const lookups: [string, string][] = [];
     const { queue } = setup({

@@ -193,7 +193,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     executorDeps,
     watches: new WatchService({ db, clock, config, repositories, queue, dataDir, preview: mrPreview(deps) }),
     queue,
-    scheduler: new Scheduler({ db, clock, config, queue, repositories, prechecks, onNeedsYou }),
+    scheduler: new Scheduler({ db, clock, config, dataDir, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, dataDir }),
     agents,

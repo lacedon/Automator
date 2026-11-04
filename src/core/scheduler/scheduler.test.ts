@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
@@ -44,7 +45,8 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   const clock = fakeClock();
   const config = testConfig(opts.configOverrides);
   const repositories = testRepositories(t.db, config);
-  const queue = new QueueService(t.db, clock, new DataDir(path.dirname(t.file)), config, repositories);
+  const dataDir = new DataDir(path.dirname(t.file));
+  const queue = new QueueService(t.db, clock, dataDir, config, repositories);
   const script = opts.script ?? (() => ({ kind: 'unchanged' }));
   const mr = stubPrecheck(script);
   const jira = stubPrecheck(script);
@@ -57,8 +59,19 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   const onNeedsYou = vi.fn((e: NeedsYouEvent): void | Promise<void> => {
     events.push(e);
   });
-  const scheduler = new Scheduler({ db: t.db, clock, config, queue, repositories, prechecks, onNeedsYou });
-  return { db: t.db, clock, config, scheduler, mrCalls: mr.calls, jiraCalls: jira.calls, events, onNeedsYou };
+  const scheduler = new Scheduler({ db: t.db, clock, config, dataDir, queue, repositories, prechecks, onNeedsYou });
+  return {
+    db: t.db,
+    clock,
+    config,
+    dataDir,
+    repositories,
+    scheduler,
+    mrCalls: mr.calls,
+    jiraCalls: jira.calls,
+    events,
+    onNeedsYou,
+  };
 }
 
 function dueWatch(db: Database, nextCheckAt: number, kind: WatchKind = 'mr', state: Watch['state'] = 'active'): number {
@@ -183,21 +196,28 @@ describe('Scheduler.tick', () => {
   });
 
   test('invalid Repository moves a scheduled Watch to needs_you before precheck', async () => {
-    const { db, clock, scheduler, mrCalls, events } = setup({
+    const { db, clock, dataDir, repositories, scheduler, mrCalls, events } = setup({
       configOverrides: { teams: { chatId: 'chat-1' } },
     });
     const id = dueWatch(db, clock.now() - MIN);
-    db.prepare('UPDATE repositories SET gitlab = ? WHERE name = ?').run('missing-connection', 'pages');
+    const repository = repositories.get('pages')!;
+    fs.rmdirSync(repository.folder);
 
     expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
-    expect(watch(db, id)).toMatchObject({
-      state: 'needs_you',
-      needsYouReason: expect.stringContaining('Unknown GitLab connection "missing-connection"'),
+    const errorResultRoute = watch(db, id).needsYouReason?.match(/\/files\/attempt\/([A-Za-z0-9._-]+)$/)?.[0];
+    const errorResultName = errorResultRoute?.split('/').at(-1);
+    expect(watch(db, id).state).toBe('needs_you');
+    expect(errorResultRoute).toBeDefined();
+    expect(JSON.parse(fs.readFileSync(path.join(dataDir.attemptsDir, errorResultName!), 'utf8'))).toMatchObject({
+      status: 'error',
+      error: {
+        code: 'REPOSITORY_UNAVAILABLE',
+        repository: 'pages',
+        message: expect.stringContaining('Folder does not exist'),
+      },
     });
     expect(mrCalls).toEqual([]);
-    expect(events).toMatchObject([
-      { watchId: id, reason: expect.stringContaining('Unknown GitLab connection "missing-connection"') },
-    ]);
+    expect(events).toMatchObject([{ watchId: id, reason: expect.stringContaining('Folder does not exist') }]);
   });
 
   test('third consecutive non-auth failure moves to needs_you; second does not', async () => {

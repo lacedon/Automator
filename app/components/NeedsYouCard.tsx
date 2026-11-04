@@ -18,6 +18,7 @@ function TeamsStatus({ event }: { event: NeedsYouEvent }) {
 
 export function NeedsYouCard({ watch, event }: { watch: Watch; event: NeedsYouEvent | null }) {
   const reason = watch.needsYouReason ?? event?.reason ?? null;
+  const errorResult = reason?.match(/\n\nError result: (\/files\/attempt\/[A-Za-z0-9._-]+)$/) ?? null;
   const since = watch.needsYouSince ?? event?.createdAt ?? null;
   const runId = watch.needsYouRunId ?? event?.runId ?? null;
   return (
@@ -37,7 +38,17 @@ export function NeedsYouCard({ watch, event }: { watch: Watch; event: NeedsYouEv
           </span>
         )}
       </div>
-      {reason !== null && <p className="needs-reason">{reason}</p>}
+      {reason !== null && (
+        <p className="needs-reason">
+          {errorResult === null ? reason : reason.slice(0, errorResult.index)}
+          {errorResult !== null && (
+            <>
+              {' '}
+              <Link href={errorResult[1]!}>View error result</Link>
+            </>
+          )}
+        </p>
+      )}
       {event !== null && (
         <div className="muted">
           Teams notification: <TeamsStatus event={event} />

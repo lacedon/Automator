@@ -1,8 +1,11 @@
+import path from 'node:path';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
 import { intervalFor, isWithinWorkingHours } from '../domain/schedule';
 import type { Clock, NeedsYouEvent, Watch } from '../domain/types';
+import { writeAttemptError } from '../files/attempts';
+import type { DataDir } from '../files/dataDir';
 import { precheckFor, type Prechecks } from '../prechecks/index';
 import type { PrecheckResult } from '../prechecks/types';
 import type { QueueService } from '../queue/queueService';
@@ -15,6 +18,7 @@ export interface SchedulerDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  dataDir: DataDir;
   queue: QueueService;
   repositories: Pick<RepositoryService, 'status'>;
   prechecks: Prechecks;
@@ -75,12 +79,22 @@ export class Scheduler {
   }
 
   private check(watch: Watch): Promise<PrecheckResult> {
-    const { prechecks, repositories } = this.deps;
+    const { clock, dataDir, prechecks, repositories } = this.deps;
     const issues = repositories.status(watch.repository);
     if (issues.length > 0) {
+      const message = `Repository "${watch.repository}" is invalid: ${issues.join('; ')}`;
+      const attempt = writeAttemptError(
+        dataDir,
+        { code: 'REPOSITORY_UNAVAILABLE', repository: watch.repository, message, issues },
+        clock.now(),
+      );
+      const resultReference =
+        attempt.path === null
+          ? `\n\nError result could not be written: ${attempt.writeError ?? 'unknown write error'}`
+          : `\n\nError result: /files/attempt/${path.basename(attempt.path)}`;
       return Promise.resolve({
         kind: 'blocked',
-        message: `Repository "${watch.repository}" is invalid: ${issues.join('; ')}`,
+        message: `${message}${resultReference}`,
       });
     }
     if (watch.kind === 'jira' && !prechecks.jira.hasToken(watch)) {
