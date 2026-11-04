@@ -1,7 +1,7 @@
-import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { err, ok, type Result } from '../domain/result';
 import type { Project } from '../domain/types';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 type Row = Record<string, unknown>;
 
@@ -9,7 +9,7 @@ type Row = Record<string, unknown>;
 export class ProjectService {
   constructor(
     private readonly db: Database,
-    private readonly config: Config,
+    private readonly repositories: RepositoryService,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -68,7 +68,7 @@ export class ProjectService {
   // Replaces the Project's repositories; a repository listed here is moved out of any other Project.
   setRepositories(id: number, repositories: string[]): Result<Project> {
     if (this.get(id) === null) return err({ code: 'NOT_FOUND' });
-    const known = Object.keys(this.config.repositories);
+    const known = this.repositories.list().map((repository) => repository.name);
     const unique = [...new Set(repositories)];
     const unknown = unique.find((r) => !known.includes(r));
     if (unknown !== undefined) {

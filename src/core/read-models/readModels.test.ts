@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig, type DeepPartial } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
@@ -25,11 +26,19 @@ function setup(overrides: DeepPartial<Config> = {}) {
   const clock = fakeClock();
   const { db, cleanup } = tempDb();
   const dataDir = new DataDir(config.dataDir);
+  const repositories = testRepositories(db, config);
   cleanups.push(() => {
     cleanup();
     fs.rmSync(config.configDir, { recursive: true, force: true });
   });
-  return { config, clock, db, dataDir, read: createReadModels({ db, config, clock, dataDir }) };
+  return {
+    config,
+    clock,
+    db,
+    dataDir,
+    repositories,
+    read: createReadModels({ db, config, clock, dataDir, repositories }),
+  };
 }
 
 function setWatch(db: Database, id: number, cols: Record<string, unknown>): void {
@@ -308,6 +317,18 @@ describe('read models', () => {
     expect(read.homeView().recent).toHaveLength(2);
   });
 
+  test('run history uses the persisted provider after the global provider changes', async () => {
+    const { db, read } = setup({ provider: 'codex' });
+    const legacy = insertRun(db, { provider: 'copilot' });
+    const selected = insertRun(db, { provider: 'codex' });
+
+    expect(read.runList({}).map((run) => [run.id, run.provider])).toEqual([
+      [selected, 'codex'],
+      [legacy, 'copilot'],
+    ]);
+    expect((await read.runDetail(legacy))!.run.provider).toBe('copilot');
+  });
+
   test('run detail truncates files over 5 MB', async () => {
     const { db, read, dataDir } = setup();
     const w = insertWatch(db, { title: 'Fix it' });
@@ -333,7 +354,9 @@ describe('read models', () => {
   });
 
   test('Ticket-linked Runs expose the Ticket key, title and Jira link in every Run view', async () => {
-    const { db, read } = setup();
+    const { db, read, config } = setup();
+    config.jira.connections.alternate = { baseUrl: 'https://jira.alternate.example.com' };
+    db.prepare('UPDATE repositories SET jira = ? WHERE name = ?').run('alternate', 'pages');
     const linked = {
       trigger: 'adhoc',
       priority: 0,
@@ -344,7 +367,7 @@ describe('read models', () => {
     const ticket = {
       key: 'ABC-123',
       title: 'Fix login redirect',
-      url: 'https://jira.example.com/browse/ABC-123',
+      url: 'https://jira.alternate.example.com/browse/ABC-123',
     };
     const finished = insertRun(db, { ...linked, result_status: 'success', outcome: 'acted' });
     const running = insertRun(db, { ...linked, status: 'running', started_at: 5_000 });
@@ -363,13 +386,15 @@ describe('read models', () => {
   });
 
   test('form options list repositories with gitlab host', () => {
-    const { read, config } = setup({ runs: { models: ['gpt-5', 'claude-sonnet-4.5'] } });
+    const { db, read, config } = setup({ runs: { models: ['gpt-5', 'claude-sonnet-4.5'] } });
+    const persistedFolder = '/persisted/repositories/pages';
+    db.prepare('UPDATE repositories SET folder = ? WHERE name = ?').run(persistedFolder, 'pages');
 
     const options = read.formOptions();
 
     expect(options.repositories).toEqual([
-      { name: 'pages', folder: config.repositories.pages!.folder, host: 'https://gitlab.example.com', project: null },
       { name: 'api', folder: config.repositories.api!.folder, host: 'https://gitlab.example.com', project: null },
+      { name: 'pages', folder: persistedFolder, host: 'https://gitlab.example.com', project: null },
     ]);
     expect(options.models).toEqual(['claude-sonnet-4.5', 'gpt-5']);
     expect(options.defaultModel).toBe('claude-sonnet-4.5');
@@ -377,6 +402,21 @@ describe('read models', () => {
     expect(options.initialReview).toBe('baseline-only');
     expect(options.jiraEnabled).toBe(false);
     expect(options).not.toHaveProperty('defaultPromptFiles');
+  });
+
+  test('form options expose selected provider models', () => {
+    const { db, read } = setup({
+      provider: 'codex',
+      providers: { codex: { defaultModel: 'codex-default', models: ['codex-fast'] } },
+    });
+    const watchId = insertWatch(db);
+
+    expect(read.formOptions()).toMatchObject({
+      provider: 'codex',
+      defaultModel: 'codex-default',
+      models: ['codex-default', 'codex-fast'],
+    });
+    expect(read.watchDetail(watchId)?.settings.model).toBe('codex-default');
   });
 
   test('adhoc view lists ad-hoc Runs newest first with queue position', () => {

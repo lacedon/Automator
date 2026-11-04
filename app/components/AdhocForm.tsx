@@ -4,8 +4,13 @@ import { startTransition, useActionState, useState, type FormEvent } from 'react
 import type { FormOptions } from '@core/index';
 import { queueAdhoc, type AdhocFormState } from '../actions/adhoc';
 import { ErrorBox } from './ErrorBox';
+import { providerLabel } from '../lib/providerLabel';
 
-export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositories' | 'models' | 'defaultModel'> }) {
+export function AdhocForm({
+  options,
+}: {
+  options: Pick<FormOptions, 'repositories' | 'provider' | 'models' | 'defaultModel'>;
+}) {
   const [state, formAction, pending] = useActionState(queueAdhoc, null);
   const [repository, setRepository] = useState(options.repositories[0]?.name ?? '');
   const [prompt, setPrompt] = useState('');
@@ -87,7 +92,7 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
           className={inputClass('prompt')}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="What Copilot should do in this Repository…"
+          placeholder="What the selected provider should do in this Repository…"
         />
       </div>
       <div className="field field-narrow">
@@ -106,6 +111,7 @@ export function AdhocForm({ options }: { options: Pick<FormOptions, 'repositorie
             </option>
           ))}
         </select>
+        <div className="field-hint muted">Provider: {providerLabel(options.provider)}</div>
       </div>
       <div className="actions">
         <button type="submit" className="btn btn-primary" disabled={pending}>

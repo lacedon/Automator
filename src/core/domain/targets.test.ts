@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { createConfigSchema, type Config } from '../config/schema';
+import type { Repository } from '../repositories/repositoryService';
 import { parseTarget } from './targets';
 
 const config: Config = {
@@ -12,10 +13,28 @@ const config: Config = {
     jira: { connections: { corp: { baseUrl: 'https://jira.example.com' } } },
   }),
   configDir: '/cfg',
+  repositories: {
+    pages: { folder: '/repo/pages', gitlab: 'corp', jira: 'corp', validate: [] },
+    nojira: { folder: '/repo/x', gitlab: 'corp', validate: [] },
+  },
 };
 
-function parsed(input: string, repository?: string) {
-  const r = parseTarget(input, config, repository);
+function repositoryFor(name: string, source = config): Repository | undefined {
+  const repository = source.repositories[name];
+  return repository === undefined
+    ? undefined
+    : {
+        name,
+        folder: repository.folder,
+        gitlab: repository.gitlab ?? null,
+        github: repository.github ?? null,
+        jira: repository.jira ?? null,
+        validate: repository.validate,
+      };
+}
+
+function parsed(input: string, name = 'pages', source = config) {
+  const r = parseTarget(input, source, repositoryFor(name, source));
   if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r.error)}`);
   return r.value;
 }
@@ -49,8 +68,8 @@ test('parses Jira browse URL and bare key', () => {
 test('bare key without jira repository is INVALID_TARGET', () => {
   const error = { code: 'INVALID_TARGET', message: 'Jira key needs a Repository with a Jira connection' };
   expect(parseTarget('ABC-1', config)).toEqual({ ok: false, error });
-  expect(parseTarget('ABC-1', config, 'nojira')).toEqual({ ok: false, error });
-  expect(parseTarget('ABC-1', config, 'missing')).toEqual({ ok: false, error });
+  expect(parseTarget('ABC-1', config, repositoryFor('nojira'))).toEqual({ ok: false, error });
+  expect(parseTarget('ABC-1', config, repositoryFor('missing'))).toEqual({ ok: false, error });
 });
 
 test('unknown host URL is free-form', () => {
@@ -88,8 +107,16 @@ test('normalizes GitHub pull request URL', () => {
   const withGithub: Config = {
     ...config,
     github: { gh: { host: 'github.com', tokenEnv: 'GITHUB_TOKEN' } },
+    repositories: {
+      ...config.repositories,
+      pages: { ...config.repositories.pages!, github: 'gh' },
+    },
   };
-  const r = parseTarget('https://GitHub.com/acme/app/pull/7/files?x=1#n', withGithub);
+  const r = parseTarget(
+    'https://GitHub.com/acme/app/pull/7/files?x=1#n',
+    withGithub,
+    repositoryFor('pages', withGithub),
+  );
   expect(r).toEqual({
     ok: true,
     value: {
@@ -103,4 +130,53 @@ test('normalizes GitHub pull request URL', () => {
 
 test('GitHub pull request URL without a GitHub connection is a free-form target', () => {
   expect(parsed('https://github.com/acme/app/pull/7').kind).toBe('free');
+});
+
+test('MR parsing uses only the selected Repository connections', () => {
+  const withMultipleConnections: Config = {
+    ...config,
+    repositories: {
+      ...config.repositories,
+      pages: { folder: '/repo/pages', gitlab: 'second', github: 'gh-second', validate: [] },
+    },
+    gitlab: {
+      first: { host: 'https://gitlab.example.com', tokenEnv: 'FIRST_TOKEN' },
+      second: { host: 'https://gitlab.example.com', tokenEnv: 'SECOND_TOKEN' },
+    },
+    github: {
+      'gh-first': { host: 'github.example.com', tokenEnv: 'FIRST_GITHUB_TOKEN' },
+      'gh-second': { host: 'github.example.com', tokenEnv: 'SECOND_GITHUB_TOKEN' },
+    },
+  };
+
+  expect(
+    parseTarget(
+      'https://gitlab.example.com/team/app/-/merge_requests/42',
+      withMultipleConnections,
+      repositoryFor('pages', withMultipleConnections),
+    ),
+  ).toMatchObject({
+    ok: true,
+    value: { gitlab: { conn: 'second' } },
+  });
+  expect(
+    parseTarget(
+      'https://github.example.com/acme/app/pull/7',
+      withMultipleConnections,
+      repositoryFor('pages', withMultipleConnections),
+    ),
+  ).toMatchObject({
+    ok: true,
+    value: { github: { conn: 'gh-second' } },
+  });
+  expect(
+    parseTarget(
+      'https://gitlab.example.com/team/app/-/merge_requests/42',
+      withMultipleConnections,
+      repositoryFor('nojira', withMultipleConnections),
+    ),
+  ).toMatchObject({
+    ok: true,
+    value: { kind: 'free' },
+  });
 });

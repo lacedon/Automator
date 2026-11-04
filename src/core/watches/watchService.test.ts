@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { Result } from '../domain/result';
@@ -25,10 +26,11 @@ function setup(opts: { config?: Config; preview?: WatchServiceDeps['preview'] } 
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
-  const config = opts.config ?? testConfig();
-  const queue = new QueueService(t.db, clock, dataDir, config);
-  const service = new WatchService({ db: t.db, clock, config, queue, dataDir, preview: opts.preview });
-  return { db: t.db, clock, dataDir, config, queue, service };
+  const config = opts.config ?? testConfig({ runs: { models: ['gpt-x', 'm1', 'watch-model'] } });
+  const repositories = testRepositories(t.db, config);
+  const queue = new QueueService(t.db, clock, dataDir, config, repositories);
+  const service = new WatchService({ db: t.db, clock, dataDir, config, repositories, queue, preview: opts.preview });
+  return { db: t.db, clock, dataDir, config, repositories, queue, service };
 }
 
 function value<T>(r: Result<T>): T {
@@ -107,6 +109,48 @@ describe('WatchService.create', () => {
     expect(count(db, 'watches')).toBe(0);
   });
 
+  test('resolves the selected Repository connection from SQLite', () => {
+    const config = testConfig({
+      gitlab: { alternate: { host: 'https://gitlab.other.example.com', tokenEnv: 'ALT_TOKEN' } },
+    });
+    const { db, service } = setup({ config });
+    db.prepare('UPDATE repositories SET gitlab = ? WHERE name = ?').run('alternate', 'pages');
+
+    const created = service.create({
+      target: 'https://gitlab.other.example.com/team/app/-/merge_requests/8',
+      repository: 'pages',
+    });
+
+    expect(created).toMatchObject({ ok: true, value: { kind: 'mr', repository: 'pages' } });
+    expect(db.prepare('SELECT normalized_target FROM watches WHERE repository = ?').get('pages')).toEqual({
+      normalized_target: 'gitlab:gitlab.other.example.com/team/app!8',
+    });
+  });
+
+  test('a known Repository with a missing folder or connection is rejected explicitly', () => {
+    const config = testConfig();
+    const { db, service } = setup({ config });
+    db.prepare('UPDATE repositories SET folder = ? WHERE name = ?').run('/missing/repository', 'pages');
+
+    expect(service.create({ target: MR, repository: 'pages' })).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'repository', message: expect.stringContaining('Folder does not exist') },
+    });
+    db.prepare('UPDATE repositories SET folder = ?, gitlab = ? WHERE name = ?').run(
+      config.repositories.pages!.folder,
+      'missing-connection',
+      'pages',
+    );
+    expect(service.create({ target: MR, repository: 'pages' })).toMatchObject({
+      ok: false,
+      error: {
+        code: 'INVALID_INPUT',
+        field: 'repository',
+        message: expect.stringContaining('Unknown GitLab connection'),
+      },
+    });
+  });
+
   test('duplicate returns existing watch', () => {
     const { service, config } = setup();
     const first = value(service.create({ target: MR, repository: 'pages' }));
@@ -118,6 +162,20 @@ describe('WatchService.create', () => {
       },
     });
     expect(value(service.create({ target: MR, repository: 'api' })).id).not.toBe(first.id);
+  });
+
+  test('duplicate detection uses the Repository name stored in SQLite', () => {
+    const { service, config } = setup();
+    const first = value(service.create({ target: MR, repository: 'PAGES' }));
+    expect(first.repository).toBe('pages');
+
+    expect(service.create({ target: MR, repository: 'pages' })).toEqual({
+      ok: false,
+      error: {
+        code: 'DUPLICATE_WATCH',
+        existing: { id: first.id, state: 'active', intervalMs: config.schedule.intervals.mr },
+      },
+    });
   });
 
   test('create sets active, next_check_at now, title default target', () => {
@@ -194,6 +252,17 @@ describe('WatchService.list', () => {
 });
 
 describe('WatchService.update', () => {
+  test('rejects models not configured for the selected provider', () => {
+    const { service } = setup();
+    const watch = value(service.create({ target: MR, repository: 'pages', model: 'm1' }));
+
+    expect(service.update(watch.id, { model: 'unknown-model' })).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'model', message: 'Model "unknown-model" is not configured for copilot' },
+    });
+    expect(service.get(watch.id)?.model).toBe('m1');
+  });
+
   test('update cannot change target or repository', () => {
     const { service, clock } = setup();
     const w = value(service.create({ target: MR, repository: 'pages', instructions: 'a', model: 'm1' }));

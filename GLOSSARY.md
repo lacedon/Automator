@@ -9,7 +9,7 @@ A locally stored record of one outside item that needs follow-up in the future, 
 _Avoid_: Ticket, task, tracker, follow-up
 
 **Repository**:
-A named codebase associated with a local working folder. Each Watch identifies the Repository where its follow-up work belongs.
+A Settings-managed record stored in SQLite that names a local codebase folder, service connections, and validation commands. Watches and Runs refer to it by name.
 _Avoid_: Workspace, project (when referring to the configured Repository)
 
 **Watch kind**:

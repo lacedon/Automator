@@ -1,12 +1,17 @@
+import path from 'node:path';
 import type { Config } from '../config/schema';
+import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
 import { intervalFor, isWithinWorkingHours } from '../domain/schedule';
 import type { Clock, NeedsYouEvent, Watch } from '../domain/types';
+import { writeAttemptError } from '../files/attempts';
+import type { DataDir } from '../files/dataDir';
 import { precheckFor, type Prechecks } from '../prechecks/index';
 import type { PrecheckResult } from '../prechecks/types';
 import type { QueueService } from '../queue/queueService';
 import { closeWatch, enterNeedsYou } from '../watches/needsYou';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 const MAX_CHECK_FAILURES = 3;
 
@@ -14,7 +19,9 @@ export interface SchedulerDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  dataDir: DataDir;
   queue: QueueService;
+  repositories: Pick<RepositoryService, 'status'>;
   prechecks: Prechecks;
   onNeedsYou(e: NeedsYouEvent): void | Promise<void>;
 }
@@ -73,7 +80,24 @@ export class Scheduler {
   }
 
   private check(watch: Watch): Promise<PrecheckResult> {
-    const { prechecks } = this.deps;
+    const { clock, dataDir, prechecks, repositories } = this.deps;
+    const issues = repositories.status(watch.repository);
+    if (issues.length > 0) {
+      const message = `Repository "${watch.repository}" is invalid: ${issues.join('; ')}`;
+      const attempt = writeAttemptError(
+        dataDir,
+        { code: 'REPOSITORY_UNAVAILABLE', repository: watch.repository, message, issues },
+        clock.now(),
+      );
+      const resultReference =
+        attempt.path === null
+          ? `\n\nError result could not be written: ${attempt.writeError ?? 'unknown write error'}`
+          : `\n\nError result: /files/attempt/${path.basename(attempt.path)}`;
+      return Promise.resolve({
+        kind: 'blocked',
+        message: `${message}${resultReference}`,
+      });
+    }
     if (watch.kind === 'jira' && !prechecks.jira.hasToken(watch)) {
       return Promise.resolve({ kind: 'changed', reason: 'interval' });
     }
@@ -83,6 +107,7 @@ export class Scheduler {
   // Applies one check outcome atomically; returns whether a Run was enqueued.
   private apply(watchId: number, result: PrecheckResult): boolean {
     const { db, clock, config, queue } = this.deps;
+    const modelOptions = providerOptions(config, config.provider);
     let event: NeedsYouEvent | null = null;
     const enqueued = db
       .transaction((): boolean => {
@@ -102,7 +127,7 @@ export class Scheduler {
               repository: watch.repository,
               trigger: 'schedule',
               reason: result.reason,
-              model: watch.model ?? config.runs.defaultModel,
+              model: watch.model ?? modelOptions.defaultModel,
             });
             break;
           case 'unchanged':
@@ -110,6 +135,9 @@ export class Scheduler {
             break;
           case 'close':
             closeWatch(db, watchId, result.reason, now);
+            return false;
+          case 'blocked':
+            needsYou(result.message);
             return false;
           case 'failed':
             failures = watch.checkFailures + 1;

@@ -45,6 +45,57 @@ function unchangedAfterFailure(file: string, operation: () => void): void {
 }
 
 describe('readEditableConfig', () => {
+  test('legacy config exposes defaults for every provider', () => {
+    const { file } = writeConfig(config);
+
+    const editable = readEditableConfig(file);
+
+    expect(editable).toMatchObject({
+      provider: 'copilot',
+      providers: {
+        'claude-code': { bin: 'claude', defaultModel: '', models: [] },
+        codex: { bin: 'codex', defaultModel: '', models: [] },
+        opencode: { bin: 'opencode', defaultModel: '', models: [] },
+      },
+    });
+  });
+
+  test('provider settings round-trip without exposing credentials', () => {
+    const { file } = writeConfig({
+      ...config,
+      provider: 'codex',
+      providers: {
+        'claude-code': { bin: 'claude', defaultModel: '', models: [] },
+        codex: {
+          bin: '/opt/codex',
+          defaultModel: 'codex-model',
+          models: ['codex-model'],
+          apiKeyEnv: 'OPENAI_API_KEY',
+        },
+        opencode: { bin: 'opencode', defaultModel: '', models: [] },
+      },
+    });
+    const editable = readEditableConfig(file);
+    expect(JSON.stringify(editable)).not.toContain('OPENAI_API_KEY');
+    Object.assign(editable, {
+      provider: 'codex',
+      providers: {
+        'claude-code': { bin: 'claude', defaultModel: '', models: [] },
+        codex: { bin: '/opt/codex-edited', defaultModel: 'codex-new', models: ['codex-new'] },
+        opencode: { bin: 'opencode', defaultModel: '', models: [] },
+      },
+    });
+
+    writeEditableConfig(file, editable);
+
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toMatchObject({
+      provider: 'codex',
+      providers: {
+        codex: { bin: '/opt/codex-edited', defaultModel: 'codex-new', models: ['codex-new'] },
+      },
+    });
+  });
+
   test('returns only non-secret connection fields without reading .env values', () => {
     const { dir, file } = writeConfig(config);
     fs.writeFileSync(path.join(dir, '.env'), 'GITLAB_TOKEN=private-sentinel\nJIRA_TOKEN=private-sentinel\n');
@@ -69,6 +120,11 @@ describe('readEditableConfig', () => {
     const editable = readEditableConfig(file);
 
     expect(editable).not.toHaveProperty('prompts');
+  });
+
+  test('does not expose legacy repositories', () => {
+    const { file } = writeConfig(config);
+    expect(readEditableConfig(file)).not.toHaveProperty('repositories');
   });
 });
 
@@ -99,6 +155,7 @@ describe('writeEditableConfig', () => {
           },
         },
       },
+      repositories: config.repositories,
     });
   });
 
@@ -110,12 +167,12 @@ describe('writeEditableConfig', () => {
     unchangedAfterFailure(file, () => writeEditableConfig(file, invalid));
   });
 
-  test('rejects invalid connection references without overwriting the file', () => {
+  test('does not overwrite legacy repositories when saving config edits', () => {
     const { file } = writeConfig(config);
     const editable = readEditableConfig(file);
-    editable.repositories.pages.gitlab = 'missing';
-
-    unchangedAfterFailure(file, () => writeEditableConfig(file, editable));
+    editable.copilotBin = '/opt/copilot';
+    writeEditableConfig(file, editable);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).repositories).toEqual(config.repositories);
   });
 
   test('rejects added or removed connection records without overwriting the file', () => {

@@ -1,13 +1,11 @@
 {
   "dataDir": "~/.automator",
   "copilotBin": "copilot",
-  "repositories": {
-    "pages": {
-      "folder": "~/work/pages",
-      "gitlab": "corp",
-      "jira": "corp",
-      "validate": ["npm run lint", "npm test"]
-    }
+  "provider": "copilot",
+  "providers": {
+    "claude-code": { "bin": "claude", "defaultModel": "", "models": [] },
+    "codex": { "bin": "codex", "defaultModel": "", "models": [] },
+    "opencode": { "bin": "opencode", "defaultModel": "", "models": [] }
   },
   "gitlab": { "corp": { "host": "https://gitlab.example.com", "tokenEnv": "GITLAB_TOKEN" } },
   "github": { "public": { "host": "github.com", "tokenEnv": "AUTOMATOR_GITHUB_TOKEN" } },

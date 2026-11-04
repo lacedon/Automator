@@ -2,6 +2,7 @@ import type { Config } from '../config/schema';
 import type { Secrets } from '../config/load';
 import { parseTarget } from '../domain/targets';
 import type { Cursor, JiraCursor, Watch } from '../domain/types';
+import type { RepositoryReader } from '../repositories/repositoryService';
 import { HttpError } from '../http/fetchWithRetry';
 import { jiraBaseUrl, type JiraClient, type JiraIssue } from './jiraClient';
 import type { EventSummary, Precheck, PrecheckResult, Snapshot } from './types';
@@ -10,6 +11,7 @@ export type JiraPrecheckDeps = {
   clientFor(conn: string): JiraClient;
   config: Config;
   secrets: Secrets;
+  repositories: RepositoryReader;
 };
 
 type Comment = JiraIssue['comments'][number];
@@ -68,7 +70,7 @@ export class JiraPrecheck implements Precheck {
   constructor(private readonly deps: JiraPrecheckDeps) {}
 
   hasToken(w: Watch): boolean {
-    const parsed = parseTarget(w.targetUrl, this.deps.config, w.repository);
+    const parsed = parseTarget(w.targetUrl, this.deps.config, this.deps.repositories.get(w.repository));
     const conn = parsed.ok ? parsed.value.jira?.conn : undefined;
     const token = conn === undefined ? undefined : this.deps.secrets.jira[conn]?.token;
     return token !== undefined && token !== '';
@@ -133,7 +135,7 @@ export class JiraPrecheck implements Precheck {
   }
 
   private async connect(w: Watch) {
-    const parsed = parseTarget(w.targetUrl, this.deps.config, w.repository);
+    const parsed = parseTarget(w.targetUrl, this.deps.config, this.deps.repositories.get(w.repository));
     if (!parsed.ok) throw new Error(`Invalid Jira target ${w.targetUrl}`);
     const jira = parsed.value.jira;
     if (jira === undefined) throw new Error(`Not a Jira issue: ${w.targetUrl}`);

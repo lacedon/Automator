@@ -3,6 +3,40 @@ import { expect, test } from '@playwright/test';
 // Tests share one seeded data dir and run in file order; the home test resumes the only Needs you Watch,
 // so the Watches list test that expects it pinned first runs before it.
 
+test('provider settings show the global selector and provider model fields', async ({ page }) => {
+  await page.goto('/settings/config');
+  const provider = page.getByLabel('Provider', { exact: true });
+  await expect(provider).toHaveValue('copilot');
+  await expect(provider.locator('option')).toHaveText([
+    'GitHub Copilot CLI',
+    'Claude Code',
+    'OpenAI Codex CLI',
+    'OpenCode',
+  ]);
+  for (const id of [
+    'config-copilotBin',
+    'config-runs-defaultModel',
+    'config-providers-claude-code-bin',
+    'config-providers-claude-code-defaultModel',
+    'config-providers-claude-code-models',
+    'config-providers-codex-bin',
+    'config-providers-codex-defaultModel',
+    'config-providers-codex-models',
+    'config-providers-opencode-bin',
+    'config-providers-opencode-defaultModel',
+    'config-providers-opencode-models',
+  ]) {
+    await expect(page.locator(`#${id}`)).toBeVisible();
+  }
+  await expect(page.locator('body')).not.toContainText(/(?:GITLAB_TOKEN|OPENAI_API_KEY|CODEX_API_KEY)/);
+});
+
+test('run list labels each run with its provider', async ({ page }) => {
+  await page.goto('/watches/2');
+  await expect(page.getByRole('columnheader', { name: 'Provider' })).toBeVisible();
+  await expect(page.locator('table tbody tr').first()).toContainText('GitHub Copilot CLI');
+});
+
 test('watches list pins needs-you first and shows jira notice', async ({ page }) => {
   await page.goto('/watches');
   await expect(page.getByText('Jira checking is off')).toBeVisible();
@@ -56,6 +90,7 @@ test('run detail shows transcript, result json and prompt tabs', async ({ page }
   await page.goto('/runs?q=Replied+to+2+comments');
   await page.locator('.run-history .task-title').click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
+  await expect(page.locator('.kv')).toContainText('GitHub Copilot CLI');
   const panel = page.getByRole('tabpanel');
   await expect(panel).toContainText('# Transcript of Run #');
   await expect(panel).toContainText('Replied to 2 comments, pushed fix');

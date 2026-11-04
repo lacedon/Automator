@@ -1,6 +1,7 @@
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
+import { testRepositoryReader } from '../../../test/helpers/repositories';
 import {
   discussion,
   gitlabHandlers,
@@ -74,7 +75,8 @@ function setup(fixture: GitLabFixture = {}, opts: { config?: Config; token?: str
       return cached.get(conn)!;
     },
   };
-  const precheck = new GitLabPrecheck({ clientFor, config: opts.config ?? testConfig(), meCache });
+  const config = opts.config ?? testConfig();
+  const precheck = new GitLabPrecheck({ clientFor, config, repositories: testRepositoryReader(config), meCache });
   return { precheck, calls, clients };
 }
 

@@ -1,4 +1,5 @@
 import { toNeedsYouEvent, toWatch } from '../db/rows';
+import { providerOptions } from '../config/providers';
 import { intervalFor } from '../domain/schedule';
 import type { Cursor, InitialReview, JiraCursor, MrCursor, NeedsYouEvent, Watch } from '../domain/types';
 import type { WatchAction } from '../domain/watchState';
@@ -51,17 +52,18 @@ function lastHandledLines(kind: Watch['kind'], cursor: Cursor | null): string[] 
 }
 
 export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null {
-  const { db, config } = deps;
+  const { db, config, repositories } = deps;
   const row = db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
   if (row === undefined) return null;
   const watch = toWatch(row);
+  const modelOptions = providerOptions(config, config.provider);
   const src = nextCheckSource(deps);
   const running = src.running?.watchId === watch.id ? src.running : null;
   const event = db.prepare('SELECT * FROM needs_you_events WHERE watch_id = ? ORDER BY id DESC LIMIT 1').get(id);
   const runs = db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id = ? AND r.status <> 'queued' ORDER BY r.id DESC`)
     .all(id)
-    .map((r) => toRunRow(toRunWithTitle(r), deps.config));
+    .map((r) => toRunRow(toRunWithTitle(r), deps.config, deps.repositories));
 
   return {
     watch,
@@ -70,10 +72,10 @@ export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null 
     nextCheck: nextCheckFor(watch, src, deps),
     settings: {
       repository: watch.repository,
-      folder: config.repositories[watch.repository]?.folder ?? null,
+      folder: repositories.get(watch.repository)?.folder ?? null,
       intervalMs: intervalFor(watch, config),
       intervalIsDefault: watch.intervalMs === null,
-      model: watch.model ?? config.runs.defaultModel,
+      model: watch.model ?? modelOptions.defaultModel,
       modelIsDefault: watch.model === null,
       initialReview: watch.initialReview ?? config.runs.initialReview,
       initialReviewIsDefault: watch.initialReview === null,

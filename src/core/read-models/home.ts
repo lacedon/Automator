@@ -48,7 +48,7 @@ export function homeView(deps: ReadDeps, scope: ProjectScope = null): HomeView {
     .map(toRunWithTitle)
     .filter((run) => inScope(run.repository))
     .slice(0, RECENT_LIMIT)
-    .map((run) => toRunRow(run, deps.config));
+    .map((run) => toRunRow(run, deps.config, deps.repositories));
   const running = runningRun(deps);
   return { needsYou, running: running && inScope(running.repository) ? toRunningCard(running, deps) : null, recent };
 }

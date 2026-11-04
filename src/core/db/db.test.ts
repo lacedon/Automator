@@ -37,6 +37,17 @@ function setupVersion4(): Database {
   return db;
 }
 
+function setupVersion6(): Database {
+  const db = new BetterSqlite3(':memory:');
+  db.pragma('foreign_keys = ON');
+  for (const { version, sql } of migrations.filter(({ version }) => version <= 6)) {
+    db.exec(sql);
+    db.pragma(`user_version = ${version}`);
+  }
+  cleanups.push(() => db.close());
+  return db;
+}
+
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
@@ -89,12 +100,41 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
-  test('migrate is idempotent and sets user_version 6', () => {
+  test('existing Runs migrate to Copilot and provider values round-trip', () => {
+    const db = setupVersion6();
+    const oldRunId = insertRun(db, null, 'finished');
+
+    migrate(db);
+
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
+      id: oldRunId,
+      provider: 'copilot',
+    });
+    db.prepare("UPDATE runs SET provider = 'codex' WHERE id = ?").run(oldRunId);
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId)).provider).toBe('codex');
+    expect(constraintCode(() => db.prepare("UPDATE runs SET provider = 'other' WHERE id = ?").run(oldRunId))).toBe(
+      'SQLITE_CONSTRAINT_CHECK',
+    );
+  });
+
+  test('migrate is idempotent and sets user_version 8', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(6);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(6);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
+    expect(db.pragma('table_info(repositories)')).toEqual([
+      expect.objectContaining({ name: 'name' }),
+      expect.objectContaining({ name: 'folder' }),
+      expect.objectContaining({ name: 'gitlab' }),
+      expect.objectContaining({ name: 'github' }),
+      expect.objectContaining({ name: 'jira' }),
+      expect.objectContaining({ name: 'validate_json' }),
+    ]);
+    expect(db.pragma('table_info(runs)')).toContainEqual(
+      expect.objectContaining({ name: 'provider', dflt_value: "'copilot'" }),
+    );
     expect(db.pragma('table_info(agents)')).toEqual([
       expect.objectContaining({ name: 'id' }),
       expect.objectContaining({ name: 'name' }),
@@ -114,6 +154,7 @@ describe('db', () => {
       'operation_templates',
       'project_repositories',
       'projects',
+      'repositories',
       'runs',
       'watches',
       'worker_lock',
@@ -195,7 +236,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(6);
+    expect(db.pragma('user_version', { simple: true })).toBe(8);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

@@ -1,6 +1,7 @@
 import type { FileView, RunDetailView, RunError, TicketLink, Trigger } from '@core/index';
 import { formatDateTime, formatTook } from '../lib/format';
 import { Elapsed } from './Elapsed';
+import { providerLabel } from '../lib/providerLabel';
 
 export const TRIGGER_NAME: Record<Trigger, string> = { schedule: 'schedule', manual: 'manual', adhoc: 'ad-hoc' };
 
@@ -69,6 +70,8 @@ export function RunMeta({ view }: { view: RunDetailView }) {
         <dd>
           {TRIGGER_NAME[run.trigger]} · {run.reason}
         </dd>
+        <dt>Provider</dt>
+        <dd>{providerLabel(run.provider)}</dd>
         <dt>Time</dt>
         <dd>
           <RunTime view={view} />

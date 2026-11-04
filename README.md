@@ -1,6 +1,6 @@
 # Automator
 
-A small personal tool to automate work with Jira and Git (GitLab or GitHub). It keeps track of outside items that need follow-up, such as merge requests waiting for review or Jira tickets. It checks them from time to time and runs Copilot CLI when something needs doing. A local dashboard shows the current state.
+A small personal tool to automate work with Jira and Git (GitLab or GitHub). It keeps track of outside items that need follow-up, such as merge requests waiting for review or Jira tickets. It checks them from time to time and runs a selected coding CLI when something needs doing. GitHub Copilot CLI remains the default. A local dashboard shows the current state.
 
 > **Status:** v1 implemented.
 
@@ -16,7 +16,7 @@ See also:
 Prerequisites:
 
 - Node.js 24
-- GitHub Copilot CLI installed and logged in (`copilot` on your `PATH`)
+- GitHub Copilot CLI installed and logged in (`copilot` on your `PATH`); it is the default Run provider
 - For GitLab MR Watches: [`glab`](https://gitlab.com/gitlab-org/cli) installed and logged in (see below)
 - For GitHub PR Watches: [`gh`](https://cli.github.com) installed and logged in (see below)
 
@@ -48,7 +48,7 @@ Set up and start:
 
 ```sh
 npm install
-cp automator.config.example.json automator.config.json   # then edit Repositories, connections, Teams chat
+cp automator.config.example.json automator.config.json   # then edit connections and Teams chat
 cp .env.example .env                                     # then fill in GITLAB_TOKEN (and Jira tokens if used)
 npm run build
 npm start
@@ -56,7 +56,9 @@ npm start
 
 `npm start` runs the dashboard and the worker together. Open <http://127.0.0.1:4317> (set `PORT` to change the port).
 
-Ctrl-C stops the dashboard at once, but the worker first waits for the active Run to finish (up to `runs.timeoutMinutes`) and records its result. Press Ctrl-C again (a second or more later) to force it to stop: the active Copilot process is killed, and on the next start the Run is marked interrupted and its Watch moves to Needs you.
+Add your local codebases on **Settings → Repositories**. If your existing `automator.config.json` has a `repositories` section, Automator imports it into SQLite the first time it starts with that database. After import, the database is the source of truth; later edits to the legacy config section are ignored.
+
+Ctrl-C stops the dashboard at once, but the worker first waits for the active Run to finish (up to `runs.timeoutMinutes`) and records its result. Press Ctrl-C again (a second or more later) to force it to stop: the active provider process is killed, and on the next start the Run is marked interrupted and its Watch moves to Needs you.
 
 CLI examples (the worker must be running for queued Runs to start):
 
@@ -69,6 +71,40 @@ npm run automator -- run --repo <name> --ticket ABC-123 --prompt "Use the existi
 
 `--ticket` takes a Jira key or `/browse/` URL and the prompt is then optional. The Ticket title is fetched when the Run is queued; if Jira can't be reached the Run is still queued with just the key and a warning. Like any ad-hoc Run, it goes straight into the shared queue, runs once and is driven by the prompt (branches, commits and MRs are allowed, never required). It never resolves discussions, force-pushes or pushes to protected branches, or deletes or reassigns tickets; merging or approving MRs and changing Jira statuses only happen when the prompt explicitly asks. See [ADR 0002](docs/adr/0002-ad-hoc-runs-are-prompt-driven.md).
 
+## Run providers
+
+Provider selection is installation-wide. Change it in **Settings → Configuration** or set `provider` in `automator.config.json`. Missing provider configuration continues to mean `copilot`. The example config contains the executable, default model and supported-model list for each CLI; set a non-empty default model before selecting a non-Copilot provider. OpenCode model IDs use the `provider/model` form. Run history stores the provider and model selected when the Run was queued, so later settings changes do not relabel old Runs or reroute queued/follow-up work.
+
+Install each CLI and authenticate it as the same OS user that runs Automator, following its official setup guide:
+
+| Provider           | Install / setup                                                                        | Native authentication               | Version check        |
+| ------------------ | -------------------------------------------------------------------------------------- | ----------------------------------- | -------------------- |
+| GitHub Copilot CLI | [Install guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | Complete login in the `copilot` CLI | `copilot --version`  |
+| Claude Code        | [Setup guide](https://code.claude.com/docs/en/setup)                                   | `claude auth login`                 | `claude --version`   |
+| OpenAI Codex CLI   | [CLI guide](https://developers.openai.com/codex/cli)                                   | `codex login`                       | `codex --version`    |
+| OpenCode           | [Install guide](https://opencode.ai/docs/)                                             | `opencode auth login`               | `opencode --version` |
+
+Automator removes credential-like environment variables (API/access keys, tokens, secrets, passwords and credential-file paths) and configured Git/Jira credential variables before starting a coding CLI. For Copilot, its supported `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, and `GITHUB_TOKEN` authentication variables are preserved unless one is also configured as an Automator integration credential, and are marked secret so Copilot strips them from shell and MCP tool environments. Use each CLI's native login or supported authentication rather than putting provider credentials in the JSON config. Native auth stores remain in the OS user's profile; a coding agent with shell access is not isolated from files that user can read. Treat each provider account and its local credentials accordingly, and only run trusted repositories.
+
+Every CLI starts in the selected Repository folder. Automator does not copy or translate repository instructions, skills, or MCP configuration; each CLI discovers these using its own conventions. For example, Copilot has its [custom-instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions), Claude Code uses `CLAUDE.md` and `.claude/skills/`, Codex uses `AGENTS.md` and `.agents/skills/`, and OpenCode uses `AGENTS.md` plus `.opencode/skills/`. MCP servers and additional skills must be configured in the selected CLI's native format; see the linked provider documentation. The CLIs also differ in permissions: Codex uses the `workspace-write` sandbox and receives write access only to the current Run's artifact directory outside the Repository, Claude Code uses its non-interactive permission mode, and OpenCode auto-approves permissions not explicitly denied. `runs.denyTools` is Copilot-specific; the other adapters fail visibly rather than ignoring it when it is configured.
+
+Troubleshooting:
+
+- `SPAWN_FAILED`: confirm the configured `bin` is installed and available to the worker. Use an absolute executable path if Automator runs as a service with a different `PATH`.
+- `AUTH_FAILED`: complete the provider's native login as the Automator OS user, then restart Automator.
+- `MODEL_UNSUPPORTED`: check the exact model ID against the provider CLI and add it to that provider's supported model list.
+- `PROVIDER_CAPABILITY_UNSUPPORTED`: clear `runs.denyTools` or select Copilot, which is the only adapter that currently enforces that setting.
+
+### Provider smoke checklist
+
+Run this checklist separately for each provider in a trusted test Repository. Record the output of the version command in the table above when you test; Automator does not pin or reject CLI versions. Automated tests use fake CLIs, and no live provider CLI smoke test was run for this implementation.
+
+1. Install the CLI, record its version, complete native authentication, and confirm the CLI reports that it is ready.
+2. Select the provider and configure its executable, default model and supported models in Settings; restart Automator.
+3. Queue an ad-hoc Run and confirm its selected model, transcript, result and provider label in Run history.
+4. Create a Watch in the same Repository, trigger a Watch Run and confirm its transcript, result and provider label.
+5. Cancel a running test Run and verify it is recorded as interrupted. Send a follow-up to a completed Run and verify it continues the same provider session.
+
 Tests:
 
 ```sh
@@ -79,9 +115,9 @@ npm run check   # type check, lint, dependency rules and Vitest
 
 ## Goals
 
-1. Run Copilot CLI in a chosen folder, with that folder's local skills and the configured MCP servers.
+1. Run the selected coding CLI in a chosen folder, with that folder's local skills and the configured MCP servers.
 2. Create and delete **Watches** (local records of items that need follow-up later) in a local SQLite database.
-3. Check Watches from time to time and run Copilot when something needs doing. Most Watches will be pending merge requests: check for new comments, reply to them and make the requested changes.
+3. Check Watches from time to time and run the selected provider when something needs doing. Most Watches will be pending merge requests: check for new comments, reply to them and make the requested changes.
 4. Show the Watches and Runs in an HTML dashboard.
 
 ## Technology
@@ -89,15 +125,15 @@ npm run check   # type check, lint, dependency rules and Vitest
 - Node.js, TypeScript (ESM)
 - Next.js App Router for the dashboard
 - `better-sqlite3` for storage
-- GitHub Copilot CLI as the agent that does the work
+- GitHub Copilot CLI, Claude Code, OpenAI Codex CLI or OpenCode as the Run provider
 
 ## Architecture
 
 - **Single user, localhost only.** No login. The dashboard answers only requests whose `Host` is `127.0.0.1`, `localhost` or `[::1]` (403 otherwise), so a web page can't reach it through DNS rebinding.
-- **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs Copilot. Both use the same SQLite database.
-- **Repositories:** the configuration maps Repository names to local folders and to service connections (GitLab and/or GitHub host and credential, and the Jira connection where needed). A Repository names a `gitlab` and/or a `github` connection; a target URL picks the connection whose host matches. Every Watch and ad-hoc Run must name a Repository. Copilot starts directly in that folder, so its local skills, instructions and MCP setup apply. The automator never clones repositories or creates worktrees.
-- **One global queue:** all Copilot Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.
-- **Fresh session per Run:** every Run starts a new Copilot session. Its prompt includes the Watch instructions, summaries of recent Runs and any resolution note you left.
+- **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs the selected provider. Both use the same SQLite database.
+- **Repositories:** Repository records are managed in Settings and stored in SQLite. Each names a local folder, a GitLab and/or GitHub connection, an optional Jira connection, and validation commands. Connection hosts and credential environment-variable references remain in config. Every Watch and ad-hoc Run refers to a Repository by name; target URLs are matched against its named service connections. The selected CLI starts directly in the folder, so its supported local instructions, skills and MCP setup apply. The automator never clones repositories or creates worktrees.
+- **One global queue:** all provider Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.
+- **Provider sessions:** each new Run starts a new provider session; a follow-up resumes its parent Run's session. Prompts include the Watch instructions, summaries of recent Runs and any resolution note you left.
 
 ## Domain
 
@@ -110,7 +146,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 | Jira Ticket | Ticket key/URL                      | Look at changes and comments, and reply when the next step is clear |
 | Free-form   | Any URL + **required** instructions | Follow the Watch's instructions                                     |
 
-Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model. Each Agent opens in its own page (`/settings/agents/<id>`) from Settings for editing with the full window.
+Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model. Each Agent opens in its own page (`/settings/agents/<id>`) from Settings for editing with the full window. Provider selection remains installation-wide in Settings → Configuration.
 
 ### Watch states
 
@@ -150,7 +186,7 @@ Projects group Repositories so unrelated work stays visually apart. Manage them 
 
 ### GitLab MR and GitHub PR pre-check
 
-GitHub pull requests are checked the same way as GitLab merge requests, using the GitHub REST and GraphQL APIs: a failed check run on the latest commit counts as a failed pipeline, and review threads are the discussions. A cheap REST check runs before Copilot is started. A Run is queued only when, since the last handled point, there is at least one of these:
+GitHub pull requests are checked the same way as GitLab merge requests, using the GitHub REST and GraphQL APIs: a failed check run on the latest commit counts as a failed pipeline, and review threads are the discussions. A cheap REST check runs before the selected provider is started. A Run is queued only when, since the last handled point, there is at least one of these:
 
 - a new comment or discussion by **someone other than you**,
 - a failed pipeline on the latest commit,
@@ -175,14 +211,14 @@ Further rules:
 - While it's off, Jira Watches are kept and shown, but they don't run on schedule or through Run now. The dashboard explains why.
 - While it's on:
   - With a configured REST token, a cheap change-detection pre-check runs. It uses the change history to ignore your own changes.
-  - Without a token, Copilot checks the ticket through MCP on the normal interval.
+  - Without a token, the selected provider checks the ticket through MCP on the normal interval.
   - If a token is configured but invalid, the check fails visibly.
 
 Credentials are always set explicitly. They are never taken from MCP settings.
 
 ### Free-form
 
-Free-form Watches always run Copilot on their interval.
+Free-form Watches always run the selected provider on their interval.
 
 ### Schedule
 
@@ -192,27 +228,27 @@ Free-form Watches always run Copilot on their interval.
 - Scheduled work runs first-in, first-out (FIFO), with at most one queued request per Watch. Repeated triggers are combined into one.
 - After sleep or a restart, each Watch that is due gets checked once. Missed intervals aren't replayed.
 
-## What Copilot may do
+## What the selected provider may do
 
 ### GitLab MRs: full autonomy
 
-Copilot may reply to discussions, fix code, commit and push to the MR's source branch, and address pipeline failures. Merge conflicts are not resolved automatically: the Watch moves to **Needs you** and nothing is merged, rebased or reverted. Before Copilot changes anything, it must:
+The selected provider may reply to discussions, fix code, commit and push to the MR's source branch, and address pipeline failures. Merge conflicts are not resolved automatically: the Watch moves to **Needs you** and nothing is merged, rebased or reverted. Before it changes anything, it must:
 
 1. Re-read the current state of the MR, its branch and its discussions.
-2. Be on the MR's source branch. If the checkout is clean but on another branch, Copilot fetches and switches to the source branch itself (it never stashes or discards anything to do so); if the checkout isn't clean or the switch fails, it stops.
+2. Be on the MR's source branch. If the checkout is clean but on another branch, the provider fetches and switches to the source branch itself (it never stashes or discards anything to do so); if the checkout isn't clean or the switch fails, it stops.
 3. Run the Repository's configured validation commands.
 
 It stops and marks the Watch **Needs you**, instead of guessing or pushing unchecked code, when:
 
 - the checkout has uncommitted changes, an unfinished merge or rebase, or can't be safely switched to the source branch (your work is never stashed or thrown away automatically),
 - a request is unclear or is a design disagreement,
-- validation commands aren't configured or a required one fails (if a commit or push fails on a hook check, Copilot first runs `npm ci` once and retries),
+- validation commands aren't configured or a required one fails (if a commit or push fails on a hook check, the provider first runs `npm ci` once and retries),
 - the MR has merge conflicts with the target branch,
 - updating the branch wouldn't be safe.
 
 ### Jira
 
-By default Copilot only looks at the ticket and replies. It may change code only when the Watch's instructions explicitly allow it.
+By default the selected provider only looks at the ticket and replies. It may change code only when the Watch's instructions explicitly allow it.
 
 ### Never allowed
 
@@ -222,7 +258,7 @@ By default Copilot only looks at the ticket and replies. It may change code only
 
 ### Trust boundary
 
-Reviewer comments and other outside content are treated as untrusted requests, not as permission. Prompt rules and CLI tool restrictions are **not** a security sandbox, because Copilot still has general shell and MCP access. You are responsible for not editing a checkout yourself while an automated Run is using it. When a Run finishes, the checkout stays on the branch the Run used.
+Reviewer comments and other outside content are treated as untrusted requests, not as permission. Prompt rules and CLI tool restrictions are **not** a security sandbox, because the coding CLI still has general shell and MCP access. You are responsible for not editing a checkout yourself while an automated Run is using it. When a Run finishes, the checkout stays on the branch the Run used.
 
 ## Runs, outcomes and failures
 
@@ -240,7 +276,7 @@ When a Watch moves to **Needs you**:
 Failures:
 
 - Read-only API calls are retried with capped exponential backoff.
-- Copilot Runs that fail, are interrupted, time out or return an invalid or missing result are **not** retried automatically. The Watch moves to **Needs you** instead, so replies and pushes aren't duplicated.
+- Provider Runs that fail, are interrupted, time out or return an invalid or missing result are **not** retried automatically. The Watch moves to **Needs you** instead, so replies and pushes aren't duplicated.
 - The Run timeout is **30 minutes** by default, configurable.
 - Cancelling a Run records it as interrupted. It can't undo replies or pushes that already happened.
 - If you pause or close a Watch during a Run, that still applies after the Run ends. Exception: if that Run fails or asks for help, a paused Watch moves to Needs you so the failure isn't hidden. A Watch can't be deleted while its Run is still going unless you cancel the Run first.
@@ -248,7 +284,7 @@ Failures:
 
 ## History and result files
 
-- SQLite stores Run history: start and end times, trigger (schedule, manual or ad-hoc), exit code, outcome and transcript location.
+- SQLite stores Run history: start and end times, trigger (schedule, manual or ad-hoc), provider and model, exit code, outcome and transcript location.
 - Every completed Run writes a versioned **JSON result file** and saves its transcript separately. The result file contains:
   - schema version,
   - Run or attempt ID,
@@ -258,14 +294,14 @@ Failures:
   - `success` or `error` status,
   - outcome, summary and a structured error when there is one,
   - transcript location.
-- Failures before Copilot starts have no transcript.
+- Failures before the provider starts have no transcript.
 - Pre-checks that find no changes are not Runs and produce no files.
 - v1 only shows a transcript after the Run finishes. There's no live streaming.
 
 ## Configuration and storage
 
 - A validated, gitignored local **JSON config** holds:
-  - Repository mappings and service connections,
+  - GitLab, GitHub and Jira service connections,
   - schedules and working hours,
   - Jira settings,
   - cleanup settings,
@@ -274,9 +310,12 @@ Failures:
 
   A credential-free example config is committed.
 
+- **Repositories** (local folders, connection names and validation commands) are stored in SQLite and managed on **Settings → Repositories**. Existing config entries are imported once when the database is empty; after import, the legacy `repositories` section is ignored.
+- A Repository must have a GitLab or GitHub connection and a valid local folder. Its configured validation commands are run as part of Runs. A Repository with Watches cannot be deleted; deleting one never deletes its local files.
+
 - **Secrets** (GitLab and Jira tokens) are read from environment variables or a gitignored `.env`. They are never added to prompts or result files.
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
-- The Settings page edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
+- Settings manages Repositories and edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
 - Restart is a separate, confirmed Settings action. The supervisor drains active work before restarting the web process and worker.
 
 ## Cleanup
@@ -298,7 +337,7 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Watches that 
 - Ad-hoc Runs (pick a Repository, optionally a Jira Ticket, and enter a prompt), with explicit cancellation
 - **Home** prioritizes current Needs you Watches and links to their decision/resume flow, followed by the running Run, the next three queued items and five recent completions. Historical failures do not become current blockers.
 - **Runs** is searchable execution history, with outcome, Repository, trigger and inclusive local-date filters. Dates use start time (queue time for Runs that never started). Historical Needs you outcomes remain visible even after resolution.
-- **Settings** groups Projects, Repositories, Agents and Configuration. Repository folders, named service connections and Project membership are visible under Repositories; its edit link opens the existing Configuration editor. Repository configuration changes require a restart.
+- **Settings** groups Projects, Repositories, Agents and Configuration. Manage Repository folders, named service connections and validation commands directly under Repositories, alongside Project membership. Repository changes are stored in SQLite and take effect without restarting; credentials remain in Configuration and environment variables.
 - The project switcher remains in the header; Settings always covers the entire installation. On narrow screens the menu includes navigation, New watch and Ad-hoc run actions.
 
 ## CLI (v1)

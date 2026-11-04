@@ -14,8 +14,12 @@ const { queueAdhoc, deleteAdhocRun } = await import('./adhoc');
 let core: Core;
 
 beforeEach(() => {
+  const config = testConfig({
+    runs: { defaultModel: 'default-model', models: ['other-model'] },
+    jira: { enabled: true },
+  });
   core = createCore(
-    testConfig({ runs: { defaultModel: 'default-model', models: ['other-model'] }, jira: { enabled: true } }),
+    config,
     {
       clock: fakeClock(),
       notifier: { async notifyNeedsYou() {} },
@@ -32,6 +36,7 @@ beforeEach(() => {
         },
       }),
     },
+    { repositories: config.repositories },
   );
   holder.core = core;
   revalidatePath.mockClear();
@@ -75,6 +80,17 @@ test('queueAdhoc queues the Run and reports its number and position', async () =
     ok: true,
   });
   expect(queuedRuns()).toContainEqual({ repository: 'pages', prompt: 'p', model: 'other-model' });
+});
+
+test('queueAdhoc rejects a model not configured for the selected provider', async () => {
+  const fields = { repository: 'pages', prompt: 'p', model: 'unknown-model' };
+
+  expect(await queueAdhoc(null, form(fields))).toEqual({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'model', message: 'Model "unknown-model" is not configured for copilot' },
+    values: fields,
+  });
+  expect(queuedRuns()).toEqual([]);
 });
 
 test('queueAdhoc requires a prompt', async () => {

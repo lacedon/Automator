@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import { AgentService } from '../agents/agentService';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
@@ -28,6 +30,7 @@ function setup() {
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const config = testConfig();
+  const repositories = testRepositories(t.db, config);
   const dataDir = new DataDir(config.dataDir);
   const launcher: CopilotLauncher = {
     start: () => {
@@ -45,8 +48,9 @@ function setup() {
     agents: new AgentService(t.db),
     clock,
     config,
+    repositories,
     dataDir,
-    launcher,
+    launchers: { copilot: launcher, 'claude-code': launcher, codex: launcher, opencode: launcher },
     prechecks,
     currentBranch: vi.fn(async () => 'main'),
     onNeedsYou,
@@ -67,6 +71,10 @@ function insertRunning(db: Database, watchId: number | null, startedAt: number, 
 describe('recoverInterruptedRuns', () => {
   test('leftover running row becomes worker-restart error and watch needs_you', async () => {
     const s = setup();
+    const persistedFolder = path.join(s.deps.config.configDir, 'persisted-pages');
+    fs.mkdirSync(persistedFolder);
+    cleanups.push(() => fs.rmSync(persistedFolder, { recursive: true, force: true }));
+    s.db.prepare('UPDATE repositories SET folder = ? WHERE name = ?').run(persistedFolder, 'pages');
     const watchId = insertWatch(s.db);
     const runId = insertRunning(s.db, watchId, s.clock.now() - 60_000);
     s.dataDir.ensureRunDir(runId);
@@ -86,6 +94,7 @@ describe('recoverInterruptedRuns', () => {
       transcriptPath: null,
     });
     expect(run.error?.code).toBe('INTERRUPTED');
+    expect(s.deps.currentBranch).toHaveBeenCalledWith(persistedFolder);
     const result = JSON.parse(fs.readFileSync(s.dataDir.resultPath(runId), 'utf8')) as ResultFileV1;
     expect(result).toMatchObject({ schemaVersion: 1, runId, status: 'error', outcome: null, error: run.error });
     expect(toWatch(s.db.prepare('SELECT * FROM watches WHERE id = ?').get(watchId))).toMatchObject({

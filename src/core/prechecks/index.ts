@@ -12,12 +12,14 @@ import { createJiraClient } from './jiraClient';
 import type { Precheck, PrecheckResult, Snapshot } from './types';
 import { parseTarget } from '../domain/targets';
 import type { Watch } from '../domain/types';
+import type { RepositoryReader } from '../repositories/repositoryService';
 
 export type Prechecks = { mr: Precheck; jira: JiraPrecheck; free: Precheck };
 
 export type PrecheckDeps = {
   config: Config;
   secrets: Secrets;
+  repositories: RepositoryReader;
   fetchImpl?: FetchLike;
   gitlabMeCache?: GitLabPrecheckDeps['meCache'];
   githubMeCache?: GitHubPrecheckDeps['meCache'];
@@ -27,7 +29,7 @@ export type PrecheckDeps = {
 };
 
 export function createPrechecks(deps: PrecheckDeps): Prechecks {
-  const { config, secrets, fetchImpl = fetchWithRetry } = deps;
+  const { config, secrets, repositories, fetchImpl = fetchWithRetry } = deps;
   const gitlabClientFor =
     deps.gitlabClientFor ??
     ((conn: string) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn], fetchImpl));
@@ -37,19 +39,23 @@ export function createPrechecks(deps: PrecheckDeps): Prechecks {
   return {
     mr: new HostDispatchPrecheck(
       config,
+      repositories,
       new GitLabPrecheck({
         config,
+        repositories,
         clientFor: gitlabClientFor,
         meCache: deps.gitlabMeCache ?? memoryMeCache(gitlabClientFor),
       }),
       new GitHubPrecheck({
         config,
+        repositories,
         clientFor: githubClientFor,
         meCache: deps.githubMeCache ?? memoryMeCache(githubClientFor),
       }),
     ),
     jira: new JiraPrecheck({
       config,
+      repositories,
       secrets,
       clientFor:
         deps.jiraClientFor ??
@@ -63,6 +69,7 @@ export function createPrechecks(deps: PrecheckDeps): Prechecks {
 class HostDispatchPrecheck implements Precheck {
   constructor(
     private readonly config: Config,
+    private readonly repositories: RepositoryReader,
     private readonly gitlab: Precheck,
     private readonly github: Precheck,
   ) {}
@@ -76,7 +83,7 @@ class HostDispatchPrecheck implements Precheck {
   }
 
   private pick(w: Watch): Precheck {
-    const parsed = parseTarget(w.targetUrl, this.config, w.repository);
+    const parsed = parseTarget(w.targetUrl, this.config, this.repositories.get(w.repository));
     return parsed.ok && parsed.value.github !== undefined ? this.github : this.gitlab;
   }
 }

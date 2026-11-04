@@ -1,39 +1,27 @@
-import { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
-import type { Env, Secrets } from '../config/load';
+import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
+import { childEnv, copilotAuthEnvNames, spawnChild } from './childProcess';
+import type { ProviderExit, ProviderLauncher, ProviderStartOptions, RunningProcess } from './providerLauncher';
 
-export type CopilotExit = { code: number | null; signal: string | null; spawnError?: string };
+export type CopilotExit = ProviderExit;
+export type { RunningProcess } from './providerLauncher';
 
-export interface RunningProcess {
-  pid: number;
-  exited: Promise<CopilotExit>;
-  kill(signal: 'SIGTERM' | 'SIGKILL'): void;
+export type CopilotStartOptions = ProviderStartOptions & { extraArgs?: string[] };
+
+export interface CopilotLauncher extends ProviderLauncher {
+  start(options: CopilotStartOptions): RunningProcess;
 }
 
-export interface CopilotLauncher {
-  start(opts: {
-    cwd: string;
-    prompt: string;
-    model: string;
-    transcriptPath: string;
-    logPath: string;
-    env: Env;
-    extraArgs?: string[];
-    sessionId?: string;
-  }): RunningProcess;
-}
-
-export function childEnv(env: Env, secrets: Secrets): Env {
-  const out: Env = { ...env };
-  for (const name of secrets.envNames) delete out[name];
-  return out;
-}
+export { childEnv };
 
 export function createCopilotLauncher(config: Config, secrets: Secrets): CopilotLauncher {
   return {
     start(opts) {
+      const secretEnvNames = new Set(secrets.envNames);
+      for (const name of copilotAuthEnvNames) {
+        if (opts.env[name] !== undefined) secretEnvNames.add(name);
+      }
       const args = [
         '-p',
         opts.prompt,
@@ -50,41 +38,22 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         '--log-level',
         'error',
         ...config.runs.denyTools.flatMap((pattern) => ['--deny-tool', pattern]),
-        ...(secrets.envNames.length > 0 ? ['--secret-env-vars', secrets.envNames.join(',')] : []),
+        ...(secretEnvNames.size > 0 ? ['--secret-env-vars', [...secretEnvNames].join(',')] : []),
         ...(opts.sessionId !== undefined ? ['--session-id', opts.sessionId] : []),
         ...(opts.extraArgs ?? []),
       ];
 
-      const log = fs.openSync(opts.logPath, 'a');
-      let child;
-      try {
-        child = spawn(config.copilotBin, args, {
-          cwd: opts.cwd,
-          detached: true,
-          env: childEnv(opts.env, secrets) as NodeJS.ProcessEnv,
-          stdio: ['ignore', log, log],
-        });
-      } finally {
-        fs.closeSync(log);
-      }
-
-      const exited = new Promise<CopilotExit>((resolve) => {
-        child.once('error', (error) => resolve({ code: null, signal: null, spawnError: error.message }));
-        child.once('exit', (code, signal) => resolve({ code, signal }));
+      const child = spawnChild(config.copilotBin, args, {
+        cwd: opts.cwd,
+        env: opts.env,
+        secrets,
+        logPath: opts.logPath,
+        preserveCopilotAuth: true,
       });
-      const pid = child.pid ?? 0;
 
       return {
-        pid,
-        exited,
-        kill(signal) {
-          if (pid === 0) return;
-          try {
-            process.kill(-pid, signal);
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-          }
-        },
+        ...child,
+        sessionId: Promise.resolve(opts.sessionId ?? null),
       };
     },
   };

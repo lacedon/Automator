@@ -4,7 +4,8 @@ import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { NeedsYouEvent } from '../domain/types';
 import type { DataDir } from '../files/dataDir';
-import { childEnv, type CopilotExit, type CopilotLauncher } from '../runs/copilotLauncher';
+import { childEnv } from '../runs/childProcess';
+import type { CopilotExit, CopilotLauncher } from '../runs/copilotLauncher';
 
 export interface Notifier {
   notifyNeedsYou(event: NeedsYouEvent): Promise<void>;
@@ -75,7 +76,7 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
     }
 
     if (timedOut) finish(event.id, 'failed', `Timed out after ${timeoutMs / 1000} s`);
-    else if (exit.spawnError !== undefined) finish(event.id, 'failed', exit.spawnError);
+    else if (exit.error !== undefined) finish(event.id, 'failed', exit.error.message);
     else if (exit.code === 0) finish(event.id, 'sent', null);
     else finish(event.id, 'failed', `Exit code ${exit.code ?? exit.signal ?? 'unknown'}: ${logTail(logPath)}`);
   };

@@ -1,4 +1,5 @@
 import type { Config } from '../config/schema';
+import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
 import { err, ok, type AppError, type Result } from '../domain/result';
@@ -6,10 +7,11 @@ import { intervalFor } from '../domain/schedule';
 import { parseTarget, type ParsedTarget } from '../domain/targets';
 import type { Clock, InitialReview, Run, Watch, WatchKind, WatchState } from '../domain/types';
 import { nextState, type WatchAction } from '../domain/watchState';
-import { unknownRepositoryError } from '../files/attempts';
+import { repositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 import type { QueueService } from '../queue/queueService';
 import { closeWatch } from './needsYou';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 export type TargetPreview = { title: string; state: 'opened' | 'merged' | 'closed' | string; sourceBranch?: string };
 
@@ -17,6 +19,7 @@ export interface WatchServiceDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  repositories: RepositoryService;
   queue: QueueService;
   dataDir: DataDir;
   preview?: (t: ParsedTarget, repository: string) => Promise<TargetPreview | null>;
@@ -60,6 +63,18 @@ function invalidInterval(intervalMs: number | null | undefined): AppError | null
   };
 }
 
+function invalidModel(config: Config, model: string | null | undefined): AppError | null {
+  const selected = blankToNull(model);
+  if (selected === null) return null;
+  const options = providerOptions(config, config.provider);
+  if ([options.defaultModel, ...options.models].includes(selected)) return null;
+  return {
+    code: 'INVALID_INPUT',
+    field: 'model',
+    message: `Model "${selected}" is not configured for ${config.provider}`,
+  };
+}
+
 function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === 'SQLITE_CONSTRAINT_UNIQUE';
 }
@@ -84,22 +99,26 @@ export class WatchService {
   }
 
   create(input: CreateWatchInput): Result<Watch> {
-    const { config, clock, dataDir } = this.deps;
-    const unknown = unknownRepositoryError(config, dataDir, input.repository, clock.now());
-    if (unknown) return err(unknown);
+    const { config, clock, dataDir, repositories } = this.deps;
+    const repository = repositories.get(input.repository);
+    const invalidRepository = repositoryError(repositories, dataDir, input.repository, clock.now());
+    if (invalidRepository) return err(invalidRepository);
+    if (repository === null) return err({ code: 'NOT_FOUND' });
 
-    const parsed = parseTarget(input.target, config, input.repository);
+    const parsed = parseTarget(input.target, config, repository);
     if (!parsed.ok) return parsed;
     const target = parsed.value;
     const instructions = blankToNull(input.instructions);
     if (target.kind === 'free' && instructions === null) return err({ code: 'MISSING_INSTRUCTIONS' });
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
+    const badModel = invalidModel(config, input.model);
+    if (badModel) return err(badModel);
 
     try {
       return this.deps.db
         .transaction((): Result<Watch> => {
-          const duplicate = this.duplicateOf(target.normalizedTarget, input.repository);
+          const duplicate = this.duplicateOf(target.normalizedTarget, repository.name);
           if (duplicate) return duplicate;
           const now = clock.now();
           const row = this.deps.db
@@ -113,7 +132,7 @@ export class WatchService {
               target.kind,
               target.displayUrl,
               target.normalizedTarget,
-              input.repository,
+              repository.name,
               blankToNull(input.title) ?? target.displayUrl,
               instructions,
               input.intervalMs ?? null,
@@ -127,13 +146,15 @@ export class WatchService {
         })
         .immediate();
     } catch (e) {
-      return this.backstop(e, target.normalizedTarget, input.repository);
+      return this.backstop(e, target.normalizedTarget, repository.name);
     }
   }
 
   update(id: number, input: UpdateWatchInput): Result<Watch> {
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
+    const badModel = invalidModel(this.deps.config, input.model);
+    if (badModel) return err(badModel);
     return this.deps.db
       .transaction((): Result<Watch> => {
         const watch = this.get(id);
@@ -206,6 +227,15 @@ export class WatchService {
   resume(id: number, opts: { note?: string; runNow?: boolean }): Result<Watch> {
     return this.act(id, opts.runNow ? 'resumeRunNow' : 'resume', (watch) => {
       if (opts.runNow && watch.kind === 'jira' && !this.deps.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+      if (opts.runNow) {
+        const invalidRepository = repositoryError(
+          this.deps.repositories,
+          this.deps.dataDir,
+          watch.repository,
+          this.deps.clock.now(),
+        );
+        if (invalidRepository) return err(invalidRepository);
+      }
       const now = this.deps.clock.now();
       this.deps.db
         .prepare(
@@ -228,6 +258,13 @@ export class WatchService {
           return err({ code: 'INVALID_STATE', state: watch.state, action: 'runNow' });
         }
         if (watch.kind === 'jira' && !this.deps.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+        const invalidRepository = repositoryError(
+          this.deps.repositories,
+          this.deps.dataDir,
+          watch.repository,
+          this.deps.clock.now(),
+        );
+        if (invalidRepository) return err(invalidRepository);
         return ok(this.enqueueManual(watch, 'Run now', opts));
       })
       .immediate();
@@ -256,7 +293,35 @@ export class WatchService {
   }
 
   async previewTarget(target: string, repository: string): Promise<PreviewTargetResult> {
-    const parsed = parseTarget(target, this.deps.config, repository);
+    const storedRepository = this.deps.repositories.get(repository);
+    if (storedRepository === null) {
+      return {
+        kind: null,
+        preview: null,
+        error: {
+          code: 'UNKNOWN_REPOSITORY',
+          name: repository,
+          known: this.deps.repositories
+            .list()
+            .map((entry) => entry.name)
+            .sort(),
+          attemptFile: null,
+        },
+      };
+    }
+    const issues = this.deps.repositories.status(storedRepository.name);
+    if (issues.length > 0) {
+      return {
+        kind: null,
+        preview: null,
+        error: {
+          code: 'INVALID_INPUT',
+          field: 'repository',
+          message: `Repository "${storedRepository.name}" is invalid: ${issues.join('; ')}`,
+        },
+      };
+    }
+    const parsed = parseTarget(target, this.deps.config, storedRepository);
     if (!parsed.ok) return { kind: null, preview: null, error: parsed.error };
     const { kind } = parsed.value;
     if (!this.deps.preview) return { kind, preview: null, previewError: 'Preview unavailable' };
@@ -286,12 +351,13 @@ export class WatchService {
     reason: string,
     opts: { extraInstructions?: string; reviewUnresolved?: boolean },
   ): Run {
+    const options = providerOptions(this.deps.config, this.deps.config.provider);
     return this.deps.queue.enqueueWatch({
       watchId: watch.id,
       repository: watch.repository,
       trigger: 'manual',
       reason,
-      model: watch.model ?? this.deps.config.runs.defaultModel,
+      model: watch.model ?? options.defaultModel,
       extraInstructions: opts.extraInstructions,
       reviewUnresolved: opts.reviewUnresolved,
     });

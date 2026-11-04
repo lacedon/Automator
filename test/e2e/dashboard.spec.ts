@@ -92,11 +92,14 @@ test('Settings groups Projects and Repositories and preserves the legacy project
     .getByRole('navigation', { name: 'Settings', exact: true })
     .getByRole('link', { name: 'Repositories' })
     .click();
-  await expect(page.getByRole('heading', { name: 'Repositories', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Repositories', exact: true, level: 1 })).toBeVisible();
   await expect(page.locator('main')).toContainText('pages');
-  await page.getByRole('link', { name: 'Edit repository configuration' }).click();
-  await expect(page).toHaveURL(/\/settings\/config#config-repositories$/);
-  await expect(page.getByLabel('Folder', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'pages', exact: true }).getByLabel('Local folder')).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'pages', exact: true }).getByRole('button', { name: 'Save Repository' }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: 'Open Configuration' }).click();
+  await expect(page).toHaveURL(/\/settings\/config$/);
 });
 
 test('mobile navigation keeps actions accessible without horizontal overflow', async ({ page }) => {

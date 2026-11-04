@@ -15,29 +15,34 @@ afterEach(() => {
 
 function setup(opts: { jira?: boolean; legacyRepo?: boolean } = {}) {
   const config = testConfig({
+    runs: { models: ['m1'] },
     ...(opts.jira ? { jira: { enabled: true } } : {}),
     ...(opts.legacyRepo ? { repositories: { 'inspire-mbdp-pages': { folder: './repos/pages', gitlab: 'corp' } } } : {}),
   });
-  const core = createCore(config, {
-    clock: fakeClock(),
-    notifier: { async notifyNeedsYou() {} },
-    ...(opts.jira
-      ? {
-          jira: () => ({
-            async issue(key: string) {
-              if (key === 'ABC-500') throw new Error('Jira is down');
-              return { key, summary: `Summary of ${key}` } as never;
-            },
-            async myself() {
-              return { accountId: 'me' };
-            },
-            async statuses() {
-              return [];
-            },
-          }),
-        }
-      : {}),
-  });
+  const core = createCore(
+    config,
+    {
+      clock: fakeClock(),
+      notifier: { async notifyNeedsYou() {} },
+      ...(opts.jira
+        ? {
+            jira: () => ({
+              async issue(key: string) {
+                if (key === 'ABC-500') throw new Error('Jira is down');
+                return { key, summary: `Summary of ${key}` } as never;
+              },
+              async myself() {
+                return { accountId: 'me' };
+              },
+              async statuses() {
+                return [];
+              },
+            }),
+          }
+        : {}),
+    },
+    { repositories: config.repositories },
+  );
   cleanups.push(() => {
     core.close();
     fs.rmSync(config.configDir, { recursive: true, force: true });
@@ -94,6 +99,7 @@ function legacyPromptSource(core: Core): string {
 describe('runCli', () => {
   test('defaults the legacy source to the config directory without prompt configuration', async () => {
     const core = setup({ legacyRepo: true });
+    core.config.repositories = {};
     const source = path.join(core.config.configDir, 'prompts');
     fs.renameSync(legacyPromptSource(core), source);
     const before = core.agents.listAgents();

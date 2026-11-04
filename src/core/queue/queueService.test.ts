@@ -3,9 +3,12 @@ import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
-import { testConfig } from '../../../test/helpers/config';
+import { testConfig, type DeepPartial } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
+import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
+import type { ProviderName } from '../domain/types';
 import { DataDir } from '../files/dataDir';
 import { QueueService } from './queueService';
 
@@ -15,19 +18,31 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-function setup(opts: { ticketTitle?: (conn: string, key: string) => Promise<string>; jiraEnabled?: boolean } = {}) {
+function setup(
+  opts: {
+    ticketTitle?: (conn: string, key: string) => Promise<string>;
+    jiraEnabled?: boolean;
+    configOverrides?: DeepPartial<Config>;
+  } = {},
+) {
   const t = tempDb();
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
-  const config = testConfig({ runs: { defaultModel: 'default-model' }, jira: { enabled: opts.jiraEnabled ?? true } });
+  const config = testConfig({
+    ...opts.configOverrides,
+    runs: { defaultModel: 'default-model', ...opts.configOverrides?.runs },
+    jira: { enabled: opts.jiraEnabled ?? true, ...opts.configOverrides?.jira },
+  });
+  const repositories = testRepositories(t.db, config);
   return {
     db: t.db,
     file: t.file,
     clock,
     dataDir,
     config,
-    queue: new QueueService(t.db, clock, dataDir, config, { ticketTitle: opts.ticketTitle }),
+    repositories,
+    queue: new QueueService(t.db, clock, dataDir, config, repositories, { ticketTitle: opts.ticketTitle }),
   };
 }
 
@@ -38,6 +53,36 @@ function statuses(db: Database): { id: number; status: string }[] {
 const base = { repository: 'pages', model: 'm' };
 
 describe('QueueService', () => {
+  test('new Runs snapshot the selected provider and default model', async () => {
+    const { queue } = setup({
+      configOverrides: {
+        provider: 'codex',
+        providers: { codex: { defaultModel: 'codex-model' } },
+      },
+    });
+
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'do it' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { run: { provider: 'codex', model: 'codex-model' } },
+    });
+  });
+
+  test('rejects ad-hoc models not configured for the selected provider', async () => {
+    const { db, queue } = setup({
+      configOverrides: { provider: 'codex', providers: { codex: { defaultModel: 'codex' } } },
+    });
+
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'do it', model: 'unknown-model' });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'model', message: 'Model "unknown-model" is not configured for codex' },
+    });
+    expect(statuses(db)).toEqual([]);
+  });
+
   test('orders manual and adhoc before scheduled, then FIFO', () => {
     const { db, clock, queue } = setup();
     const w1 = insertWatch(db);
@@ -70,10 +115,11 @@ describe('QueueService', () => {
     expect(queue.claimNext()).toBeNull();
   });
 
-  test('merges second trigger into existing queued row', () => {
-    const { db, clock, queue } = setup();
+  test('coalescing does not change a queued Run provider or model', () => {
+    const { db, clock, queue, config } = setup();
     const w = insertWatch(db);
     const first = queue.enqueueWatch({ ...base, watchId: w, trigger: 'schedule', reason: 'r1' });
+    config.provider = 'codex';
     clock.advance(1000);
     queue.enqueueWatch({
       ...base,
@@ -102,7 +148,8 @@ describe('QueueService', () => {
       reviewUnresolved: true,
       reason: 'r1; r2; r3',
       queuedAt: first.queuedAt,
-      model: 'newer-model',
+      provider: 'copilot',
+      model: 'm',
       repository: 'pages',
     });
   });
@@ -254,7 +301,7 @@ describe('QueueService', () => {
   });
 
   test('checked adhoc enqueue uses default model', async () => {
-    const { queue } = setup();
+    const { queue } = setup({ configOverrides: { runs: { models: ['m2'] } } });
     const r = await queue.requestAdhoc({ repository: 'pages', prompt: 'p' });
     if (!r.ok) throw new Error('expected ok');
     expect(r.value.run).toMatchObject({
@@ -269,6 +316,26 @@ describe('QueueService', () => {
 });
 
 describe('QueueService.requestAdhoc', () => {
+  test('does not enqueue under a Repository name renamed during Ticket title lookup', async () => {
+    let releaseTitle!: (title: string) => void;
+    const title = new Promise<string>((resolve) => {
+      releaseTitle = resolve;
+    });
+    const { db, queue, repositories } = setup({ ticketTitle: async () => title });
+
+    const pending = queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-123' });
+    const repository = repositories.get('pages');
+    if (repository === null) throw new Error('test Repository missing');
+    expect(repositories.update('pages', { ...repository, name: 'renamed-pages' }).ok).toBe(true);
+    releaseTitle('Ticket title');
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { code: 'UNKNOWN_REPOSITORY', name: 'pages', known: ['api', 'renamed-pages'] },
+    });
+    expect(statuses(db)).toEqual([]);
+  });
+
   test('stores the Ticket key and the fetched title on the Run', async () => {
     const lookups: [string, string][] = [];
     const { queue } = setup({
@@ -285,6 +352,23 @@ describe('QueueService.requestAdhoc', () => {
       value: { run: { trigger: 'adhoc', ticketKey: 'ABC-123', ticketTitle: 'Fix login redirect' } },
     });
     expect(lookups).toEqual([['corp', 'ABC-123']]);
+  });
+
+  test('resolves the Jira connection from the persisted Repository row', async () => {
+    const lookups: string[] = [];
+    const { db, config, queue } = setup({
+      ticketTitle: async (conn) => {
+        lookups.push(conn);
+        return 'Persisted connection';
+      },
+    });
+    config.jira.connections.alternate = { baseUrl: 'https://jira.alternate.example.com' };
+    db.prepare('UPDATE repositories SET jira = ? WHERE name = ?').run('alternate', 'pages');
+
+    const result = await queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-22' });
+
+    expect(result).toMatchObject({ ok: true, value: { run: { ticketKey: 'ABC-22' } } });
+    expect(lookups).toEqual(['alternate']);
   });
 
   test('accepts a browse URL as well as a key', async () => {
@@ -357,18 +441,29 @@ describe('QueueService.requestAdhoc', () => {
 describe('QueueService.requestFollowUp', () => {
   function finishedAdhoc(
     ctx: ReturnType<typeof setup>,
-    over: { repository?: string; sessionId?: string | null; status?: string } = {},
+    over: {
+      repository?: string;
+      provider?: ProviderName;
+      sessionId?: string | null;
+      status?: string;
+    } = {},
   ) {
-    const run = ctx.queue.enqueueAdhoc({ repository: over.repository ?? 'pages', prompt: 'first', model: 'opus' });
+    const run = ctx.queue.enqueueAdhoc({
+      repository: over.repository ?? 'pages',
+      prompt: 'first',
+      model: 'opus',
+      provider: over.provider,
+    });
     ctx.db
       .prepare('UPDATE runs SET status = ?, session_id = ? WHERE id = ?')
       .run(over.status ?? 'finished', over.sessionId === undefined ? 'sess-1' : over.sessionId, run.id);
     return run;
   }
 
-  test("queues a follow-up with the parent's repository, model and session link", () => {
+  test('follow-up inherits provider, model, and session', () => {
     const ctx = setup();
-    const parent = finishedAdhoc(ctx);
+    const parent = finishedAdhoc(ctx, { provider: 'codex' });
+    ctx.config.provider = 'copilot';
 
     const result = ctx.queue.requestFollowUp(parent.id, '  and now this  ');
 
@@ -379,6 +474,7 @@ describe('QueueService.requestFollowUp', () => {
           status: 'queued',
           trigger: 'adhoc',
           repository: 'pages',
+          provider: 'codex',
           model: 'opus',
           adhocPrompt: 'and now this',
           parentRunId: parent.id,
@@ -457,13 +553,13 @@ describe('QueueService.requestFollowUp', () => {
     expect(children).toHaveLength(1);
   });
 
-  test('rejects a Run without a Copilot session', () => {
+  test('rejects a Run without a provider session', () => {
     const ctx = setup();
     const parent = finishedAdhoc(ctx, { sessionId: null });
 
     expect(ctx.queue.requestFollowUp(parent.id, 'hi')).toEqual({
       ok: false,
-      error: { code: 'INVALID_INPUT', field: 'run', message: 'This Run has no Copilot session to continue' },
+      error: { code: 'INVALID_INPUT', field: 'run', message: 'This Run has no provider session to continue' },
     });
   });
 

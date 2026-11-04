@@ -5,20 +5,37 @@ import { z } from 'zod';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
-import type { Clock, Interrupted, NeedsYouEvent, Outcome, Run, RunError, Trigger, Watch } from '../domain/types';
+import type {
+  Clock,
+  Interrupted,
+  NeedsYouEvent,
+  Outcome,
+  ProviderName,
+  Run,
+  RunError,
+  Trigger,
+  Watch,
+} from '../domain/types';
 import { writeJsonAtomic, writeTextAtomic } from '../files/atomic';
 import type { DataDir } from '../files/dataDir';
 import { precheckFor, type Prechecks } from '../prechecks/index';
 import type { Snapshot } from '../prechecks/types';
-import type { CopilotExit, CopilotLauncher, RunningProcess } from './copilotLauncher';
+import type { ProviderExit, ProviderLaunchers, RunningProcess } from './providerLauncher';
 import { applyOutcome, type RunFinal } from './outcomeApplier';
 import type { AgentService } from '../agents/agentService';
 import { buildAdhocPrompt, buildWatchPrompt } from './promptBuilder';
 import { closeWatch } from '../watches/needsYou';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 const MAX_SUMMARY = 500;
 const KILL_GRACE_MS = 10_000;
 const RECENT_RUNS = 3;
+const providerLabels: Record<ProviderName, string> = {
+  copilot: 'Copilot',
+  'claude-code': 'Claude Code',
+  codex: 'Codex CLI',
+  opencode: 'OpenCode',
+};
 
 export const copilotResultSchema = z.looseObject({
   outcome: z.enum(['nothing', 'acted', 'needs-you']),
@@ -48,8 +65,9 @@ export interface RunExecutorDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  repositories: RepositoryService;
   dataDir: DataDir;
-  launcher: CopilotLauncher;
+  launchers: ProviderLaunchers;
   prechecks: Prechecks;
   agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;
@@ -245,14 +263,22 @@ export class RunExecutor {
   }
 
   private async conclude(active: Active): Promise<RunConclusion> {
-    const { db, config, dataDir, prechecks, launcher, clock } = this.deps;
+    const { db, config, dataDir, prechecks, launchers, clock } = this.deps;
     const { run } = active;
     dataDir.ensureRunDir(run.id);
 
-    const repo = config.repositories[run.repository];
-    if (repo === undefined) return failure('REPOSITORY_UNAVAILABLE', `Unknown Repository "${run.repository}"`);
-    if (!fs.existsSync(repo.folder))
-      return failure('REPOSITORY_UNAVAILABLE', `Repository folder not found: ${repo.folder}`);
+    const repo = this.deps.repositories.get(run.repository);
+    if (repo === null) return failure('REPOSITORY_UNAVAILABLE', `Unknown Repository "${run.repository}"`);
+    const repositoryIssues = this.deps.repositories.status(repo.name);
+    if (repositoryIssues.length > 0) {
+      const missingFolder = repositoryIssues.find((issue) => issue === `Folder does not exist: ${repo.folder}`);
+      return failure(
+        'REPOSITORY_UNAVAILABLE',
+        missingFolder
+          ? `Repository folder not found: ${repo.folder}`
+          : `Repository "${repo.name}" is invalid: ${repositoryIssues.join('; ')}`,
+      );
+    }
 
     const { agent, template } = this.deps.agents.resolve(run.repository, run.workflowType);
     const agentInstructions = agent?.instructions.trim() ?? '';
@@ -268,7 +294,14 @@ export class RunExecutor {
     let prompt: string;
     if (run.watchId === null) {
       try {
-        prompt = buildAdhocPrompt({ run, config, resultPath, agentInstructions, operationTemplate });
+        prompt = buildAdhocPrompt({
+          run,
+          config,
+          repository: repo,
+          resultPath,
+          agentInstructions,
+          operationTemplate,
+        });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));
       }
@@ -298,7 +331,7 @@ export class RunExecutor {
           run,
           snapshot,
           recent: this.recentRuns(watch.id, run.id),
-          config,
+          repository: repo,
           resultPath,
           hasJiraToken: watch.kind === 'jira' && prechecks.jira.hasToken(watch),
           agentInstructions,
@@ -315,54 +348,62 @@ export class RunExecutor {
 
     let sessionId: string | undefined;
     if (run.watchId === null) {
-      const session = this.sessionFor(run);
-      if (session === null) {
-        return failure('SESSION_RESUME_FAILED', `Run #${run.parentRunId} has no Copilot session to continue`);
+      if (run.parentRunId !== null && run.sessionId === null) {
+        return failure('SESSION_RESUME_FAILED', `Run #${run.parentRunId} has no provider session to continue`);
       }
-      sessionId = session;
-      if (run.sessionId === null) db.prepare('UPDATE runs SET session_id = ? WHERE id = ?').run(sessionId, run.id);
+      sessionId = run.sessionId ?? (run.provider === 'copilot' ? randomUUID() : undefined);
+      if (run.sessionId === null && sessionId !== undefined) {
+        db.prepare('UPDATE runs SET session_id = ? WHERE id = ?').run(sessionId, run.id);
+      }
     }
 
     // The watchdog only sees the process once it runs; a cancel during the pre-check must stop the Run here.
     if (this.cancelRequested(run.id)) return failure('INTERRUPTED', 'Run cancelled', { interrupted: 'cancelled' });
 
-    let started: RunningProcess | { spawnError: string };
+    const launcher = launchers[run.provider];
+    let processStart: { ok: true; process: RunningProcess } | { ok: false; message: string };
+    let exit: ProviderExit;
     try {
-      started = launcher.start({
-        cwd: repo.folder,
-        prompt,
-        model: run.model,
-        transcriptPath: dataDir.transcriptPath(run.id),
-        logPath: dataDir.cliLogPath(run.id),
-        sessionId,
-        env: process.env,
-      });
+      processStart = {
+        ok: true,
+        process: launcher.start({
+          cwd: repo.folder,
+          prompt,
+          model: run.model,
+          transcriptPath: dataDir.transcriptPath(run.id),
+          logPath: dataDir.cliLogPath(run.id),
+          sessionId,
+          env: process.env,
+        }),
+      };
     } catch (e) {
-      started = { spawnError: errorMessage(e) };
+      processStart = { ok: false, message: errorMessage(e) };
     }
 
-    let exit: CopilotExit;
-    if ('spawnError' in started) {
-      exit = { code: null, signal: null, spawnError: started.spawnError };
-    } else {
+    if (processStart.ok) {
+      const started = processStart.process;
       active.proc = started;
       if (started.pid > 0) db.prepare('UPDATE runs SET pid = ? WHERE id = ?').run(started.pid, run.id);
+      const session = started.sessionId.then((id) => {
+        if (id !== null) db.prepare('UPDATE runs SET session_id = ? WHERE id = ?').run(id, run.id);
+      });
       exit = await started.exited;
       active.exited = true;
+      await session;
+    } else {
+      exit = {
+        code: null,
+        signal: null,
+        error: { code: 'SPAWN_FAILED', message: processStart.message },
+      };
     }
 
     const branch = await this.currentBranch(repo.folder);
     return { ...this.evaluate(active, exit, resultPath), branch };
   }
 
-  // A follow-up row carries its parent's session from enqueue; a root Run never has one before this point.
-  // A row with a parent but no session is a legacy/edge case: null means there is nothing to resume.
-  private sessionFor(run: Run): string | null {
-    if (run.sessionId !== null) return run.sessionId;
-    return run.parentRunId === null ? randomUUID() : null;
-  }
-
-  private evaluate(active: Active, exit: CopilotExit, resultPath: string): RunConclusion {
+  private evaluate(active: Active, exit: ProviderExit, resultPath: string): RunConclusion {
+    const run = active.run;
     const exitCode = exit.code;
     if (active.interrupted !== null) {
       const message =
@@ -371,22 +412,31 @@ export class RunExecutor {
           : `Run timed out after ${Math.round((this.deps.config.runs.timeoutMs / 60_000) * 10) / 10} min`;
       return failure('INTERRUPTED', message, { exitCode, interrupted: active.interrupted });
     }
-    if (exit.spawnError !== undefined) return failure('SPAWN_FAILED', exit.spawnError);
+    if (exit.error !== undefined) {
+      return failure(exit.error.code, exit.error.message, { error: exit.error, exitCode });
+    }
     if (exitCode !== 0) {
       const how = exitCode === null ? `signal ${exit.signal ?? 'unknown'}` : `code ${exitCode}`;
-      return failure('EXIT_NONZERO', `Copilot exited with ${how}`, { exitCode });
+      return failure('EXIT_NONZERO', `${providerLabels[run.provider]} exited with ${how}`, { exitCode });
     }
-    if (!fs.existsSync(resultPath))
-      return failure('RESULT_MISSING', 'Copilot did not write copilot-result.json', { exitCode });
+    if (!fs.existsSync(resultPath)) {
+      const message =
+        run.provider === 'copilot'
+          ? 'Copilot did not write copilot-result.json'
+          : `${providerLabels[run.provider]} did not write its normalized result file`;
+      return failure('RESULT_MISSING', message, { exitCode });
+    }
 
     let parsed;
     try {
       parsed = copilotResultSchema.safeParse(JSON.parse(fs.readFileSync(resultPath, 'utf8')));
     } catch (e) {
-      return failure('RESULT_INVALID', `Invalid copilot-result.json: ${errorMessage(e)}`, { exitCode });
+      const label = run.provider === 'copilot' ? 'copilot-result.json' : `${providerLabels[run.provider]} result`;
+      return failure('RESULT_INVALID', `Invalid ${label}: ${errorMessage(e)}`, { exitCode });
     }
     if (!parsed.success) {
-      return failure('RESULT_INVALID', `Invalid copilot-result.json: ${z.prettifyError(parsed.error)}`, { exitCode });
+      const label = run.provider === 'copilot' ? 'copilot-result.json' : `${providerLabels[run.provider]} result`;
+      return failure('RESULT_INVALID', `Invalid ${label}: ${z.prettifyError(parsed.error)}`, { exitCode });
     }
     return success(parsed.data.outcome, parsed.data.summary, exitCode);
   }
