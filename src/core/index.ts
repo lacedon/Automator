@@ -17,7 +17,11 @@ import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
 import { ProjectService } from './projects/projectService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
+import { createClaudeCodeLauncher } from './runs/claudeCodeLauncher';
+import { createCodexLauncher } from './runs/codexLauncher';
 import { createCopilotLauncher, type CopilotLauncher } from './runs/copilotLauncher';
+import { createOpenCodeLauncher } from './runs/opencodeLauncher';
+import type { ProviderLaunchers } from './runs/providerLauncher';
 import { RunExecutor, type RunExecutorDeps } from './runs/runExecutor';
 import { Scheduler } from './scheduler/scheduler';
 import { WatchService, type WatchServiceDeps } from './watches/watchService';
@@ -48,6 +52,10 @@ export {
   type EnqueueWatchInput,
 } from './queue/queueService';
 export type { CopilotExit, CopilotLauncher, RunningProcess } from './runs/copilotLauncher';
+export type { ProviderExit, ProviderLauncher, ProviderLaunchers, ProviderStartOptions } from './runs/providerLauncher';
+export { createClaudeCodeLauncher } from './runs/claudeCodeLauncher';
+export { createCodexLauncher } from './runs/codexLauncher';
+export { createOpenCodeLauncher } from './runs/opencodeLauncher';
 export type { RunFinal } from './runs/outcomeApplier';
 export { recoverInterruptedRuns } from './runs/recovery';
 export type * from './read-models/index';
@@ -69,6 +77,7 @@ export interface Deps {
   github: (conn: string) => GitHubClient;
   jira: (conn: string) => JiraClient;
   copilot: CopilotLauncher;
+  launchers: ProviderLaunchers;
   notifier: Notifier;
 }
 
@@ -142,12 +151,21 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
   migrate(db);
 
   const copilot = overrides.copilot ?? createCopilotLauncher(config, secrets);
+  const launchers =
+    overrides.launchers ??
+    ({
+      copilot,
+      'claude-code': createClaudeCodeLauncher(config, secrets),
+      codex: createCodexLauncher(config, secrets),
+      opencode: createOpenCodeLauncher(config, secrets),
+    } satisfies ProviderLaunchers);
   const deps: Deps = {
     clock: overrides.clock ?? systemClock,
     gitlab: overrides.gitlab ?? ((conn) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn])),
     github: overrides.github ?? ((conn) => createGitHubClient(config.github[conn]!.host, secrets.github[conn])),
     jira: overrides.jira ?? ((conn) => createJiraClient(config.jira.connections[conn]!, secrets.jira[conn] ?? {})),
     copilot,
+    launchers,
     notifier: overrides.notifier ?? createTeamsNotifier({ db, config, launcher: copilot, dataDir, secrets }),
   };
   const { clock, notifier } = deps;
@@ -171,7 +189,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}): Core 
     clock,
     config,
     dataDir,
-    launcher: copilot,
+    launchers,
     prechecks,
     agents,
     onNeedsYou,

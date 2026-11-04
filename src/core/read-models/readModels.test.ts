@@ -257,6 +257,18 @@ describe('read models', () => {
     expect(read.runList({})).toHaveLength(3);
   });
 
+  test('run history uses the persisted provider after the global provider changes', async () => {
+    const { db, read } = setup({ provider: 'codex' });
+    const legacy = insertRun(db, { provider: 'copilot' });
+    const selected = insertRun(db, { provider: 'codex' });
+
+    expect(read.runList({}).map((run) => [run.id, run.provider])).toEqual([
+      [selected, 'codex'],
+      [legacy, 'copilot'],
+    ]);
+    expect((await read.runDetail(legacy))!.run.provider).toBe('copilot');
+  });
+
   test('run detail truncates files over 5 MB', async () => {
     const { db, read, dataDir } = setup();
     const w = insertWatch(db, { title: 'Fix it' });
@@ -326,6 +338,21 @@ describe('read models', () => {
     expect(options.initialReview).toBe('baseline-only');
     expect(options.jiraEnabled).toBe(false);
     expect(options).not.toHaveProperty('defaultPromptFiles');
+  });
+
+  test('form options expose selected provider models', () => {
+    const { db, read } = setup({
+      provider: 'codex',
+      providers: { codex: { defaultModel: 'codex-default', models: ['codex-fast'] } },
+    });
+    const watchId = insertWatch(db);
+
+    expect(read.formOptions()).toMatchObject({
+      provider: 'codex',
+      defaultModel: 'codex-default',
+      models: ['codex-default', 'codex-fast'],
+    });
+    expect(read.watchDetail(watchId)?.settings.model).toBe('codex-default');
   });
 
   test('adhoc view lists ad-hoc Runs newest first with queue position', () => {

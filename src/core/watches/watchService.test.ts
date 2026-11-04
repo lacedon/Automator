@@ -25,7 +25,7 @@ function setup(opts: { config?: Config; preview?: WatchServiceDeps['preview'] } 
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
-  const config = opts.config ?? testConfig();
+  const config = opts.config ?? testConfig({ runs: { models: ['gpt-x', 'm1', 'watch-model'] } });
   const queue = new QueueService(t.db, clock, dataDir, config);
   const service = new WatchService({ db: t.db, clock, config, queue, dataDir, preview: opts.preview });
   return { db: t.db, clock, dataDir, config, queue, service };
@@ -194,6 +194,17 @@ describe('WatchService.list', () => {
 });
 
 describe('WatchService.update', () => {
+  test('rejects models not configured for the selected provider', () => {
+    const { service } = setup();
+    const watch = value(service.create({ target: MR, repository: 'pages', model: 'm1' }));
+
+    expect(service.update(watch.id, { model: 'unknown-model' })).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'model', message: 'Model "unknown-model" is not configured for copilot' },
+    });
+    expect(service.get(watch.id)?.model).toBe('m1');
+  });
+
   test('update cannot change target or repository', () => {
     const { service, clock } = setup();
     const w = value(service.create({ target: MR, repository: 'pages', instructions: 'a', model: 'm1' }));

@@ -15,6 +15,7 @@ afterEach(() => {
 
 function setup(opts: { jira?: boolean; legacyRepo?: boolean } = {}) {
   const config = testConfig({
+    runs: { models: ['m1'] },
     ...(opts.jira ? { jira: { enabled: true } } : {}),
     ...(opts.legacyRepo ? { repositories: { 'inspire-mbdp-pages': { folder: './repos/pages', gitlab: 'corp' } } } : {}),
   });

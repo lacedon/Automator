@@ -39,7 +39,12 @@ function fakeCopilot() {
           resolve({ code: 0, signal: null });
         },
       });
-      return { pid: 0, exited, kill: () => resolve({ code: null, signal: 'SIGTERM' }) };
+      return {
+        pid: 0,
+        sessionId: Promise.resolve(opts.sessionId ?? null),
+        exited,
+        kill: () => resolve({ code: null, signal: 'SIGTERM' }),
+      };
     },
   };
   return { launcher, procs };

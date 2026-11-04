@@ -5,17 +5,32 @@ import { writeJsonAtomic } from '../files/atomic';
 import { ConfigError } from './load';
 import { createConfigSchema, findReferenceIssues, type ConfigInput } from './schema';
 
-export type EditableConfig = Omit<ConfigInput, 'gitlab' | 'jira' | 'prompts'> & {
-  gitlab: Record<string, { host: string }>;
-  jira: { enabled: boolean; connections: Record<string, { baseUrl: string; doneStatusIds?: string[] }> };
-};
+type ParsedConfig = z.output<ReturnType<typeof createConfigSchema>>;
 
-const editableFields = ['dataDir', 'copilotBin', 'repositories', 'schedule', 'runs', 'cleanup', 'teams'] as const;
+export type EditableConfig = Omit<ConfigInput, 'gitlab' | 'jira' | 'prompts' | 'provider' | 'providers'> &
+  Pick<ParsedConfig, 'provider' | 'providers'> & {
+    gitlab: Record<string, { host: string }>;
+    jira: { enabled: boolean; connections: Record<string, { baseUrl: string; doneStatusIds?: string[] }> };
+  };
+
+const editableFields = [
+  'dataDir',
+  'copilotBin',
+  'provider',
+  'providers',
+  'repositories',
+  'schedule',
+  'runs',
+  'cleanup',
+  'teams',
+] as const;
 const repositoryFields = ['folder', 'gitlab', 'github', 'jira', 'validate'] as const;
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
 const runFields = ['timeoutMinutes', 'defaultModel', 'models', 'initialReview', 'denyTools'] as const;
+const providerFields = ['bin', 'defaultModel', 'models'] as const;
+const providers = ['claude-code', 'codex', 'opencode'] as const;
 const cleanupFields = ['enabled', 'everyDays', 'retainClosedDays'] as const;
 const teamsFields = ['chatId', 'tool', 'model', 'dashboardUrl'] as const;
 
@@ -33,9 +48,13 @@ function pick(value: RecordValue, fields: readonly string[]): RecordValue {
 
 function projectConfig(
   raw: RecordValue,
-  parsedJira: z.output<ReturnType<typeof createConfigSchema>>['jira'],
+  defaults: Pick<ParsedConfig, 'jira' | 'provider' | 'providers'>,
 ): EditableConfig {
   const result = pick(raw, editableFields);
+  result.provider = defaults.provider;
+  result.providers = Object.fromEntries(
+    providers.map((provider) => [provider, pick(defaults.providers[provider], providerFields)]),
+  );
 
   if (isRecord(raw.repositories)) {
     result.repositories = Object.fromEntries(
@@ -65,7 +84,7 @@ function projectConfig(
       Object.entries(gitlab).map(([name, connection]) => [name, pick(connection as RecordValue, ['host'])]),
     ) as EditableConfig['gitlab'],
     jira: {
-      enabled: typeof jira.enabled === 'boolean' ? jira.enabled : parsedJira.enabled,
+      enabled: typeof jira.enabled === 'boolean' ? jira.enabled : defaults.jira.enabled,
       connections: Object.fromEntries(
         Object.entries(jiraConnections).map(([name, connection]) => [
           name,
@@ -101,7 +120,7 @@ export function readEditableConfig(configPath: string): EditableConfig {
   const file = path.resolve(configPath);
   const raw = readRawConfig(file);
   const parsed = validateConfig(raw, file);
-  return projectConfig(raw, parsed.jira);
+  return projectConfig(raw, parsed);
 }
 
 function connectionKeys(value: unknown, pathName: string): RecordValue {
@@ -119,7 +138,7 @@ function assertSameKeys(current: RecordValue, edited: RecordValue, name: string)
 }
 
 function mergeConfig(raw: RecordValue, input: EditableConfig): RecordValue {
-  const edited = projectConfig(input as unknown as RecordValue, input.jira);
+  const edited = projectConfig(input as unknown as RecordValue, input);
   const currentGitlab = connectionKeys(raw.gitlab ?? {}, 'gitlab');
   const editedGitlab = connectionKeys(edited.gitlab, 'gitlab');
   const currentJira = isRecord(raw.jira) ? raw.jira : {};

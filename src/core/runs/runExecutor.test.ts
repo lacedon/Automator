@@ -38,6 +38,7 @@ type SetupOpts = {
   config?: DeepPartial<Config>;
   snapshot?: SnapshotFn;
   launcher?: CopilotLauncher;
+  codexLauncher?: CopilotLauncher;
   jiraHasToken?: boolean;
 };
 
@@ -54,9 +55,16 @@ function setup(opts: SetupOpts = {}) {
   const dataDir = new DataDir(config.dataDir);
   const real = createCopilotLauncher(config, secrets);
   const starts: Parameters<CopilotLauncher['start']>[0][] = [];
+  const codexStarts: Parameters<CopilotLauncher['start']>[0][] = [];
   const launcher: CopilotLauncher = opts.launcher ?? {
     start(o) {
       starts.push(o);
+      return real.start({ ...o, env: { ...o.env, FAKE_COPILOT_MODE: opts.mode ?? 'nothing' } });
+    },
+  };
+  const codexLauncher: CopilotLauncher = opts.codexLauncher ?? {
+    start(o) {
+      codexStarts.push(o);
       return real.start({ ...o, env: { ...o.env, FAKE_COPILOT_MODE: opts.mode ?? 'nothing' } });
     },
   };
@@ -82,12 +90,12 @@ function setup(opts: SetupOpts = {}) {
     clock,
     config,
     dataDir,
-    launcher,
+    launchers: { copilot: launcher, 'claude-code': launcher, codex: codexLauncher, opencode: launcher },
     prechecks,
     currentBranch,
     onNeedsYou,
   });
-  return { db: t.db, agents, clock, config, dataDir, executor, starts, events, onNeedsYou, currentBranch };
+  return { db: t.db, agents, clock, config, dataDir, executor, starts, codexStarts, events, onNeedsYou, currentBranch };
 }
 
 function addWatch(db: Database, kind: WatchKind = 'mr', repository = 'pages'): number {
@@ -159,6 +167,18 @@ describe('copilotResultSchema', () => {
 });
 
 describe('RunExecutor', () => {
+  test('executor selects the Run provider', async () => {
+    const s = setup();
+    const created = claim(s.db, s.clock.now(), null, { adhocPrompt: 'do it' });
+    s.db.prepare("UPDATE runs SET provider = 'codex' WHERE id = ?").run(created.id);
+
+    await s.executor.execute(runOf(s.db, created.id));
+
+    expect(s.starts).toHaveLength(0);
+    expect(s.codexStarts).toHaveLength(1);
+    expect(s.codexStarts[0]).toMatchObject({ model: 'm1' });
+  });
+
   test('acted run writes result.json v1, transcript and advances cursor', async () => {
     const s = setup({ mode: 'acted' });
     const watchId = addWatch(s.db);
@@ -353,7 +373,12 @@ describe('RunExecutor', () => {
 
   test('db failure storing pid kills the started process and is INTERNAL_ERROR, not SPAWN_FAILED', async () => {
     const kills: string[] = [];
-    const proc: RunningProcess = { pid: 4321, exited: new Promise(() => {}), kill: (sig) => kills.push(sig) };
+    const proc: RunningProcess = {
+      pid: 4321,
+      sessionId: Promise.resolve(null),
+      exited: new Promise(() => {}),
+      kill: (sig) => kills.push(sig),
+    };
     const s = setup({ launcher: { start: () => proc } });
     s.db.exec("CREATE TRIGGER no_pid BEFORE UPDATE OF pid ON runs BEGIN SELECT RAISE(ABORT, 'pid write failed'); END");
     const watchId = addWatch(s.db);
@@ -446,6 +471,7 @@ describe('RunExecutor', () => {
     let exit!: (e: CopilotExit) => void;
     const proc: RunningProcess = {
       pid: 99999,
+      sessionId: Promise.resolve(null),
       exited: new Promise((r) => (exit = r)),
       kill: (sig) => kills.push(sig),
     };

@@ -56,6 +56,7 @@ function run(partial: Partial<Run> = {}): Run {
     status: 'running',
     trigger: 'schedule',
     priority: 1,
+    provider: 'copilot',
     reason: 'New comment by anna',
     adhocPrompt: null,
     ticketKey: null,

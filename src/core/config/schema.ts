@@ -11,6 +11,16 @@ export function resolvePath(p: string, baseDir: string): string {
 
 const nonEmpty = z.string().min(1);
 const positiveInt = z.number().int().positive();
+const providerName = z.enum(['copilot', 'claude-code', 'codex', 'opencode']);
+
+const providerSettings = (defaultBin: string) =>
+  z
+    .object({
+      bin: nonEmpty.default(defaultBin),
+      defaultModel: z.string().default(''),
+      models: z.array(z.string()).default([]),
+    })
+    .prefault({});
 
 const duration = z.string().transform((s, ctx) => {
   let ms: number;
@@ -32,88 +42,105 @@ const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM 
 export function createConfigSchema(configDir: string) {
   const pathField = nonEmpty.transform((p) => resolvePath(p, configDir));
 
-  return z.object({
-    dataDir: pathField.prefault('~/.automator'),
-    copilotBin: nonEmpty.default('copilot'),
-    repositories: z.record(
-      z.string(),
-      z
+  return z
+    .object({
+      dataDir: pathField.prefault('~/.automator'),
+      copilotBin: nonEmpty.default('copilot'),
+      provider: providerName.default('copilot'),
+      providers: z
         .object({
-          folder: pathField,
-          gitlab: nonEmpty.optional(),
-          github: nonEmpty.optional(),
-          jira: nonEmpty.optional(),
-          validate: z.array(z.string()).default([]),
+          'claude-code': providerSettings('claude'),
+          codex: providerSettings('codex'),
+          opencode: providerSettings('opencode'),
         })
-        .refine((repo) => repo.gitlab !== undefined || repo.github !== undefined, {
-          message: 'A repository needs a gitlab or github connection',
-        }),
-    ),
-    gitlab: z.record(z.string(), z.object({ host: nonEmpty, tokenEnv: nonEmpty })).default({}),
-    github: z.record(z.string(), z.object({ host: nonEmpty.default('github.com'), tokenEnv: nonEmpty })).default({}),
-    jira: z
-      .object({
-        enabled: z.boolean().default(false),
-        connections: z
-          .record(
-            z.string(),
-            z.object({
-              baseUrl: nonEmpty,
-              emailEnv: nonEmpty.optional(),
-              tokenEnv: nonEmpty.optional(),
-              doneStatusIds: z.array(z.string()).optional(),
-            }),
-          )
-          .default({}),
-      })
-      .prefault({}),
-    schedule: z
-      .object({
-        intervals: z.object({ mr: duration.prefault('15m'), default: duration.prefault('2h') }).prefault({}),
-        workingHours: z
+        .prefault({}),
+      repositories: z.record(
+        z.string(),
+        z
           .object({
-            days: z.array(z.number().int().min(0).max(6)).default([1, 2, 3, 4, 5]),
-            start: clockTime.default('08:00'),
-            end: clockTime.default('19:00'),
+            folder: pathField,
+            gitlab: nonEmpty.optional(),
+            github: nonEmpty.optional(),
+            jira: nonEmpty.optional(),
+            validate: z.array(z.string()).default([]),
           })
-          .superRefine(({ days, start, end }, ctx) => {
-            if (days.length === 0) {
-              ctx.addIssue({ code: 'custom', path: ['days'], message: 'At least one working day is required' });
-            } else if (new Set(days).size !== days.length) {
-              ctx.addIssue({ code: 'custom', path: ['days'], message: 'Working days must not repeat' });
-            }
-            if (start >= end)
-              ctx.addIssue({ code: 'custom', path: ['end'], message: `Must be later than start (${start})` });
-          })
-          .prefault({}),
-      })
-      .prefault({}),
-    runs: z
-      .object({
-        timeoutMinutes: positiveInt.default(30),
-        defaultModel: nonEmpty.default('claude-sonnet-4.5'),
-        models: z.array(z.string()).default([]),
-        initialReview: z.enum(['baseline-only', 'unresolved']).default('baseline-only'),
-        denyTools: z.array(z.string()).default([]),
-      })
-      .prefault({})
-      .transform(({ timeoutMinutes, ...rest }) => ({ timeoutMs: timeoutMinutes * 60_000, ...rest })),
-    cleanup: z
-      .object({
-        enabled: z.boolean().default(true),
-        everyDays: positiveInt.default(7),
-        retainClosedDays: positiveInt.default(30),
-      })
-      .prefault({}),
-    teams: z
-      .object({
-        chatId: nonEmpty,
-        tool: nonEmpty.default('teams-global(send_chat_message)'),
-        model: nonEmpty.optional(),
-        dashboardUrl: nonEmpty.default('http://127.0.0.1:4317'),
-      })
-      .optional(),
-  });
+          .refine((repo) => repo.gitlab !== undefined || repo.github !== undefined, {
+            message: 'A repository needs a gitlab or github connection',
+          }),
+      ),
+      gitlab: z.record(z.string(), z.object({ host: nonEmpty, tokenEnv: nonEmpty })).default({}),
+      github: z.record(z.string(), z.object({ host: nonEmpty.default('github.com'), tokenEnv: nonEmpty })).default({}),
+      jira: z
+        .object({
+          enabled: z.boolean().default(false),
+          connections: z
+            .record(
+              z.string(),
+              z.object({
+                baseUrl: nonEmpty,
+                emailEnv: nonEmpty.optional(),
+                tokenEnv: nonEmpty.optional(),
+                doneStatusIds: z.array(z.string()).optional(),
+              }),
+            )
+            .default({}),
+        })
+        .prefault({}),
+      schedule: z
+        .object({
+          intervals: z.object({ mr: duration.prefault('15m'), default: duration.prefault('2h') }).prefault({}),
+          workingHours: z
+            .object({
+              days: z.array(z.number().int().min(0).max(6)).default([1, 2, 3, 4, 5]),
+              start: clockTime.default('08:00'),
+              end: clockTime.default('19:00'),
+            })
+            .superRefine(({ days, start, end }, ctx) => {
+              if (days.length === 0) {
+                ctx.addIssue({ code: 'custom', path: ['days'], message: 'At least one working day is required' });
+              } else if (new Set(days).size !== days.length) {
+                ctx.addIssue({ code: 'custom', path: ['days'], message: 'Working days must not repeat' });
+              }
+              if (start >= end)
+                ctx.addIssue({ code: 'custom', path: ['end'], message: `Must be later than start (${start})` });
+            })
+            .prefault({}),
+        })
+        .prefault({}),
+      runs: z
+        .object({
+          timeoutMinutes: positiveInt.default(30),
+          defaultModel: nonEmpty.default('claude-sonnet-4.5'),
+          models: z.array(z.string()).default([]),
+          initialReview: z.enum(['baseline-only', 'unresolved']).default('baseline-only'),
+          denyTools: z.array(z.string()).default([]),
+        })
+        .prefault({})
+        .transform(({ timeoutMinutes, ...rest }) => ({ timeoutMs: timeoutMinutes * 60_000, ...rest })),
+      cleanup: z
+        .object({
+          enabled: z.boolean().default(true),
+          everyDays: positiveInt.default(7),
+          retainClosedDays: positiveInt.default(30),
+        })
+        .prefault({}),
+      teams: z
+        .object({
+          chatId: nonEmpty,
+          tool: nonEmpty.default('teams-global(send_chat_message)'),
+          model: nonEmpty.optional(),
+          dashboardUrl: nonEmpty.default('http://127.0.0.1:4317'),
+        })
+        .optional(),
+    })
+    .superRefine((config, ctx) => {
+      if (config.provider === 'copilot' || config.providers[config.provider].defaultModel.trim() !== '') return;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['providers', config.provider, 'defaultModel'],
+        message: `A default model is required for provider "${config.provider}"`,
+      });
+    });
 }
 
 export type ConfigInput = z.input<ReturnType<typeof createConfigSchema>>;

@@ -103,6 +103,41 @@ describe('createCopilotLauncher', () => {
     expect(rec.argv[i + 1]?.split(',').sort()).toEqual(['GITLAB_TOKEN', 'JIRA_EMAIL', 'JIRA_TOKEN']);
   });
 
+  test('strips provider API credentials from the CLI environment', async () => {
+    const s = setup();
+    const env = {
+      ...process.env,
+      ANTHROPIC_API_KEY: 'anthropic-secret',
+      CLAUDE_CODE_OAUTH_TOKEN: 'claude-secret',
+      OPENAI_API_KEY: 'openai-secret',
+      OPENCODE_API_KEY: 'opencode-secret',
+      CODEX_API_KEY: 'codex-secret',
+      FAKE_COPILOT_MODE: 'no-result',
+      FAKE_COPILOT_RECORD: s.record,
+    };
+    const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, env));
+
+    await launcher.start({
+      cwd: s.repo,
+      prompt: 'hi',
+      model: 'm1',
+      transcriptPath: s.transcriptPath,
+      logPath: s.logPath,
+      env,
+    }).exited;
+
+    const rec = JSON.parse(fs.readFileSync(s.record, 'utf8')) as Recorded;
+    for (const name of [
+      'ANTHROPIC_API_KEY',
+      'CLAUDE_CODE_OAUTH_TOKEN',
+      'OPENAI_API_KEY',
+      'OPENCODE_API_KEY',
+      'CODEX_API_KEY',
+    ]) {
+      expect(rec.env[name]).toBeUndefined();
+    }
+  });
+
   test('omits --secret-env-vars when no secret names are configured', async () => {
     const s = setup();
     const launcher = createCopilotLauncher(s.config, { gitlab: {}, github: {}, jira: {}, envNames: [] });
@@ -195,7 +230,7 @@ describe('createCopilotLauncher', () => {
     expect(() => proc.kill('SIGKILL')).not.toThrow();
   });
 
-  test('missing binary resolves exited with spawnError', async () => {
+  test('missing binary resolves with a structured spawn error', async () => {
     const s = setup({ copilotBin: '/nonexistent/copilot' });
     const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
     const proc = launcher.start({
@@ -209,7 +244,8 @@ describe('createCopilotLauncher', () => {
     const exit = await proc.exited;
     expect(exit.code).toBeNull();
     expect(exit.signal).toBeNull();
-    expect(exit.spawnError).toContain('ENOENT');
+    expect(exit.error).toMatchObject({ code: 'SPAWN_FAILED' });
+    expect(exit.error?.message).toContain('ENOENT');
     expect(proc.pid).toBe(0);
     expect(() => proc.kill('SIGTERM')).not.toThrow();
   });

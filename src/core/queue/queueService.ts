@@ -1,9 +1,10 @@
 import type { Config } from '../config/schema';
+import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
 import { parseTarget } from '../domain/targets';
-import type { Clock, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
+import type { Clock, ProviderName, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
 import { unknownRepositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 
@@ -23,6 +24,7 @@ export interface EnqueueAdhocInput {
   repository: string;
   prompt: string | null;
   model: string;
+  provider?: ProviderName;
   parentRunId?: number;
   sessionId?: string;
   ticketKey?: string;
@@ -70,16 +72,15 @@ export class QueueService {
           .get(input.watchId) as { extra_instructions: string | null } | undefined;
         const row = this.db
           .prepare(
-            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, extra_instructions, review_unresolved, model, queued_at, workflow_type)
-           VALUES (@watchId, @repository, 'queued', @trigger, @priority, @reason, @extra, @reviewUnresolved, @model, @now,
+            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, extra_instructions, review_unresolved, provider, model, queued_at, workflow_type)
+           VALUES (@watchId, @repository, 'queued', @trigger, @priority, @reason, @extra, @reviewUnresolved, @provider, @model, @now,
              (SELECT CASE kind WHEN 'mr' THEN 'mr-watch' WHEN 'jira' THEN 'jira-watch' ELSE 'free-watch' END FROM watches WHERE id = @watchId))
            ON CONFLICT (watch_id) WHERE status = 'queued' DO UPDATE SET
              priority = min(priority, excluded.priority),
              trigger = CASE WHEN excluded.trigger = 'manual' THEN 'manual' ELSE trigger END,
              reason = reason || '; ' || excluded.reason,
              extra_instructions = excluded.extra_instructions,
-             review_unresolved = max(review_unresolved, excluded.review_unresolved),
-             model = excluded.model
+             review_unresolved = max(review_unresolved, excluded.review_unresolved)
            RETURNING *`,
           )
           .get({
@@ -90,6 +91,7 @@ export class QueueService {
             reason: input.reason,
             extra: mergeInstructions(existing?.extra_instructions ?? null, input.extraInstructions),
             reviewUnresolved: input.reviewUnresolved ? 1 : 0,
+            provider: this.config.provider,
             model: input.model,
             now: this.clock.now(),
           });
@@ -109,8 +111,8 @@ export class QueueService {
     const workflowType = inherited ?? (input.ticketKey === undefined ? 'free-adhoc' : 'ticket-adhoc');
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, model, parent_run_id, session_id, queued_at, workflow_type)
-         VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type)
+           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -118,6 +120,7 @@ export class QueueService {
         input.prompt,
         input.ticketKey ?? null,
         input.ticketTitle ?? null,
+        input.provider ?? this.config.provider,
         input.model,
         input.parentRunId ?? null,
         input.sessionId ?? null,
@@ -131,12 +134,13 @@ export class QueueService {
     return this.db
       .transaction((): Result<{ run: Run }> => {
         const parent = this.db
-          .prepare('SELECT watch_id, status, repository, model, session_id FROM runs WHERE id = ?')
+          .prepare('SELECT watch_id, status, repository, provider, model, session_id FROM runs WHERE id = ?')
           .get(runId) as
           | {
               watch_id: number | null;
               status: RunStatus;
               repository: string;
+              provider: ProviderName;
               model: string;
               session_id: string | null;
             }
@@ -160,7 +164,7 @@ export class QueueService {
           return err({
             code: 'INVALID_INPUT',
             field: 'run',
-            message: 'This Run has no Copilot session to continue',
+            message: 'This Run has no provider session to continue',
           });
         const unknown = unknownRepositoryError(this.config, this.dataDir, parent.repository, this.clock.now());
         if (unknown) return err(unknown);
@@ -168,6 +172,7 @@ export class QueueService {
           run: this.enqueueAdhoc({
             repository: parent.repository,
             prompt,
+            provider: parent.provider,
             model: parent.model,
             parentRunId: runId,
             sessionId: parent.session_id,
@@ -180,6 +185,15 @@ export class QueueService {
   async requestAdhoc(input: AdhocRequest): Promise<Result<{ run: Run; warning?: string }>> {
     const unknown = unknownRepositoryError(this.config, this.dataDir, input.repository, this.clock.now());
     if (unknown) return err(unknown);
+    const options = providerOptions(this.config, this.config.provider);
+    const model = input.model ?? options.defaultModel;
+    if (![options.defaultModel, ...options.models].includes(model)) {
+      return err({
+        code: 'INVALID_INPUT',
+        field: 'model',
+        message: `Model "${model}" is not configured for ${this.config.provider}`,
+      });
+    }
     let ticket: { key: string; title: string | null } | undefined;
     let warning: string | undefined;
     const prompt = input.prompt?.trim() || null;
@@ -208,7 +222,8 @@ export class QueueService {
     const run = this.enqueueAdhoc({
       repository: input.repository,
       prompt,
-      model: input.model ?? this.config.runs.defaultModel,
+      provider: this.config.provider,
+      model,
       ticketKey: ticket?.key,
       ticketTitle: ticket?.title,
     });

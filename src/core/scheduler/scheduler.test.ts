@@ -128,6 +128,21 @@ describe('Scheduler.tick', () => {
     expect(watch(db, id).checkFailures).toBe(0);
   });
 
+  test('scheduler uses the selected provider default model', async () => {
+    const { db, clock, scheduler } = setup({
+      configOverrides: {
+        provider: 'codex',
+        providers: { codex: { defaultModel: 'codex-model' } },
+      },
+      script: () => ({ kind: 'changed', reason: 'new work' }),
+    });
+    const id = dueWatch(db, clock.now() - MIN);
+
+    await scheduler.tick();
+
+    expect(runsOf(db, id)).toMatchObject([{ provider: 'codex', model: 'codex-model' }]);
+  });
+
   test('unchanged stores baseline cursor', async () => {
     const cursor = { lastNoteId: 42, handledPipelineId: null, handledConflictSha: null };
     const kept = { lastNoteId: 7, handledPipelineId: null, handledConflictSha: null };

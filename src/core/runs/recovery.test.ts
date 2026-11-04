@@ -46,7 +46,7 @@ function setup() {
     clock,
     config,
     dataDir,
-    launcher,
+    launchers: { copilot: launcher, 'claude-code': launcher, codex: launcher, opencode: launcher },
     prechecks,
     currentBranch: vi.fn(async () => 'main'),
     onNeedsYou,
