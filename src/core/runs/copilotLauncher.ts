@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
-import { childEnv, spawnChild } from './childProcess';
+import { childEnv, copilotAuthEnvNames, spawnChild } from './childProcess';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions, RunningProcess } from './providerLauncher';
 
 export type CopilotExit = ProviderExit;
@@ -18,6 +18,10 @@ export { childEnv };
 export function createCopilotLauncher(config: Config, secrets: Secrets): CopilotLauncher {
   return {
     start(opts) {
+      const secretEnvNames = new Set(secrets.envNames);
+      for (const name of copilotAuthEnvNames) {
+        if (opts.env[name] !== undefined) secretEnvNames.add(name);
+      }
       const args = [
         '-p',
         opts.prompt,
@@ -34,7 +38,7 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         '--log-level',
         'error',
         ...config.runs.denyTools.flatMap((pattern) => ['--deny-tool', pattern]),
-        ...(secrets.envNames.length > 0 ? ['--secret-env-vars', secrets.envNames.join(',')] : []),
+        ...(secretEnvNames.size > 0 ? ['--secret-env-vars', [...secretEnvNames].join(',')] : []),
         ...(opts.sessionId !== undefined ? ['--session-id', opts.sessionId] : []),
         ...(opts.extraArgs ?? []),
       ];
@@ -44,6 +48,7 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         env: opts.env,
         secrets,
         logPath: opts.logPath,
+        preserveCopilotAuth: true,
       });
 
       return {

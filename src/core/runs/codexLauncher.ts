@@ -2,10 +2,10 @@ import path from 'node:path';
 import { providerOptions } from '../config/providers';
 import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
-import type { RunError } from '../domain/types';
-import type { ProviderExit, ProviderLauncher, ProviderStartOptions, RunningProcess } from './providerLauncher';
+import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
 import { writeTextAtomic } from '../files/atomic';
+import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -77,15 +77,6 @@ function providerError(exit: ProviderExit, output: string): ProviderExit {
   };
 }
 
-function failedProcess(error: RunError): RunningProcess {
-  return {
-    pid: 0,
-    sessionId: Promise.resolve(null),
-    exited: Promise.resolve({ code: null, signal: null, error }),
-    kill() {},
-  };
-}
-
 export function createCodexLauncher(config: Config, secrets: Secrets): ProviderLauncher {
   const codexConfig = providerOptions(config, 'codex');
 
@@ -108,7 +99,6 @@ export function createCodexLauncher(config: Config, secrets: Secrets): ProviderL
       const runArtifactsDir = path.dirname(startOptions.transcriptPath);
       const args = [
         'exec',
-        ...(startOptions.sessionId === undefined ? [] : ['resume', startOptions.sessionId]),
         '--json',
         '--model',
         startOptions.model,
@@ -118,6 +108,7 @@ export function createCodexLauncher(config: Config, secrets: Secrets): ProviderL
         runArtifactsDir,
         '--cd',
         startOptions.cwd,
+        ...(startOptions.sessionId === undefined ? [] : ['resume', startOptions.sessionId]),
         startOptions.prompt,
       ];
       const stdout: Buffer[] = [];

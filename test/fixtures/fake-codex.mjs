@@ -6,7 +6,7 @@ const argv = process.argv.slice(2);
 const prompt = argv.at(-1) ?? '';
 const mode = process.env.FAKE_CODEX_MODE ?? 'success';
 const resumeIndex = argv.indexOf('resume');
-const sessionId = resumeIndex === -1 ? 'codex-thread-1' : argv[resumeIndex + 1];
+const sessionId = resumeIndex === -1 ? 'codex-thread-1' : argv.at(-2);
 
 if (process.env.FAKE_CODEX_RECORD) {
   fs.writeFileSync(process.env.FAKE_CODEX_RECORD, JSON.stringify({ argv, cwd: process.cwd(), env: process.env }));

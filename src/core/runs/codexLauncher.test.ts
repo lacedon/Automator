@@ -88,7 +88,21 @@ describe('createCodexLauncher', () => {
 
     await process.exited;
     const recorded = JSON.parse(fs.readFileSync(s.record, 'utf8')) as { argv: string[] };
-    expect(recorded.argv.slice(0, 4)).toEqual(['exec', 'resume', 'previous-thread', '--json']);
+    expect(recorded.argv).toEqual([
+      'exec',
+      '--json',
+      '--model',
+      'selected-model',
+      '--sandbox',
+      'workspace-write',
+      '--add-dir',
+      path.dirname(s.transcriptPath),
+      '--cd',
+      s.repo,
+      'resume',
+      'previous-thread',
+      options(s).prompt,
+    ]);
     expect(await process.sessionId).toBe('previous-thread');
   });
 

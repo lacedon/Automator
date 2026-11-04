@@ -25,3 +25,12 @@ export interface ProviderLauncher {
 }
 
 export type ProviderLaunchers = Record<ProviderName, ProviderLauncher>;
+
+export function failedProcess(error: RunError): RunningProcess {
+  return {
+    pid: 0,
+    sessionId: Promise.resolve(null),
+    exited: Promise.resolve({ code: null, signal: null, error }),
+    kill() {},
+  };
+}

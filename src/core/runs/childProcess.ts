@@ -5,12 +5,15 @@ import type { ProviderExit } from './providerLauncher';
 
 const credentialName =
   /(?:^|_)(?:API_KEY|KEY|AUTH_TOKEN|OAUTH_TOKEN|ACCESS_TOKEN|REFRESH_TOKEN|SESSION_TOKEN|TOKEN|ACCESS_KEY(?:_ID)?|SECRET(?:_ACCESS_KEY)?|PASSWORD|PRIVATE_KEY|CREDENTIALS?)(?:_FILE|_PATH)?$/i;
+export const copilotAuthEnvNames = ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'] as const;
+const copilotAuthNames = new Set<string>(copilotAuthEnvNames);
 
 export type ChildProcessOptions = {
   cwd: string;
   env: Env;
   secrets: Secrets;
   logPath: string;
+  preserveCopilotAuth?: boolean;
   onStdout?: (chunk: Buffer) => void;
   onStderr?: (chunk: Buffer) => void;
 };
@@ -21,10 +24,15 @@ export type ChildProcessHandle = {
   kill(signal: 'SIGTERM' | 'SIGKILL'): void;
 };
 
-export function childEnv(env: Env, secrets: Secrets): Env {
+export function childEnv(env: Env, secrets: Secrets, preserveCopilotAuth = false): Env {
   const out: Env = { ...env };
   for (const name of Object.keys(out)) {
-    if (secrets.envNames.includes(name) || credentialName.test(name)) delete out[name];
+    if (
+      secrets.envNames.includes(name) ||
+      (credentialName.test(name) && !(preserveCopilotAuth && copilotAuthNames.has(name)))
+    ) {
+      delete out[name];
+    }
   }
   return out;
 }
@@ -36,7 +44,7 @@ export function spawnChild(bin: string, args: string[], options: ChildProcessOpt
     child = spawn(bin, args, {
       cwd: options.cwd,
       detached: true,
-      env: childEnv(options.env, options.secrets) as NodeJS.ProcessEnv,
+      env: childEnv(options.env, options.secrets, options.preserveCopilotAuth) as NodeJS.ProcessEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (error) {

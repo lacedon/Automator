@@ -138,6 +138,37 @@ describe('createCopilotLauncher', () => {
     }
   });
 
+  test('preserves supported Copilot authentication environment variables', async () => {
+    const s = setup();
+    const env = {
+      ...process.env,
+      COPILOT_GITHUB_TOKEN: 'copilot-token',
+      GH_TOKEN: 'gh-token',
+      GITHUB_TOKEN: 'github-token',
+      FAKE_COPILOT_MODE: 'no-result',
+      FAKE_COPILOT_RECORD: s.record,
+    };
+    const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
+
+    await launcher.start({
+      cwd: s.repo,
+      prompt: 'hi',
+      model: 'm1',
+      transcriptPath: s.transcriptPath,
+      logPath: s.logPath,
+      env,
+    }).exited;
+
+    const rec = JSON.parse(fs.readFileSync(s.record, 'utf8')) as Recorded;
+    expect(rec.env).toMatchObject({
+      COPILOT_GITHUB_TOKEN: 'copilot-token',
+      GH_TOKEN: 'gh-token',
+      GITHUB_TOKEN: 'github-token',
+    });
+    const secretEnvVars = rec.argv[rec.argv.indexOf('--secret-env-vars') + 1]?.split(',');
+    expect(secretEnvVars).toEqual(expect.arrayContaining(['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']));
+  });
+
   test('omits --secret-env-vars when no secret names are configured', async () => {
     const s = setup();
     const launcher = createCopilotLauncher(s.config, { gitlab: {}, github: {}, jira: {}, envNames: [] });
@@ -258,5 +289,14 @@ describe('childEnv', () => {
       { gitlab: {}, github: {}, jira: {}, envNames: ['GITLAB_TOKEN'] },
     );
     expect(env).toEqual({ A: '1', B: '2' });
+  });
+
+  test('keeps Copilot auth variables only when requested and never keeps configured secrets', () => {
+    const env = childEnv(
+      { COPILOT_GITHUB_TOKEN: 'copilot', GH_TOKEN: 'gh', GITHUB_TOKEN: 'github', OPENAI_API_KEY: 'openai' },
+      { gitlab: {}, github: {}, jira: {}, envNames: ['GH_TOKEN'] },
+      true,
+    );
+    expect(env).toEqual({ COPILOT_GITHUB_TOKEN: 'copilot', GITHUB_TOKEN: 'github' });
   });
 });

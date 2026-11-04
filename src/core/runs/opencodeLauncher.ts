@@ -1,10 +1,10 @@
 import { providerOptions } from '../config/providers';
 import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
-import type { RunError } from '../domain/types';
-import type { ProviderExit, ProviderLauncher, ProviderStartOptions, RunningProcess } from './providerLauncher';
+import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
 import { writeTextAtomic } from '../files/atomic';
+import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -81,15 +81,6 @@ function providerError(exit: ProviderExit, output: string): ProviderExit {
       code: 'PROVIDER_ERROR',
       message: `OpenCode exited with code ${exit.code ?? exit.signal ?? 'unknown'}.${message ? ` ${message}` : ''}`,
     },
-  };
-}
-
-function failedProcess(error: RunError): RunningProcess {
-  return {
-    pid: 0,
-    sessionId: Promise.resolve(null),
-    exited: Promise.resolve({ code: null, signal: null, error }),
-    kill() {},
   };
 }
 
