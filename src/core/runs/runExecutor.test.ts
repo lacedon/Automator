@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig, type DeepPartial } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import { resolveSecrets } from '../config/load';
 import type { Config } from '../config/schema';
 import { AgentService } from '../agents/agentService';
@@ -53,6 +54,7 @@ function setup(opts: SetupOpts = {}) {
   });
   const secrets = resolveSecrets(config, {});
   const dataDir = new DataDir(config.dataDir);
+  const repositories = testRepositories(t.db, config);
   const real = createCopilotLauncher(config, secrets);
   const starts: Parameters<CopilotLauncher['start']>[0][] = [];
   const codexStarts: Parameters<CopilotLauncher['start']>[0][] = [];
@@ -89,13 +91,27 @@ function setup(opts: SetupOpts = {}) {
     agents,
     clock,
     config,
+    repositories,
     dataDir,
     launchers: { copilot: launcher, 'claude-code': launcher, codex: codexLauncher, opencode: launcher },
     prechecks,
     currentBranch,
     onNeedsYou,
   });
-  return { db: t.db, agents, clock, config, dataDir, executor, starts, codexStarts, events, onNeedsYou, currentBranch };
+  return {
+    db: t.db,
+    agents,
+    clock,
+    config,
+    repositories,
+    dataDir,
+    executor,
+    starts,
+    codexStarts,
+    events,
+    onNeedsYou,
+    currentBranch,
+  };
 }
 
 function addWatch(db: Database, kind: WatchKind = 'mr', repository = 'pages'): number {
@@ -181,6 +197,12 @@ describe('RunExecutor', () => {
 
   test('acted run writes result.json v1, transcript and advances cursor', async () => {
     const s = setup({ mode: 'acted' });
+    const persistedFolder = path.join(s.config.configDir, 'persisted-pages');
+    fs.mkdirSync(persistedFolder);
+    cleanups.push(() => fs.rmSync(persistedFolder, { recursive: true, force: true }));
+    s.db
+      .prepare('UPDATE repositories SET folder = ?, validate_json = ? WHERE name = ?')
+      .run(persistedFolder, JSON.stringify(['npm run persisted-check']), 'pages');
     const watchId = addWatch(s.db);
     const run = claim(s.db, s.clock.now(), watchId);
     s.clock.advance(4000);
@@ -207,11 +229,12 @@ describe('RunExecutor', () => {
     expect(fs.readFileSync(s.dataDir.transcriptPath(run.id), 'utf8')).toContain('fake transcript');
     expect(fs.readFileSync(s.dataDir.promptPath(run.id), 'utf8')).toContain(s.dataDir.copilotResultPath(run.id));
     expect(s.starts[0]).toMatchObject({
-      cwd: s.config.repositories.pages!.folder,
+      cwd: persistedFolder,
       model: 'm1',
       transcriptPath: s.dataDir.transcriptPath(run.id),
       logPath: s.dataDir.cliLogPath(run.id),
     });
+    expect(fs.readFileSync(s.dataDir.promptPath(run.id), 'utf8')).toContain('- `npm run persisted-check`');
 
     const row = runOf(s.db, run.id);
     expect(row).toMatchObject({
@@ -507,10 +530,25 @@ describe('RunExecutor', () => {
       code: 'REPOSITORY_UNAVAILABLE',
       message: `Repository folder not found: ${s.config.repositories.pages!.folder}`,
     });
+
     expect(final).toMatchObject({ transcriptPath: null, promptPath: null, branch: null, exitCode: null });
     expect(readResult(final.resultPath).transcriptPath).toBeNull();
     expect(s.starts).toHaveLength(0);
     expect(watchOf(s.db, watchId).state).toBe('needs_you');
+  });
+
+  test('missing Repository connection fails preflight without starting Copilot', async () => {
+    const s = setup();
+    const watchId = addWatch(s.db);
+    s.db.prepare('UPDATE repositories SET gitlab = ? WHERE name = ?').run('missing-connection', 'pages');
+
+    const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
+
+    expect(final.error).toMatchObject({
+      code: 'REPOSITORY_UNAVAILABLE',
+      message: expect.stringContaining('Unknown GitLab connection "missing-connection"'),
+    });
+    expect(s.starts).toHaveLength(0);
   });
 
   test('unknown repository fails preflight', async () => {
@@ -732,7 +770,7 @@ describe('RunExecutor', () => {
 
     test('follow-up that fails before Copilot starts keeps its session and the thread offers a reply on it', async () => {
       const s = setup();
-      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config);
+      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config, s.repositories);
       const parentRunId = finishedParent(s.db, 'parent-session');
       const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
       s.db.prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
@@ -745,7 +783,13 @@ describe('RunExecutor', () => {
       expect(runOf(s.db, queued.id).sessionId).toBe('parent-session');
       s.db.prepare("UPDATE runs SET status = 'finished', ended_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
       fs.mkdirSync(s.config.repositories.pages!.folder, { recursive: true });
-      const read = createReadModels({ db: s.db, config: s.config, dataDir: s.dataDir, clock: s.clock });
+      const read = createReadModels({
+        db: s.db,
+        config: s.config,
+        dataDir: s.dataDir,
+        clock: s.clock,
+        repositories: s.repositories,
+      });
       expect((await read.runDetail(parentRunId))!.thread).toMatchObject({
         replyToRunId: queued.id,
         replyBlockedReason: null,
@@ -754,7 +798,7 @@ describe('RunExecutor', () => {
 
     test('follow-up whose parent was deleted while queued still resumes the session with follow-up framing', async () => {
       const s = setup();
-      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config);
+      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config, s.repositories);
       const parentRunId = finishedParent(s.db, 'parent-session');
       const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
       expect(queue.deleteAdhoc(parentRunId)).toEqual({ ok: true, value: undefined });

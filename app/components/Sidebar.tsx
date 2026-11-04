@@ -21,6 +21,7 @@ function NavigationItems({
     { href: '/runs', label: 'Runs' },
     { href: '/adhoc', label: 'Ad-hoc' },
     { href: '/projects', label: 'Projects' },
+    { href: '/settings/repositories', label: 'Repositories' },
     { href: '/settings/agents', label: 'Settings' },
   ];
   return items.map(({ href, label, count }) => {

@@ -25,6 +25,7 @@ import { applyOutcome, type RunFinal } from './outcomeApplier';
 import type { AgentService } from '../agents/agentService';
 import { buildAdhocPrompt, buildWatchPrompt } from './promptBuilder';
 import { closeWatch } from '../watches/needsYou';
+import type { RepositoryService } from '../repositories/repositoryService';
 
 const MAX_SUMMARY = 500;
 const KILL_GRACE_MS = 10_000;
@@ -64,6 +65,7 @@ export interface RunExecutorDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  repositories: RepositoryService;
   dataDir: DataDir;
   launchers: ProviderLaunchers;
   prechecks: Prechecks;
@@ -265,10 +267,18 @@ export class RunExecutor {
     const { run } = active;
     dataDir.ensureRunDir(run.id);
 
-    const repo = config.repositories[run.repository];
-    if (repo === undefined) return failure('REPOSITORY_UNAVAILABLE', `Unknown Repository "${run.repository}"`);
-    if (!fs.existsSync(repo.folder))
-      return failure('REPOSITORY_UNAVAILABLE', `Repository folder not found: ${repo.folder}`);
+    const repo = this.deps.repositories.get(run.repository);
+    if (repo === null) return failure('REPOSITORY_UNAVAILABLE', `Unknown Repository "${run.repository}"`);
+    const repositoryIssues = this.deps.repositories.status(repo.name);
+    if (repositoryIssues.length > 0) {
+      const missingFolder = repositoryIssues.find((issue) => issue === `Folder does not exist: ${repo.folder}`);
+      return failure(
+        'REPOSITORY_UNAVAILABLE',
+        missingFolder
+          ? `Repository folder not found: ${repo.folder}`
+          : `Repository "${repo.name}" is invalid: ${repositoryIssues.join('; ')}`,
+      );
+    }
 
     const { agent, template } = this.deps.agents.resolve(run.repository, run.workflowType);
     const agentInstructions = agent?.instructions.trim() ?? '';
@@ -284,7 +294,14 @@ export class RunExecutor {
     let prompt: string;
     if (run.watchId === null) {
       try {
-        prompt = buildAdhocPrompt({ run, config, resultPath, agentInstructions, operationTemplate });
+        prompt = buildAdhocPrompt({
+          run,
+          config,
+          repository: repo,
+          resultPath,
+          agentInstructions,
+          operationTemplate,
+        });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));
       }
@@ -314,7 +331,7 @@ export class RunExecutor {
           run,
           snapshot,
           recent: this.recentRuns(watch.id, run.id),
-          config,
+          repository: repo,
           resultPath,
           hasJiraToken: watch.kind === 'jira' && prechecks.jira.hasToken(watch),
           agentInstructions,

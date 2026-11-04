@@ -14,8 +14,12 @@ const { queueAdhoc, deleteAdhocRun } = await import('./adhoc');
 let core: Core;
 
 beforeEach(() => {
+  const config = testConfig({
+    runs: { defaultModel: 'default-model', models: ['other-model'] },
+    jira: { enabled: true },
+  });
   core = createCore(
-    testConfig({ runs: { defaultModel: 'default-model', models: ['other-model'] }, jira: { enabled: true } }),
+    config,
     {
       clock: fakeClock(),
       notifier: { async notifyNeedsYou() {} },
@@ -32,6 +36,7 @@ beforeEach(() => {
         },
       }),
     },
+    { repositories: config.repositories },
   );
   holder.core = core;
   revalidatePath.mockClear();

@@ -54,20 +54,6 @@ export function createConfigSchema(configDir: string) {
           opencode: providerSettings('opencode'),
         })
         .prefault({}),
-      repositories: z.record(
-        z.string(),
-        z
-          .object({
-            folder: pathField,
-            gitlab: nonEmpty.optional(),
-            github: nonEmpty.optional(),
-            jira: nonEmpty.optional(),
-            validate: z.array(z.string()).default([]),
-          })
-          .refine((repo) => repo.gitlab !== undefined || repo.github !== undefined, {
-            message: 'A repository needs a gitlab or github connection',
-          }),
-      ),
       gitlab: z.record(z.string(), z.object({ host: nonEmpty, tokenEnv: nonEmpty })).default({}),
       github: z.record(z.string(), z.object({ host: nonEmpty.default('github.com'), tokenEnv: nonEmpty })).default({}),
       jira: z
@@ -145,40 +131,9 @@ export function createConfigSchema(configDir: string) {
 
 export type ConfigInput = z.input<ReturnType<typeof createConfigSchema>>;
 
-export type ReferenceIssue = { path: string[]; message: string };
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-// Runs on the raw input so reference errors are reported even when other fields fail validation.
-// Malformed parts are skipped here; the schema reports them.
-export function findReferenceIssues(raw: unknown): ReferenceIssue[] {
-  if (!isRecord(raw) || !isRecord(raw.repositories)) return [];
-  const gitlab = raw.gitlab === undefined ? {} : isRecord(raw.gitlab) ? raw.gitlab : undefined;
-  const github = raw.github === undefined ? {} : isRecord(raw.github) ? raw.github : undefined;
-  const jira: Record<string, unknown> | undefined =
-    raw.jira === undefined ? {} : isRecord(raw.jira) ? raw.jira : undefined;
-  const connections = jira?.connections ?? {};
-  const jiraConnections = jira && isRecord(connections) ? connections : undefined;
-
-  const issues: ReferenceIssue[] = [];
-  for (const [name, repo] of Object.entries(raw.repositories)) {
-    if (!isRecord(repo)) continue;
-    if (gitlab && typeof repo.gitlab === 'string' && repo.gitlab !== '' && !Object.hasOwn(gitlab, repo.gitlab)) {
-      issues.push({ path: ['repositories', name, 'gitlab'], message: `Unknown gitlab connection "${repo.gitlab}"` });
-    }
-    if (github && typeof repo.github === 'string' && repo.github !== '' && !Object.hasOwn(github, repo.github)) {
-      issues.push({ path: ['repositories', name, 'github'], message: `Unknown github connection "${repo.github}"` });
-    }
-    if (
-      jiraConnections &&
-      typeof repo.jira === 'string' &&
-      repo.jira !== '' &&
-      !Object.hasOwn(jiraConnections, repo.jira)
-    ) {
-      issues.push({ path: ['repositories', name, 'jira'], message: `Unknown jira connection "${repo.jira}"` });
-    }
-  }
-  return issues;
-}
-
-export type Config = z.output<ReturnType<typeof createConfigSchema>> & { configDir: string };
+// Consumer modules are migrated in a later task; this type keeps them buildable while
+// the runtime schema deliberately strips the legacy property.
+export type Config = z.output<ReturnType<typeof createConfigSchema>> & {
+  configDir: string;
+  repositories: Record<string, { folder: string; gitlab?: string; github?: string; jira?: string; validate: string[] }>;
+};

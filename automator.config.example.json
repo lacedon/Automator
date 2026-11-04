@@ -7,14 +7,6 @@
     "codex": { "bin": "codex", "defaultModel": "", "models": [] },
     "opencode": { "bin": "opencode", "defaultModel": "", "models": [] }
   },
-  "repositories": {
-    "pages": {
-      "folder": "~/work/pages",
-      "gitlab": "corp",
-      "jira": "corp",
-      "validate": ["npm run lint", "npm test"]
-    }
-  },
   "gitlab": { "corp": { "host": "https://gitlab.example.com", "tokenEnv": "GITLAB_TOKEN" } },
   "github": { "public": { "host": "github.com", "tokenEnv": "AUTOMATOR_GITHUB_TOKEN" } },
   "jira": {

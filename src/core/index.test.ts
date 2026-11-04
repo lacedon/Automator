@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../test/helpers/clock';
 import { testConfig } from '../../test/helpers/config';
 import { insertWatch } from '../../test/helpers/db';
-import { createCore, type GitLabClient } from './index';
+import { bootstrap, createCore, type GitLabClient } from './index';
 
 const cleanups: (() => void)[] = [];
 
@@ -34,7 +34,7 @@ function setup() {
   const config = testConfig();
   const clock = fakeClock();
   const gitlab = fakeGitLab();
-  const open = () => createCore(config, { clock, gitlab: () => gitlab });
+  const open = () => createCore(config, { clock, gitlab: () => gitlab }, { repositories: config.repositories });
   const core = open();
   cleanups.push(() => {
     core.close();
@@ -44,6 +44,47 @@ function setup() {
 }
 
 describe('createCore', () => {
+  test('exposes persisted repositories and imports the raw legacy list during startup', () => {
+    fs.mkdirSync(path.resolve('test-results', 'tmp'), { recursive: true });
+    const root = fs.mkdtempSync(path.resolve('test-results', 'tmp', 'bootstrap-'));
+    const repositoryFolder = path.join(root, 'repo');
+    fs.mkdirSync(repositoryFolder);
+    const configPath = path.join(root, 'automator.config.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        dataDir: path.join(root, 'data'),
+        repositories: {
+          imported: { folder: './repo', gitlab: 'corp', validate: ['npm test'] },
+        },
+        gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
+      }),
+    );
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.stubEnv('GITLAB_TOKEN', 'startup-secret');
+    let core: ReturnType<typeof bootstrap> | undefined;
+    try {
+      core = bootstrap({ configPath });
+      expect(core.repositories.list()).toEqual([
+        {
+          name: 'imported',
+          folder: repositoryFolder,
+          gitlab: 'corp',
+          github: null,
+          jira: null,
+          validate: ['npm test'],
+        },
+      ]);
+      expect(log.mock.calls.flat().join(' ')).toContain('imported');
+      expect(log.mock.calls.flat().join(' ')).not.toContain('startup-secret');
+    } finally {
+      core?.close();
+      vi.unstubAllEnvs();
+      log.mockRestore();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('previews MR targets through the injected GitLab client', async () => {
     const { core } = setup();
     expect(await core.watches.previewTarget(MR_URL, 'pages')).toEqual({

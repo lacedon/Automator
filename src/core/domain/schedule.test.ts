@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { type Config, createConfigSchema } from '../config/schema';
 import { intervalFor, isWithinWorkingHours, nextWindowStart } from './schedule';
 
-const config: Config = { ...createConfigSchema('/cfg').parse({ repositories: {}, gitlab: {} }), configDir: '/cfg' };
+const config: Config = {
+  ...createConfigSchema('/cfg').parse({ gitlab: {} }),
+  configDir: '/cfg',
+  repositories: {},
+};
 const wh = config.schedule.workingHours;
 // 2026-10-21 is a Wednesday.
 const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m).getTime();

@@ -1,9 +1,9 @@
-import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
 import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
 import type { EventSummary, Snapshot } from '../prechecks/types';
+import type { Repository } from '../repositories/repositoryService';
 import { ADHOC_RULES, buildAdhocPrompt, buildWatchPrompt, FIXED_RULES, MAX_EVENTS_CHARS } from './promptBuilder';
 
 const RESULT_PATH = '/data/runs/7/copilot-result.json';
@@ -16,6 +16,22 @@ function config(validate: string[] = ['npm test']): Config {
   return testConfig({
     repositories: { pages: { validate } },
   });
+}
+
+function repository(source: Config): Repository {
+  const configured = source.repositories.pages!;
+  return {
+    name: 'pages',
+    folder: configured.folder,
+    gitlab: configured.gitlab ?? null,
+    github: configured.github ?? null,
+    jira: configured.jira ?? null,
+    validate: configured.validate,
+  };
+}
+
+function adhocPrompt(input: Omit<Parameters<typeof buildAdhocPrompt>[0], 'repository'>): string {
+  return buildAdhocPrompt({ ...input, repository: repository(input.config) });
 }
 
 function watch(partial: Partial<Watch> = {}): Watch {
@@ -99,17 +115,21 @@ function snapshot(partial: Partial<Snapshot> = {}): Snapshot {
 type WatchInput = Parameters<typeof buildWatchPrompt>[0];
 
 function watchPrompt(partial: Partial<WatchInput> = {}): string {
-  return buildWatchPrompt({
+  const repositoryConfig = config();
+  const input = {
     watch: watch(),
     run: run(),
     snapshot: snapshot(),
     recent: [],
-    config: config(),
     resultPath: RESULT_PATH,
     hasJiraToken: false,
     agentInstructions: AGENT,
     operationTemplate: null,
     ...partial,
+  };
+  return buildWatchPrompt({
+    ...input,
+    repository: partial.repository ?? repository(repositoryConfig),
   });
 }
 
@@ -163,7 +183,7 @@ describe('buildWatchPrompt', () => {
     expect(ADHOC_RULES).toContain(precedence);
     expect(watchPrompt()).toContain(precedence);
     expect(
-      buildAdhocPrompt({
+      adhocPrompt({
         run: run({ watchId: null, workflowType: 'free-adhoc', adhocPrompt: 'Do the task.' }),
         config: config(),
         resultPath: RESULT_PATH,
@@ -266,10 +286,18 @@ describe('buildWatchPrompt', () => {
   });
 
   test('empty validate yields escalate-before-pushing line', () => {
-    const prompt = watchPrompt({ config: config([]) });
+    const prompt = watchPrompt({ repository: repository(config([])) });
     const validation = prompt.slice(prompt.indexOf('## Validation'), prompt.indexOf('## Result'));
     expect(validation).toContain('None configured: escalate before pushing');
     expect(watchPrompt()).toContain('- `npm test`');
+  });
+
+  test('validation prompt uses commands from the persisted Repository', () => {
+    const prompt = watchPrompt({
+      repository: { ...repository(config()), validate: ['persisted-command'] },
+    });
+
+    expect(prompt).toContain('- `persisted-command`');
   });
 
   test('result contract contains absolute result path and outcome values', () => {
@@ -319,16 +347,11 @@ describe('buildWatchPrompt', () => {
       `- 2026-10-21T09:00:00.000Z anna: Please rename foo (${MR_URL}#note_1)`,
     );
   });
-
-  test('does not read prompt files', () => {
-    const cfg = testConfig({ configDir: path.resolve('test-results', 'no-prompts') });
-    expect(() => watchPrompt({ config: cfg })).not.toThrow();
-  });
 });
 
 describe('buildAdhocPrompt', () => {
   test('adhoc prompt includes user prompt and result contract, no Watch section', () => {
-    const prompt = buildAdhocPrompt({
+    const prompt = adhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'Bump the lodash version' }),
       config: config(),
       resultPath: RESULT_PATH,
@@ -345,7 +368,7 @@ describe('buildAdhocPrompt', () => {
   });
 
   test('a follow-up whose parent was deleted keeps the follow-up framing', () => {
-    const prompt = buildAdhocPrompt({
+    const prompt = adhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, sessionId: 's', adhocPrompt: 'More' }),
       config: testConfig(),
       resultPath: '/r.json',
@@ -356,7 +379,7 @@ describe('buildAdhocPrompt', () => {
   });
 
   test('follow-up prompt labels the message', () => {
-    const prompt = buildAdhocPrompt({
+    const prompt = adhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: 7, adhocPrompt: 'Use the staging URL' }),
       config: config(),
       resultPath: RESULT_PATH,
@@ -371,7 +394,7 @@ describe('buildAdhocPrompt', () => {
   });
 
   test('root prompt is unchanged', () => {
-    const prompt = buildAdhocPrompt({
+    const prompt = adhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, adhocPrompt: 'Bump it' }),
       config: config(),
       resultPath: RESULT_PATH,
@@ -383,7 +406,7 @@ describe('buildAdhocPrompt', () => {
   });
 
   test('orders fixed rules, Agent instructions, template, then the Request', () => {
-    const prompt = buildAdhocPrompt({
+    const prompt = adhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'REQUEST-TEXT' }),
       config: config(),
       resultPath: RESULT_PATH,
@@ -397,7 +420,7 @@ describe('buildAdhocPrompt', () => {
 
   describe('rules', () => {
     const rules = () =>
-      buildAdhocPrompt({
+      adhocPrompt({
         run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'Anything' }),
         config: config(),
         resultPath: RESULT_PATH,
@@ -433,7 +456,7 @@ describe('buildAdhocPrompt', () => {
 
   describe('linked Ticket', () => {
     const linked = (partial: Partial<Run> = {}) =>
-      buildAdhocPrompt({
+      adhocPrompt({
         run: run({
           watchId: null,
           trigger: 'adhoc',

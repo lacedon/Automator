@@ -198,6 +198,18 @@ CREATE INDEX ix_project_repositories_project ON project_repositories(project_id)
   },
   {
     version: 7,
+    sql: `CREATE TABLE repositories (
+  name TEXT PRIMARY KEY COLLATE NOCASE,
+  folder TEXT NOT NULL,
+  gitlab TEXT,
+  github TEXT,
+  jira TEXT,
+  validate_json TEXT NOT NULL
+);
+`,
+  },
+  {
+    version: 8,
     sql: `ALTER TABLE runs ADD COLUMN provider TEXT NOT NULL DEFAULT 'copilot'
   CHECK (provider IN ('copilot', 'claude-code', 'codex', 'opencode'));
 `,

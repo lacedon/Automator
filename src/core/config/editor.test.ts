@@ -121,6 +121,11 @@ describe('readEditableConfig', () => {
 
     expect(editable).not.toHaveProperty('prompts');
   });
+
+  test('does not expose legacy repositories', () => {
+    const { file } = writeConfig(config);
+    expect(readEditableConfig(file)).not.toHaveProperty('repositories');
+  });
 });
 
 describe('writeEditableConfig', () => {
@@ -150,6 +155,7 @@ describe('writeEditableConfig', () => {
           },
         },
       },
+      repositories: config.repositories,
     });
   });
 
@@ -161,12 +167,12 @@ describe('writeEditableConfig', () => {
     unchangedAfterFailure(file, () => writeEditableConfig(file, invalid));
   });
 
-  test('rejects invalid connection references without overwriting the file', () => {
+  test('does not overwrite legacy repositories when saving config edits', () => {
     const { file } = writeConfig(config);
     const editable = readEditableConfig(file);
-    editable.repositories.pages.gitlab = 'missing';
-
-    unchangedAfterFailure(file, () => writeEditableConfig(file, editable));
+    editable.copilotBin = '/opt/copilot';
+    writeEditableConfig(file, editable);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).repositories).toEqual(config.repositories);
   });
 
   test('rejects added or removed connection records without overwriting the file', () => {

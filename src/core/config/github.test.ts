@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { createConfigSchema, findReferenceIssues } from './schema';
+import { createConfigSchema } from './schema';
 
 const base = {
   repositories: { app: { folder: '/repo/app', github: 'gh' } },
@@ -13,15 +13,14 @@ describe('github connections', () => {
     expect(config.gitlab).toEqual({});
   });
 
-  test('a repository without any connection is rejected', () => {
+  test('legacy repository data is ignored by the runtime schema', () => {
     const result = createConfigSchema('/cfg').safeParse({ ...base, repositories: { app: { folder: '/repo/app' } } });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).not.toHaveProperty('repositories');
   });
 
-  test('unknown github connection is reported', () => {
-    const raw = { ...base, github: {} };
-    expect(findReferenceIssues(raw)).toEqual([
-      { path: ['repositories', 'app', 'github'], message: 'Unknown github connection "gh"' },
-    ]);
+  test('legacy repository connection references do not affect runtime config', () => {
+    const config = createConfigSchema('/cfg').parse({ ...base, github: {} });
+    expect(config).not.toHaveProperty('repositories');
   });
 });

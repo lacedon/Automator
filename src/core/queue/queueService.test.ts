@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig, type DeepPartial } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
+import { testRepositories } from '../../../test/helpers/repositories';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { ProviderName } from '../domain/types';
@@ -33,13 +34,15 @@ function setup(
     runs: { defaultModel: 'default-model', ...opts.configOverrides?.runs },
     jira: { enabled: opts.jiraEnabled ?? true, ...opts.configOverrides?.jira },
   });
+  const repositories = testRepositories(t.db, config);
   return {
     db: t.db,
     file: t.file,
     clock,
     dataDir,
     config,
-    queue: new QueueService(t.db, clock, dataDir, config, { ticketTitle: opts.ticketTitle }),
+    repositories,
+    queue: new QueueService(t.db, clock, dataDir, config, repositories, { ticketTitle: opts.ticketTitle }),
   };
 }
 
@@ -313,6 +316,26 @@ describe('QueueService', () => {
 });
 
 describe('QueueService.requestAdhoc', () => {
+  test('does not enqueue under a Repository name renamed during Ticket title lookup', async () => {
+    let releaseTitle!: (title: string) => void;
+    const title = new Promise<string>((resolve) => {
+      releaseTitle = resolve;
+    });
+    const { db, queue, repositories } = setup({ ticketTitle: async () => title });
+
+    const pending = queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-123' });
+    const repository = repositories.get('pages');
+    if (repository === null) throw new Error('test Repository missing');
+    expect(repositories.update('pages', { ...repository, name: 'renamed-pages' }).ok).toBe(true);
+    releaseTitle('Ticket title');
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { code: 'UNKNOWN_REPOSITORY', name: 'pages', known: ['api', 'renamed-pages'] },
+    });
+    expect(statuses(db)).toEqual([]);
+  });
+
   test('stores the Ticket key and the fetched title on the Run', async () => {
     const lookups: [string, string][] = [];
     const { queue } = setup({
@@ -329,6 +352,23 @@ describe('QueueService.requestAdhoc', () => {
       value: { run: { trigger: 'adhoc', ticketKey: 'ABC-123', ticketTitle: 'Fix login redirect' } },
     });
     expect(lookups).toEqual([['corp', 'ABC-123']]);
+  });
+
+  test('resolves the Jira connection from the persisted Repository row', async () => {
+    const lookups: string[] = [];
+    const { db, config, queue } = setup({
+      ticketTitle: async (conn) => {
+        lookups.push(conn);
+        return 'Persisted connection';
+      },
+    });
+    config.jira.connections.alternate = { baseUrl: 'https://jira.alternate.example.com' };
+    db.prepare('UPDATE repositories SET jira = ? WHERE name = ?').run('alternate', 'pages');
+
+    const result = await queue.requestAdhoc({ repository: 'pages', ticket: 'ABC-22' });
+
+    expect(result).toMatchObject({ ok: true, value: { run: { ticketKey: 'ABC-22' } } });
+    expect(lookups).toEqual(['alternate']);
   });
 
   test('accepts a browse URL as well as a key', async () => {

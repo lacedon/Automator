@@ -12,6 +12,7 @@ import type {
   Trigger,
 } from '../domain/types';
 import { jiraBrowseUrl } from '../prechecks/jiraClient';
+import type { RepositoryService } from '../repositories/repositoryService';
 import type { ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 
@@ -20,9 +21,14 @@ export type TicketLink = { key: string; title: string | null; url: string | null
 export function ticketLink(
   run: Pick<Run, 'repository' | 'ticketKey' | 'ticketTitle'>,
   config: Config,
+  repositories: RepositoryService,
 ): TicketLink | null {
   if (run.ticketKey === null) return null;
-  return { key: run.ticketKey, title: run.ticketTitle, url: jiraBrowseUrl(config, run.repository, run.ticketKey) };
+  return {
+    key: run.ticketKey,
+    title: run.ticketTitle,
+    url: jiraBrowseUrl(config, repositories.get(run.repository), run.ticketKey),
+  };
 }
 
 export type RunRow = {
@@ -70,13 +76,13 @@ export function tookMs(run: Run): number | null {
   return run.endedAt - run.startedAt;
 }
 
-export function toRunRow(run: RunWithTitle, config: Config): RunRow {
+export function toRunRow(run: RunWithTitle, config: Config, repositories: RepositoryService): RunRow {
   return {
     id: run.id,
     watchId: run.watchId,
     watchTitle: run.watchTitle,
     adhocPrompt: run.adhocPrompt,
-    ticket: ticketLink(run, config),
+    ticket: ticketLink(run, config, repositories),
     repository: run.repository,
     provider: run.provider,
     trigger: run.trigger,
@@ -110,5 +116,5 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
     .all({ outcome: f.outcome ?? null, trigger: f.trigger ?? null, repository: f.repository ?? null })
     .map(toRunWithTitle)
     .filter((run) => inScope(run.repository))
-    .map((run) => toRunRow(run, config));
+    .map((run) => toRunRow(run, config, deps.repositories));
 }

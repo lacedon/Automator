@@ -9,7 +9,10 @@ export default function ProjectsPage() {
     <>
       <h1 className="page-title">Projects</h1>
       <p className="muted">Group repositories into Projects and switch between them from the top bar.</p>
-      <ProjectsManager projects={core.projects.list()} repositories={Object.keys(core.config.repositories)} />
+      <ProjectsManager
+        projects={core.projects.list()}
+        repositories={core.repositories.list().map((repository) => repository.name)}
+      />
     </>
   );
 }

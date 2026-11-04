@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { z } from 'zod';
 import { writeJsonAtomic } from '../files/atomic';
 import { ConfigError } from './load';
-import { createConfigSchema, findReferenceIssues, type ConfigInput } from './schema';
+import { createConfigSchema, type ConfigInput } from './schema';
 
 type ParsedConfig = z.output<ReturnType<typeof createConfigSchema>>;
 
@@ -18,13 +18,11 @@ const editableFields = [
   'copilotBin',
   'provider',
   'providers',
-  'repositories',
   'schedule',
   'runs',
   'cleanup',
   'teams',
 ] as const;
-const repositoryFields = ['folder', 'gitlab', 'github', 'jira', 'validate'] as const;
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
@@ -56,14 +54,6 @@ function projectConfig(
     providers.map((provider) => [provider, pick(defaults.providers[provider], providerFields)]),
   );
 
-  if (isRecord(raw.repositories)) {
-    result.repositories = Object.fromEntries(
-      Object.entries(raw.repositories).map(([name, repository]) => [
-        name,
-        pick(repository as RecordValue, repositoryFields),
-      ]),
-    );
-  }
   if (isRecord(raw.schedule)) {
     const schedule = pick(raw.schedule, scheduleFields);
     if (isRecord(raw.schedule.intervals)) schedule.intervals = pick(raw.schedule.intervals, intervalFields);
@@ -108,7 +98,7 @@ function readRawConfig(configPath: string): RecordValue {
 
 function validateConfig(raw: RecordValue, file: string): z.output<ReturnType<typeof createConfigSchema>> {
   const parsed = createConfigSchema(path.dirname(file)).safeParse(raw);
-  const issues = [...(parsed.success ? [] : parsed.error.issues), ...findReferenceIssues(raw)];
+  const issues = parsed.success ? [] : parsed.error.issues;
   if (!parsed.success || issues.length > 0) {
     const lines = issues.map((issue) => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`);
     throw new ConfigError(`Invalid config ${file}:\n${lines.join('\n')}`);

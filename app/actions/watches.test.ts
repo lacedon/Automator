@@ -26,11 +26,16 @@ let core: Core;
 
 beforeEach(() => {
   mrLookup.mockReset();
-  core = createCore(testConfig({ runs: { models: ['gpt-5'] } }), {
-    clock: fakeClock(),
-    notifier: { async notifyNeedsYou() {} },
-    gitlab: () => ({ mr: mrLookup }) as unknown as GitLabClient,
-  });
+  const config = testConfig({ runs: { models: ['gpt-5'] } });
+  core = createCore(
+    config,
+    {
+      clock: fakeClock(),
+      notifier: { async notifyNeedsYou() {} },
+      gitlab: () => ({ mr: mrLookup }) as unknown as GitLabClient,
+    },
+    { repositories: config.repositories },
+  );
   holder.core = core;
   revalidatePath.mockClear();
   redirect.mockClear();

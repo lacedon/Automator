@@ -6,6 +6,7 @@ export type PrecheckResult =
   | { kind: 'changed'; reason: string }
   | { kind: 'unchanged'; cursor?: Cursor }
   | { kind: 'close'; reason: 'merged' | 'mr-closed' | 'jira-done' }
+  | { kind: 'blocked'; message: string }
   | { kind: 'failed'; auth: boolean; message: string };
 
 export type Snapshot = {
