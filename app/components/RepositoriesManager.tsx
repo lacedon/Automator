@@ -2,11 +2,12 @@
 
 import { unstable_rethrow } from 'next/navigation';
 import Link from 'next/link';
-import { startTransition, useActionState, useState, type FormEvent } from 'react';
+import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { AppError, Repository } from '@core/index';
 import { createRepository, deleteRepository, updateRepository } from '../actions/repositories';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox, errorMessage } from './ErrorBox';
+import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 type Connections = { gitlab: string[]; github: string[]; jira: string[] };
 type RepositoryRow = { repository: Repository; status: string[]; projectName: string | null };
@@ -109,7 +110,17 @@ function inputFromForm(form: HTMLFormElement): Repository {
 }
 
 function CreateRepository({ connections }: { connections: Connections }) {
-  const [state, formAction, pending] = useActionState(createRepository, null);
+  const formId = useId();
+  const close = useSettingsDialog();
+  const [state, formAction, pending] = useActionState(
+    async (previous: Parameters<typeof createRepository>[0], data: FormData) => {
+      const result = await createRepository(previous, data);
+      if (result === null) close?.();
+      return result;
+    },
+    null,
+  );
+  useSettingsDialog(pending);
   const defaults = state?.values;
   const values: Repository | undefined =
     defaults === undefined
@@ -120,29 +131,37 @@ function CreateRepository({ connections }: { connections: Connections }) {
           github: defaults.github ?? null,
           jira: defaults.jira ?? null,
         };
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    startTransition(() => formAction(data));
+  };
   return (
-    <section className="card">
-      <h2 className="card-title">Add Repository</h2>
-      <form action={formAction}>
-        {state !== null && <ErrorBox error={state.error} />}
-        <RepositoryFields id="new-repository" repository={values} connections={connections} />
-        <button type="submit" className="btn btn-primary" disabled={pending}>
+    <form id={formId} onSubmit={submit}>
+      {state !== null && <ErrorBox error={state.error} />}
+      <RepositoryFields id="new-repository" repository={values} connections={connections} />
+      <SettingsDialogActions>
+        <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
           Add Repository
         </button>
-      </form>
-    </section>
+      </SettingsDialogActions>
+    </form>
   );
 }
 
-function RepositoryCard({
+function RepositoryEditForm({
   repository,
-  status,
-  projectName,
   connections,
   index,
-}: RepositoryRow & { connections: Connections; index: number }) {
+}: {
+  repository: Repository;
+  connections: Connections;
+  index: number;
+}) {
+  const formId = useId();
   const [error, setError] = useState<AppError | string | null>(null);
   const [pending, setPending] = useState(false);
+  const close = useSettingsDialog(pending);
   const id = `repository-${index}`;
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -152,6 +171,7 @@ function RepositoryCard({
       try {
         const result = await updateRepository(repository.name, input);
         setError(result.ok ? null : result.error);
+        if (result.ok) close?.();
       } catch (cause) {
         unstable_rethrow(cause);
         setError(errorMessage(cause));
@@ -162,24 +182,52 @@ function RepositoryCard({
   };
 
   return (
-    <section className="card" aria-label={repository.name}>
-      <h2 className="card-title">{repository.name}</h2>
-      <p className="muted">
-        Project: {projectName ?? 'Unassigned'} · <Link href="/settings/projects">Manage project membership</Link>
-      </p>
-      {status.length > 0 && (
-        <p className="field-hint" role="status">
-          Repository setup needs attention: {status.join('; ')}
-        </p>
-      )}
-      <form onSubmit={save}>
-        {error !== null && <ErrorBox error={error} />}
-        <RepositoryFields id={id} repository={repository} connections={connections} />
-        <button type="submit" className="btn btn-primary" disabled={pending}>
+    <form id={formId} onSubmit={save}>
+      {error !== null && <ErrorBox error={error} />}
+      <RepositoryFields id={id} repository={repository} connections={connections} />
+      <SettingsDialogActions>
+        <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
           Save Repository
         </button>
-      </form>
-      <div className="field">
+      </SettingsDialogActions>
+    </form>
+  );
+}
+
+function RepositoryCard({
+  repository,
+  status,
+  projectName,
+  connections,
+  index,
+}: RepositoryRow & { connections: Connections; index: number }) {
+  return (
+    <section className="settings-object" aria-label={repository.name}>
+      <div>
+        <h2>{repository.name}</h2>
+        <p className="muted">{repository.folder}</p>
+        <p className="muted">
+          Project: {projectName ?? 'Unassigned'} · <Link href="/settings/projects">Manage project membership</Link>
+        </p>
+        <p className="muted">
+          {[
+            repository.gitlab && `GitLab: ${repository.gitlab}`,
+            repository.github && `GitHub: ${repository.github}`,
+            repository.jira && `Jira: ${repository.jira}`,
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'No service connections.'}
+        </p>
+        {status.length > 0 && (
+          <p className="field-hint" role="status">
+            Repository setup needs attention: {status.join('; ')}
+          </p>
+        )}
+      </div>
+      <div className="actions">
+        <SettingsDialog title={`Edit Repository: ${repository.name}`}>
+          <RepositoryEditForm repository={repository} connections={connections} index={index} />
+        </SettingsDialog>
         <ConfirmDialog
           danger
           label="Delete Repository"
@@ -201,8 +249,12 @@ export function RepositoriesManager({
 }) {
   return (
     <>
-      <CreateRepository connections={connections} />
-      <h2 className="section-h">Repositories</h2>
+      <div className="settings-toolbar">
+        <SettingsDialog title="Add Repository" trigger="Add Repository">
+          <CreateRepository connections={connections} />
+        </SettingsDialog>
+      </div>
+      {repositories.length === 0 && <p className="muted">No Repositories configured.</p>}
       {repositories.map((row, index) => (
         <RepositoryCard key={row.repository.name} {...row} connections={connections} index={index} />
       ))}

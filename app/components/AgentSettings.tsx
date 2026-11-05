@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { startTransition, useActionState, useState, type FormEvent } from 'react';
+import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { Agent, AgentAssignment, OperationTemplate, WorkflowType } from '@core/index';
 import {
   assignAgent,
@@ -17,6 +17,7 @@ import type { ActionResult } from '../actions/types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
 import { ErrorBox, errorMessage } from './ErrorBox';
+import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 type Props = {
   agents: Agent[];
@@ -46,7 +47,17 @@ export function buildAgentDeletionMessage(
 }
 
 export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
-  const [state, formAction, pending] = useActionState(saveAgent, null);
+  const formId = useId();
+  const close = useSettingsDialog();
+  const [state, formAction, pending] = useActionState(
+    async (previous: Parameters<typeof saveAgent>[0], data: FormData) => {
+      const result = await saveAgent(previous, data);
+      if (result === null) close?.();
+      return result;
+    },
+    null,
+  );
+  useSettingsDialog(pending);
   const idPrefix = `agent-${agent?.id ?? 'new'}`;
   const invalid = state?.error.code === 'INVALID_INPUT' ? state.error.field : null;
   const echoed = (field: keyof AgentFormValues, fallback: string) => state?.values[field] ?? fallback;
@@ -59,7 +70,7 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
   };
 
   return (
-    <form onSubmit={submit}>
+    <form id={formId} onSubmit={submit}>
       {state !== null && <ErrorBox error={state.error} />}
       {agent && <input type="hidden" name="id" value={agent.id} />}
       <div className="field">
@@ -84,9 +95,16 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
           <div className="field-hint muted">Empty: Runs that resolve to this Agent are blocked.</div>
         )}
       </div>
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {agent ? 'Save Agent' : 'Create Agent'}
-      </button>
+      {agent && close && (
+        <p>
+          <Link href={`/settings/agents/${agent.id}`}>Open full page</Link>
+        </p>
+      )}
+      <SettingsDialogActions>
+        <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
+          {agent ? 'Save Agent' : 'Create Agent'}
+        </button>
+      </SettingsDialogActions>
     </form>
   );
 }
@@ -112,14 +130,18 @@ function AgentCard({
     return { ok: true, value: buildAgentDeletionMessage(agent.name, result.value, labels) };
   };
   return (
-    <div className="card">
-      <div className="card-title">{agent.name}</div>
-      <p className="muted field-hint">{served}</p>
-      <p className="agent-preview">{agent.instructions.trim() === '' ? 'No instructions yet.' : agent.instructions}</p>
-      <div className="field agent-card-actions">
-        <Link href={`/settings/agents/${agent.id}`} className="btn btn-primary">
-          Open settings
-        </Link>
+    <section className="settings-object" aria-label={agent.name}>
+      <div>
+        <h2>{agent.name}</h2>
+        <p className="muted field-hint">{served}</p>
+        <p className="agent-preview">
+          {agent.instructions.trim() === '' ? 'No instructions yet.' : agent.instructions}
+        </p>
+      </div>
+      <div className="actions">
+        <SettingsDialog title={`Edit Agent: ${agent.name}`} wide>
+          <AgentForm agent={agent} rows={16} />
+        </SettingsDialog>
         <ConfirmDialog
           danger
           label="Delete Agent"
@@ -130,7 +152,7 @@ function AgentCard({
           prepare={prepare}
         />
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -152,6 +174,7 @@ function AssignmentSelect({
   onResult: (result: ActionResult | string) => void;
 }) {
   const [pending, setPending] = useState(false);
+  useSettingsDialog(pending);
   const value =
     slot === undefined
       ? repository === null
@@ -212,7 +235,17 @@ function TemplateForm({
   workflowType: WorkflowType;
   template: OperationTemplate | undefined;
 }) {
-  const [state, formAction, pending] = useActionState(saveTemplate, null);
+  const formId = useId();
+  const close = useSettingsDialog();
+  const [state, formAction, pending] = useActionState(
+    async (previous: Parameters<typeof saveTemplate>[0], data: FormData) => {
+      const result = await saveTemplate(previous, data);
+      if (result === null) close?.();
+      return result;
+    },
+    null,
+  );
+  useSettingsDialog(pending);
   const echoed = (field: keyof TemplateFormValues, fallback: string) => state?.values[field] ?? fallback;
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -220,7 +253,7 @@ function TemplateForm({
     startTransition(() => formAction(data));
   };
   return (
-    <form onSubmit={submit}>
+    <form id={formId} onSubmit={submit}>
       {state !== null && <ErrorBox error={state.error} />}
       <input type="hidden" name="workflowType" value={workflowType} />
       <div className="field">
@@ -235,18 +268,25 @@ function TemplateForm({
           Shared by every Repository and Agent for this Workflow. Blank means none.
         </div>
       </div>
-      <button type="submit" className="btn btn-secondary" disabled={pending}>
-        Save template
-      </button>
+      <SettingsDialogActions>
+        <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
+          Save template
+        </button>
+      </SettingsDialogActions>
     </form>
   );
 }
 
-export function AgentSettings({ agents, assignments, templates, repositories, workflows }: Props) {
+function WorkflowEditor({
+  type,
+  agents,
+  assignments,
+  templates,
+  repositories,
+}: Omit<Props, 'workflows'> & { type: WorkflowType }) {
   const [assignmentError, setAssignmentError] = useState<Extract<ActionResult, { ok: false }>['error'] | string | null>(
     null,
   );
-  const labels = new Map(workflows.map((w) => [w.type, w.label]));
   const slot = (repository: string | null, type: WorkflowType) =>
     assignments.find((a) => a.repository === repository && a.workflowType === type);
 
@@ -256,57 +296,85 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
   };
 
   return (
+    <>
+      <p className="muted">Assignment changes save immediately. Save the operation template separately.</p>
+      {assignmentError !== null && <ErrorBox error={assignmentError} unknownRepositoryOutcome="Nothing was changed." />}
+      <AssignmentSelect
+        id={`default-${type}`}
+        label="Default Agent"
+        repository={null}
+        workflowType={type}
+        slot={slot(null, type)}
+        agents={agents}
+        onResult={onResult}
+      />
+      {repositories.map(({ name, status }) => (
+        <div key={name}>
+          <AssignmentSelect
+            id={`${name}-${type}`}
+            label={name}
+            repository={name}
+            workflowType={type}
+            slot={slot(name, type)}
+            agents={agents}
+            onResult={onResult}
+          />
+          <RepositoryStatus status={status} />
+        </div>
+      ))}
+      <TemplateForm workflowType={type} template={templates.find((t) => t.workflowType === type)} />
+    </>
+  );
+}
+
+export function AgentSettings({ agents, assignments, templates, repositories, workflows }: Props) {
+  const labels = new Map(workflows.map((workflow) => [workflow.type, workflow.label]));
+  return (
     <div className="agent-settings">
+      <div className="settings-toolbar">
+        <SettingsDialog title="New Agent" trigger="New Agent" wide>
+          <AgentForm rows={12} />
+        </SettingsDialog>
+      </div>
+      <h2 className="section-h">Agents</h2>
+      <p className="muted">Agents are instruction-only profiles and can be assigned to any Workflow.</p>
+      {agents.length === 0 && <EmptyState>No Agents yet.</EmptyState>}
+      {agents.map((agent) => (
+        <AgentCard key={agent.id} agent={agent} assignments={assignments} labels={labels} />
+      ))}
       <h2 className="section-h">Assignments and templates</h2>
       <p className="muted">
         Each Workflow uses its Repository Agent if one is set, otherwise the default. A slot with no Agent, or an Agent
         with empty instructions, blocks Runs before Copilot starts.
       </p>
-      {assignmentError !== null && <ErrorBox error={assignmentError} unknownRepositoryOutcome="Nothing was changed." />}
-      <div className="agent-grid agent-grid--assignments">
-        {workflows.map(({ type, label }) => (
-          <div className="card" key={type}>
-            <div className="card-title">{label}</div>
-            <AssignmentSelect
-              id={`default-${type}`}
-              label="Default Agent"
-              repository={null}
-              workflowType={type}
-              slot={slot(null, type)}
-              agents={agents}
-              onResult={onResult}
-            />
-            {repositories.map(({ name, status }) => (
-              <div key={name}>
-                <AssignmentSelect
-                  id={`${name}-${type}`}
-                  label={name}
-                  repository={name}
-                  workflowType={type}
-                  slot={slot(name, type)}
-                  agents={agents}
-                  onResult={onResult}
-                />
-                <RepositoryStatus status={status} />
-              </div>
-            ))}
-            <TemplateForm workflowType={type} template={templates.find((t) => t.workflowType === type)} />
-          </div>
-        ))}
-      </div>
-
-      <h2 className="section-h">Agents</h2>
-      <p className="muted">Agents are instruction-only profiles and can be assigned to any Workflow.</p>
-      {agents.length === 0 && <EmptyState>No Agents yet.</EmptyState>}
-      <div className="agent-grid agent-grid--agents">
-        {agents.map((agent) => (
-          <AgentCard key={agent.id} agent={agent} assignments={assignments} labels={labels} />
-        ))}
-      </div>
-      <div className="card agent-new-card">
-        <div className="card-title">New Agent</div>
-        <AgentForm key={agents.length} />
-      </div>
+      {workflows.map(({ type, label }) => {
+        const defaultSlot = assignments.find(
+          (assignment) => assignment.repository === null && assignment.workflowType === type,
+        );
+        const defaultAgent = agents.find((agent) => agent.id === defaultSlot?.agentId);
+        return (
+          <section className="settings-object" key={type} aria-label={label}>
+            <div>
+              <h3>{label}</h3>
+              <p className="muted">
+                Default: {defaultAgent?.name ?? 'No Agent: Runs blocked'} ·{' '}
+                {templates.find((template) => template.workflowType === type)?.instructions.trim()
+                  ? 'Operation template configured'
+                  : 'No operation template'}
+              </p>
+            </div>
+            <SettingsDialog title={`${label} settings`} wide>
+              <WorkflowEditor
+                type={type}
+                agents={agents}
+                assignments={assignments}
+                templates={templates}
+                repositories={repositories}
+              />
+            </SettingsDialog>
+          </section>
+        );
+      })}
     </div>
   );
 }

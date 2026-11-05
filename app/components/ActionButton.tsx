@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useTransition, type ReactNode } fr
 import type { AppError } from '@core/index';
 import type { ActionResult } from '../actions/types';
 import { ErrorBox, errorMessage } from './ErrorBox';
+import { useSettingsDialog } from './SettingsDialog';
 
 type PageError = AppError | string | null;
 
@@ -32,6 +33,7 @@ type Props = {
 export function ActionButton({ action, children, className = 'btn btn-secondary', disabledReason, onDone }: Props) {
   const report = useContext(ReportError);
   const [pending, startTransition] = useTransition();
+  useSettingsDialog(pending);
   const run = () =>
     startTransition(async () => {
       try {

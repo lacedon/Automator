@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 
 test('provider settings show the global selector and provider model fields', async ({ page }) => {
   await page.goto('/settings/config');
+  await page.getByRole('button', { name: 'Open configuration', exact: true }).click();
   const provider = page.getByLabel('Provider', { exact: true });
   await expect(provider).toHaveValue('copilot');
   await expect(provider.locator('option')).toHaveText([

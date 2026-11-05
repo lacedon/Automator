@@ -1,12 +1,14 @@
 'use client';
 
-import { startTransition, useActionState, useState, type FormEvent } from 'react';
+import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { EditableConfig, ProviderName } from '@core/index';
 import { saveConfig } from '../actions/config';
 import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
+import { SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode'];
+const FIELD_ORDER: Record<string, number> = { dataDir: 0, schedule: 1 };
 
 function label(value: string): string {
   return value
@@ -114,8 +116,18 @@ function ConfigValue({
 }
 
 export function ConfigForm({ initial }: { initial: EditableConfig }) {
+  const formId = useId();
   const [config, setConfig] = useState(initial);
-  const [state, formAction, pending] = useActionState(saveConfig, null);
+  const close = useSettingsDialog();
+  const [state, formAction, pending] = useActionState(
+    async (previous: Parameters<typeof saveConfig>[0], data: FormData) => {
+      const result = await saveConfig(previous, data);
+      if (result === null) close?.();
+      return result;
+    },
+    null,
+  );
+  useSettingsDialog(pending);
 
   const update = (path: string[], value: unknown) => {
     setConfig((current) => updateAtPath(current, path, value) as EditableConfig);
@@ -129,14 +141,18 @@ export function ConfigForm({ initial }: { initial: EditableConfig }) {
   };
 
   return (
-    <form onSubmit={submit} className="watch-form config-form">
+    <form id={formId} onSubmit={submit} className="watch-form config-form">
       {state !== null && <ErrorBox error={state.error} />}
-      {Object.entries(config).map(([key, value]) => (
-        <ConfigValue key={key} value={value} path={[key]} onChange={update} />
-      ))}
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? 'Saving…' : 'Save Configuration'}
-      </button>
+      {Object.entries(config)
+        .sort(([a], [b]) => (FIELD_ORDER[a] ?? 2) - (FIELD_ORDER[b] ?? 2))
+        .map(([key, value]) => (
+          <ConfigValue key={key} value={value} path={[key]} onChange={update} />
+        ))}
+      <SettingsDialogActions>
+        <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
+          {pending ? 'Saving…' : 'Save Configuration'}
+        </button>
+      </SettingsDialogActions>
     </form>
   );
 }

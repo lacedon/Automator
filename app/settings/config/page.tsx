@@ -4,6 +4,8 @@ import { readEditableConfig } from '@core/index';
 import { ConfigForm } from '../../components/ConfigForm';
 import { ErrorBox } from '../../components/ErrorBox';
 import { RestartApplicationButton } from '../../components/RestartApplicationButton';
+import { SettingsDialog } from '../../components/SettingsDialog';
+import { providerLabel } from '../../lib/providerLabel';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +14,15 @@ function configPath(): string {
 }
 
 export default function ConfigurationSettingsPage() {
-  let config;
+  let loadedConfig: ReturnType<typeof readEditableConfig> | undefined;
   let error: string | null = null;
   try {
-    config = readEditableConfig(configPath());
+    loadedConfig = readEditableConfig(configPath());
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause);
   }
 
+  const config = loadedConfig;
   return (
     <>
       <h1 className="page-title">Configuration</h1>
@@ -32,7 +35,34 @@ export default function ConfigurationSettingsPage() {
       <p>
         <Link href="/settings/repositories">Open Repository Settings →</Link>
       </p>
-      {error !== null ? <ErrorBox error={error} /> : config !== undefined && <ConfigForm initial={config} />}
+      {error !== null ? (
+        <ErrorBox error={error} />
+      ) : (
+        config !== undefined && (
+          <>
+            <div className="settings-toolbar">
+              <SettingsDialog title="Edit Configuration" trigger="Open configuration" wide>
+                <p className="muted">Saved application settings take effect after a restart.</p>
+                <ConfigForm initial={config} />
+              </SettingsDialog>
+            </div>
+            {Object.entries(config).map(([key, value]) => (
+              <section className="settings-object" key={key}>
+                <div>
+                  <h2>{key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase())}</h2>
+                  <p className="muted">
+                    {key === 'provider'
+                      ? providerLabel(config.provider)
+                      : typeof value === 'object' && value !== null
+                        ? `${Object.keys(value).length} configured settings`
+                        : String(value)}
+                  </p>
+                </div>
+              </section>
+            ))}
+          </>
+        )
+      )}
       <section aria-labelledby="restart-application-heading">
         <h2 id="restart-application-heading" className="section-h">
           Restart application

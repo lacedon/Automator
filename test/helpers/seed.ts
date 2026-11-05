@@ -16,6 +16,10 @@ export function writeSeedConfig(root: string): string {
       {
         dataDir: '.',
         copilotBin: 'copilot',
+        schedule: {
+          intervals: { mr: '15m', default: '2h' },
+          workingHours: { days: [1, 2, 3, 4, 5], start: '08:00', end: '19:00' },
+        },
         repositories: { pages: { folder: './repos/pages', gitlab: 'corp' } },
         gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
         jira: { enabled: false },
