@@ -52,13 +52,24 @@ test('Runs search and filters retain context and link to real run details', asyn
 test('Projects remain manageable in Settings while the header scopes operational views', async ({ page }) => {
   await page.goto('/settings');
   await expect(page).toHaveURL(/\/settings\/projects$/);
-  await page.getByPlaceholder('New project name').fill('Dashboard test');
-  await page.getByRole('button', { name: 'Create project', exact: true }).click();
-  const project = page.locator('.project-card').filter({ has: page.getByLabel('Project name') });
-  await expect(project.getByLabel('Project name')).toHaveValue('Dashboard test');
-  await project.getByLabel('pages', { exact: true }).check();
-  await project.getByRole('button', { name: 'Save repositories' }).click();
-  await expect(project.getByRole('button', { name: 'Save repositories' })).toBeEnabled();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('Project name').fill('Dashboard test');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create project', exact: true }).click();
+  const project = page.getByRole('region', { name: 'Dashboard test', exact: true });
+  await project.getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(
+    page.getByRole('dialog').locator('.settings-dialog-footer').getByRole('button', { name: 'Rename', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('dialog').locator('.settings-dialog-footer').getByRole('button', { name: 'Save repositories' }),
+  ).toBeVisible();
+  await page.getByRole('dialog').getByLabel('pages', { exact: true }).check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Save repositories' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await project.getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.getByRole('dialog').getByLabel('pages', { exact: true })).toBeChecked();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('combobox', { name: 'Project', exact: true }).selectOption('none');
   await expect(page.getByRole('combobox', { name: 'Project', exact: true })).toBeEnabled();
   await expect(project).toBeVisible();
@@ -72,12 +83,17 @@ test('Projects remain manageable in Settings while the header scopes operational
   await page.getByRole('combobox', { name: 'Project', exact: true }).selectOption('all');
   await expect(page.locator('.run-history tbody tr')).not.toHaveCount(0);
   await page.goto('/settings/projects');
-  await project.getByLabel('Project name').fill('Renamed dashboard test');
-  await project.getByRole('button', { name: 'Rename', exact: true }).click();
-  await expect(project.getByLabel('Project name')).toHaveValue('Renamed dashboard test');
-  await project.getByRole('button', { name: 'Delete', exact: true }).click();
+  await project.getByRole('button', { name: 'Open', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('Project name').fill('Renamed dashboard test');
+  await page.getByRole('dialog').getByRole('button', { name: 'Rename', exact: true }).click();
+  const renamed = page.getByRole('region', { name: 'Renamed dashboard test', exact: true });
+  await expect(renamed).toBeVisible();
+  await renamed.getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.getByRole('dialog').getByLabel('Project name')).toHaveValue('Renamed dashboard test');
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await renamed.getByRole('button', { name: 'Delete', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(project).toHaveCount(0);
+  await expect(renamed).toHaveCount(0);
 });
 
 test('Settings groups Projects and Repositories and preserves the legacy project link', async ({ page }) => {
@@ -94,10 +110,13 @@ test('Settings groups Projects and Repositories and preserves the legacy project
     .click();
   await expect(page.getByRole('heading', { name: 'Repositories', exact: true, level: 1 })).toBeVisible();
   await expect(page.locator('main')).toContainText('pages');
-  await expect(page.getByRole('region', { name: 'pages', exact: true }).getByLabel('Local folder')).toBeVisible();
-  await expect(
-    page.getByRole('region', { name: 'pages', exact: true }).getByRole('button', { name: 'Save Repository' }),
-  ).toBeVisible();
+  await page
+    .getByRole('region', { name: 'pages', exact: true })
+    .getByRole('button', { name: 'Open', exact: true })
+    .click();
+  await expect(page.getByRole('dialog').getByLabel('Local folder')).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Save Repository' })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('link', { name: 'Open Configuration' }).click();
   await expect(page).toHaveURL(/\/settings\/config$/);
 });

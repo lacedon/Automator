@@ -146,7 +146,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 | Jira Ticket | Ticket key/URL                      | Look at changes and comments, and reply when the next step is clear |
 | Free-form   | Any URL + **required** instructions | Follow the Watch's instructions                                     |
 
-Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model. Each Agent opens in its own page (`/settings/agents/<id>`) from Settings for editing with the full window. Provider selection remains installation-wide in Settings → Configuration.
+Every Workflow type uses an Agent assigned to its Repository, falling back to the installation default. An optional operation template is shared by that Workflow type. Agent and template instructions live in local SQLite, not tracked prompt files; fixed Automator safeguards always take precedence. An Agent with empty instructions blocks Runs until it is configured. Each Watch can also use a different model. Agents open in modal editors, with an **Open full page** link (`/settings/agents/<id>`) for editing with the full window. Provider selection remains installation-wide in Settings → Configuration.
 
 ### Watch states
 
@@ -316,6 +316,7 @@ Failures:
 - **Secrets** (GitLab and Jira tokens) are read from environment variables or a gitignored `.env`. They are never added to prompts or result files.
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
 - Settings manages Repositories and edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
+- Settings shows compact summaries for Projects, Repositories, Agents, Workflow assignments/templates and Configuration. **New**, **Add** and **Open** buttons launch modal editors with save/create actions beside Cancel in a fixed footer. Cancel or Escape discards unsaved edits; failed saves keep the editor and entered values. Workflow assignment changes save immediately, while operation templates have a separate Save button.
 - Restart is a separate, confirmed Settings action. The supervisor drains active work before restarting the web process and worker.
 
 ## Cleanup

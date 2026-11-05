@@ -677,6 +677,28 @@ textarea:focus {
   max-width: 1000px;
 }
 
+.config-form .field > label.check {
+  display: flex;
+  align-items: center;
+}
+
+.config-form .field input[type='checkbox'] {
+  width: auto;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+#config-schedule-intervals,
+#config-schedule-workingHours {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+
+#config-schedule-workingHours > .field:first-of-type {
+  grid-column: 1 / -1;
+}
+
 .watch-form > .error-box {
   margin: 0 0 12px;
   padding: 9px 12px;
@@ -1399,6 +1421,113 @@ textarea:focus {
   min-width: 0;
 }
 
+.settings-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.settings-object {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-object > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-object h2,
+.settings-object h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-object p {
+  margin: 4px 0;
+}
+
+.settings-object .actions {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.settings-dialog {
+  width: min(600px, calc(100% - 32px));
+  max-width: calc(100% - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 1px solid var(--control);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.settings-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-dialog-wide {
+  width: min(1000px, calc(100% - 32px));
+}
+
+.settings-dialog::backdrop {
+  background: #000a;
+}
+
+.settings-dialog h2 {
+  margin: 0 0 20px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.settings-dialog-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.settings-dialog-content input:not([type='checkbox'], [type='radio']),
+.settings-dialog-content select,
+.settings-dialog-content textarea {
+  max-width: 100%;
+}
+
+.settings-dialog-content textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-dialog .config-form {
+  max-width: none;
+}
+
+.settings-dialog-footer {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.settings-dialog-actions {
+  display: contents;
+}
+
+body:has(.settings-dialog[open]) {
+  overflow: hidden;
+}
+
 .settings-content > .page-title {
   font-size: 20px;
 }
@@ -1453,6 +1582,25 @@ textarea:focus {
 }
 
 @media (max-width: 640px) {
+  #config-schedule-intervals,
+  #config-schedule-workingHours {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-object {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .settings-dialog {
+    padding: 20px;
+  }
+
+  .settings-dialog .project-card-head,
+  .settings-dialog .project-create {
+    flex-wrap: wrap;
+  }
+
   .attention-card {
     grid-template-columns: 1fr;
     padding: 16px;
