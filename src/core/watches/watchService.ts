@@ -31,6 +31,7 @@ export interface CreateWatchInput {
   instructions?: string;
   intervalMs?: number;
   model?: string;
+  agentId?: number;
   initialReview?: InitialReview;
   title?: string;
 }
@@ -114,6 +115,9 @@ export class WatchService {
     if (badInterval) return err(badInterval);
     const badModel = invalidModel(config, input.model);
     if (badModel) return err(badModel);
+    if (input.agentId !== undefined && !this.deps.db.prepare('SELECT 1 FROM agents WHERE id = ?').get(input.agentId)) {
+      return err({ code: 'INVALID_INPUT', field: 'agentId', message: `Agent #${input.agentId} does not exist` });
+    }
 
     try {
       return this.deps.db
@@ -124,8 +128,8 @@ export class WatchService {
           const row = this.deps.db
             .prepare(
               `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, instructions,
-                 interval_ms, model, initial_review, next_check_at, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)
+                 interval_ms, model, initial_review, agent_id, next_check_at, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
                RETURNING *`,
             )
             .get(
@@ -138,6 +142,7 @@ export class WatchService {
               input.intervalMs ?? null,
               blankToNull(input.model),
               input.initialReview ?? null,
+              input.agentId ?? null,
               now,
               now,
               now,

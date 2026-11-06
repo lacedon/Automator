@@ -28,6 +28,7 @@ export interface Watch {
   instructions: string | null;
   intervalMs: number | null;
   model: string | null;
+  agentId: number | null;
   initialReview: InitialReview | null;
   mrSourceBranch: string | null;
   cursor: Cursor | null;
@@ -61,6 +62,7 @@ export interface Run {
   parentRunId: number | null;
   reviewUnresolved: boolean;
   model: string;
+  agentId: number | null;
   queuedAt: number;
   startedAt: number | null;
   endedAt: number | null;

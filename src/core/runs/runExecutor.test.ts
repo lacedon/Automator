@@ -629,6 +629,32 @@ describe('RunExecutor', () => {
     expect(s.starts).toHaveLength(1);
   });
 
+  test.each([
+    [
+      'Watch',
+      (s: ReturnType<typeof setup>, id: number) => {
+        const watchId = addWatch(s.db);
+        s.db.prepare('UPDATE watches SET agent_id = ? WHERE id = ?').run(id, watchId);
+        return claim(s.db, s.clock.now(), watchId);
+      },
+    ],
+    [
+      'ad-hoc',
+      (s: ReturnType<typeof setup>, id: number) => {
+        const run = claim(s.db, s.clock.now(), null, { workflowType: 'free-adhoc' });
+        s.db.prepare('UPDATE runs SET agent_id = ? WHERE id = ?').run(id, run.id);
+        return { ...run, agentId: id };
+      },
+    ],
+  ])('a %s Run uses its chosen Agent instead of the type default', async (_name, make) => {
+    const s = setup();
+    const chosen = s.agents.createAgent({ name: 'C', instructions: 'CHOSEN-AGENT' });
+    const final = await s.executor.execute(make(s, chosen.id));
+    const prompt = fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8');
+    expect(prompt).toContain('CHOSEN-AGENT');
+    expect(prompt).not.toContain('Default test Agent instructions.');
+  });
+
   test('an empty template does not block the Run', async () => {
     const s = setup();
     s.agents.setTemplate('mr-watch', null);

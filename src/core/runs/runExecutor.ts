@@ -280,7 +280,14 @@ export class RunExecutor {
       );
     }
 
-    const { agent, template } = this.deps.agents.resolve(run.repository, run.workflowType);
+    const chosenAgentId =
+      run.watchId === null
+        ? run.agentId
+        : ((
+            db.prepare('SELECT agent_id FROM watches WHERE id = ?').get(run.watchId) as
+              { agent_id: number | null } | undefined
+          )?.agent_id ?? null);
+    const { agent, template } = this.deps.agents.resolve(run.repository, run.workflowType, chosenAgentId);
     const agentInstructions = agent?.instructions.trim() ?? '';
     if (agentInstructions === '') {
       return failure(

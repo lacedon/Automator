@@ -77,7 +77,16 @@ export async function runWatchNow(_prev: ActionResult | null, formData: FormData
   return done(getCore().watches.runNow(id, { extraInstructions, reviewUnresolved: reviewUnresolved !== undefined }));
 }
 
-const FORM_FIELDS = ['id', 'target', 'repository', 'instructions', 'interval', 'model', 'initialReview'] as const;
+const FORM_FIELDS = [
+  'id',
+  'target',
+  'repository',
+  'instructions',
+  'interval',
+  'model',
+  'agentId',
+  'initialReview',
+] as const;
 
 export type WatchFormValues = Partial<Record<(typeof FORM_FIELDS)[number], string>>;
 
@@ -121,7 +130,12 @@ const editableFields = {
   initialReview: initialReviewField,
 };
 
-const createSchema = z.object({ target: z.string(), repository: z.string(), ...editableFields });
+const createSchema = z.object({
+  target: z.string(),
+  repository: z.string(),
+  agentId: z.coerce.number().int().positive().optional(),
+  ...editableFields,
+});
 const updateSchema = z.object({ id: z.coerce.number().int().positive(), ...editableFields });
 
 export async function createWatch(

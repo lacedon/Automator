@@ -69,6 +69,17 @@ describe('QueueService', () => {
     });
   });
 
+  test('stores the chosen Agent on an ad-hoc Run and rejects an unknown one', async () => {
+    const { db, queue } = setup();
+    const agentId = (db.prepare('SELECT id FROM agents LIMIT 1').get() as { id: number }).id;
+    const chosen = await queue.requestAdhoc({ repository: 'pages', prompt: 'p', agentId });
+    expect(chosen).toMatchObject({ ok: true, value: { run: { agentId } } });
+    const plain = await queue.requestAdhoc({ repository: 'pages', prompt: 'p' });
+    expect(plain).toMatchObject({ ok: true, value: { run: { agentId: null } } });
+    const unknown = await queue.requestAdhoc({ repository: 'pages', prompt: 'p', agentId: 9999 });
+    expect(unknown).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'agentId' } });
+  });
+
   test('rejects ad-hoc models not configured for the selected provider', async () => {
     const { db, queue } = setup({
       configOverrides: { provider: 'codex', providers: { codex: { defaultModel: 'codex' } } },

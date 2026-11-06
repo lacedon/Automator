@@ -1,6 +1,5 @@
 import { providerOptions } from '../config/providers';
-import type { InitialReview } from '../domain/types';
-import type { ProviderName } from '../domain/types';
+import type { AgentAssignment, InitialReview, ProviderName, WorkflowType } from '../domain/types';
 import type { ReadDeps } from './deps';
 
 export type FormOptions = {
@@ -11,6 +10,8 @@ export type FormOptions = {
   intervals: { mr: number; default: number };
   initialReview: InitialReview;
   jiraEnabled: boolean;
+  agents: { id: number; name: string }[];
+  agentAssignments: AgentAssignment[];
 };
 
 export function formOptions({ config, db, repositories }: ReadDeps): FormOptions {
@@ -37,5 +38,15 @@ export function formOptions({ config, db, repositories }: ReadDeps): FormOptions
     intervals: { ...config.schedule.intervals },
     initialReview: runs.initialReview,
     jiraEnabled: config.jira.enabled,
+    agents: (db.prepare('SELECT id, name FROM agents ORDER BY id').all() as { id: number; name: string }[]).map(
+      ({ id, name }) => ({ id, name }),
+    ),
+    agentAssignments: (
+      db.prepare('SELECT repository, workflow_type, agent_id FROM agent_assignments').all() as {
+        repository: string | null;
+        workflow_type: WorkflowType;
+        agent_id: number | null;
+      }[]
+    ).map((r) => ({ repository: r.repository, workflowType: r.workflow_type, agentId: r.agent_id })),
   };
 }

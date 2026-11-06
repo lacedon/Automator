@@ -30,10 +30,12 @@ export interface EnqueueAdhocInput {
   sessionId?: string;
   ticketKey?: string;
   ticketTitle?: string | null;
+  agentId?: number | null;
 }
 
 export interface AdhocRequest {
   repository: string;
+  agentId?: number;
   prompt?: string;
   model?: string;
   ticket?: string;
@@ -113,8 +115,8 @@ export class QueueService {
     const workflowType = inherited ?? (input.ticketKey === undefined ? 'free-adhoc' : 'ticket-adhoc');
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type)
-           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type, agent_id)
+           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -128,6 +130,7 @@ export class QueueService {
         input.sessionId ?? null,
         this.clock.now(),
         workflowType,
+        input.agentId ?? null,
       );
     return toRun(row);
   }
@@ -136,7 +139,7 @@ export class QueueService {
     return this.db
       .transaction((): Result<{ run: Run }> => {
         const parent = this.db
-          .prepare('SELECT watch_id, status, repository, provider, model, session_id FROM runs WHERE id = ?')
+          .prepare('SELECT watch_id, status, repository, provider, model, session_id, agent_id FROM runs WHERE id = ?')
           .get(runId) as
           | {
               watch_id: number | null;
@@ -145,6 +148,7 @@ export class QueueService {
               provider: ProviderName;
               model: string;
               session_id: string | null;
+              agent_id: number | null;
             }
           | undefined;
         if (!parent) return err({ code: 'NOT_FOUND' });
@@ -178,6 +182,7 @@ export class QueueService {
             model: parent.model,
             parentRunId: runId,
             sessionId: parent.session_id,
+            agentId: parent.agent_id,
           }),
         });
       })
@@ -195,6 +200,9 @@ export class QueueService {
         field: 'model',
         message: `Model "${model}" is not configured for ${this.config.provider}`,
       });
+    }
+    if (input.agentId !== undefined && !this.db.prepare('SELECT 1 FROM agents WHERE id = ?').get(input.agentId)) {
+      return err({ code: 'INVALID_INPUT', field: 'agentId', message: `Agent #${input.agentId} does not exist` });
     }
     let ticket: { key: string; title: string | null } | undefined;
     let warning: string | undefined;
@@ -238,6 +246,7 @@ export class QueueService {
             prompt,
             provider: this.config.provider,
             model,
+            agentId: input.agentId,
             ticketKey: ticket?.key,
             ticketTitle: ticket?.title,
           }),
