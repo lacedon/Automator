@@ -6,6 +6,7 @@ import { createProject, deleteProject, renameProject, setProjectRepositories } f
 import { ActionButton, ActionErrorProvider } from './ActionButton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
+import { SettingsTable, SettingsTableRow } from './SettingsTable';
 import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 function ProjectEditor({ project, repositories }: { project: Project; repositories: string[] }) {
@@ -82,26 +83,32 @@ export function ProjectsManager({ projects, repositories }: { projects: Project[
         </SettingsDialog>
       </div>
       <p className="muted">A repository belongs to at most one Project; saving moves it from its previous Project.</p>
-      {projects.map((p) => (
-        <section key={p.id} className="settings-object project-card" aria-label={p.name}>
-          <div>
-            <h2>{p.name}</h2>
-            <p className="muted">{p.repositories.join(' · ') || 'No Repositories assigned.'}</p>
-          </div>
-          <div className="actions">
-            <SettingsDialog title={`Edit Project: ${p.name}`}>
-              <ProjectEditor project={p} repositories={repositories} />
-            </SettingsDialog>
-            <ConfirmDialog
-              label="Delete"
-              message={`Delete ${p.name}? Its repositories become unassigned; no Watches or Runs are removed.`}
-              confirmLabel="Delete"
-              danger
-              action={() => deleteProject(p.id)}
-            />
-          </div>
-        </section>
-      ))}
+      {projects.length > 0 && (
+        <SettingsTable label="Projects" headers={['Project', 'Repositories', 'Actions']}>
+          {projects.map((p) => (
+            <SettingsTableRow
+              key={p.id}
+              name={p.name}
+              actions={
+                <>
+                  <SettingsDialog title={`Edit Project: ${p.name}`}>
+                    <ProjectEditor project={p} repositories={repositories} />
+                  </SettingsDialog>
+                  <ConfirmDialog
+                    label="Delete"
+                    message={`Delete ${p.name}? Its repositories become unassigned; no Watches or Runs are removed.`}
+                    confirmLabel="Delete"
+                    danger
+                    action={() => deleteProject(p.id)}
+                  />
+                </>
+              }
+            >
+              <span className="muted">{p.repositories.join(' · ') || 'No Repositories assigned.'}</span>
+            </SettingsTableRow>
+          ))}
+        </SettingsTable>
+      )}
     </>
   );
 }

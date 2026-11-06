@@ -7,6 +7,7 @@ import type { AppError, Repository } from '@core/index';
 import { createRepository, deleteRepository, updateRepository } from '../actions/repositories';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox, errorMessage } from './ErrorBox';
+import { SettingsTable, SettingsTableRow } from './SettingsTable';
 import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 type Connections = { gitlab: string[]; github: string[]; jira: string[] };
@@ -202,41 +203,42 @@ function RepositoryCard({
   index,
 }: RepositoryRow & { connections: Connections; index: number }) {
   return (
-    <section className="settings-object" aria-label={repository.name}>
-      <div>
-        <h2>{repository.name}</h2>
-        <p className="muted">{repository.folder}</p>
-        <p className="muted">
-          Project: {projectName ?? 'Unassigned'} · <Link href="/settings/projects">Manage project membership</Link>
+    <SettingsTableRow
+      name={repository.name}
+      actions={
+        <>
+          <SettingsDialog title={`Edit Repository: ${repository.name}`}>
+            <RepositoryEditForm repository={repository} connections={connections} index={index} />
+          </SettingsDialog>
+          <ConfirmDialog
+            danger
+            label="Delete Repository"
+            confirmLabel="Delete Repository"
+            message={`Delete Repository "${repository.name}"? A Repository with Watches cannot be deleted. This removes only its settings. Local files are never deleted.`}
+            action={() => deleteRepository(repository.name)}
+          />
+        </>
+      }
+    >
+      <p className="muted">{repository.folder}</p>
+      <p className="muted">
+        Project: {projectName ?? 'Unassigned'} · <Link href="/settings/projects">Manage project membership</Link>
+      </p>
+      <p className="muted">
+        {[
+          repository.gitlab && `GitLab: ${repository.gitlab}`,
+          repository.github && `GitHub: ${repository.github}`,
+          repository.jira && `Jira: ${repository.jira}`,
+        ]
+          .filter(Boolean)
+          .join(' · ') || 'No service connections.'}
+      </p>
+      {status.length > 0 && (
+        <p className="field-hint" role="status">
+          Repository setup needs attention: {status.join('; ')}
         </p>
-        <p className="muted">
-          {[
-            repository.gitlab && `GitLab: ${repository.gitlab}`,
-            repository.github && `GitHub: ${repository.github}`,
-            repository.jira && `Jira: ${repository.jira}`,
-          ]
-            .filter(Boolean)
-            .join(' · ') || 'No service connections.'}
-        </p>
-        {status.length > 0 && (
-          <p className="field-hint" role="status">
-            Repository setup needs attention: {status.join('; ')}
-          </p>
-        )}
-      </div>
-      <div className="actions">
-        <SettingsDialog title={`Edit Repository: ${repository.name}`}>
-          <RepositoryEditForm repository={repository} connections={connections} index={index} />
-        </SettingsDialog>
-        <ConfirmDialog
-          danger
-          label="Delete Repository"
-          confirmLabel="Delete Repository"
-          message={`Delete Repository "${repository.name}"? A Repository with Watches cannot be deleted. This removes only its settings. Local files are never deleted.`}
-          action={() => deleteRepository(repository.name)}
-        />
-      </div>
-    </section>
+      )}
+    </SettingsTableRow>
   );
 }
 
@@ -255,9 +257,13 @@ export function RepositoriesManager({
         </SettingsDialog>
       </div>
       {repositories.length === 0 && <p className="muted">No Repositories configured.</p>}
-      {repositories.map((row, index) => (
-        <RepositoryCard key={row.repository.name} {...row} connections={connections} index={index} />
-      ))}
+      {repositories.length > 0 && (
+        <SettingsTable label="Repositories" headers={['Repository', 'Details', 'Actions']}>
+          {repositories.map((row, index) => (
+            <RepositoryCard key={row.repository.name} {...row} connections={connections} index={index} />
+          ))}
+        </SettingsTable>
+      )}
     </>
   );
 }
