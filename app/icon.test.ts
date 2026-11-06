@@ -13,7 +13,7 @@ test('app icon assets are present and non-empty', () => {
 test('icon.svg is an SVG with a viewBox', () => {
   const svg = fs.readFileSync(path.join(appDir, 'icon.svg'), 'utf8');
   expect(svg.trimStart()).toMatch(/^<svg[\s>]/);
-  expect(svg).toMatch(/viewBox="0 0 \d+ \d+"/);
+  expect(svg).toMatch(/viewBox="-?\d+ -?\d+ \d+ \d+"/);
   expect(svg.trimEnd()).toMatch(/<\/svg>$/);
 });
 
