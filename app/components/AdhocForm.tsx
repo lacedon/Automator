@@ -71,7 +71,7 @@ export function AdhocForm({
         {repo !== undefined && <div className="field-hint muted mono">{repo.folder}</div>}
       </div>
       <div className="field">
-        <label htmlFor="ah-ticket">Jira Ticket (optional)</label>
+        <label htmlFor="ah-ticket">Ticket (optional)</label>
         <input
           id="ah-ticket"
           name="ticket"
@@ -79,8 +79,9 @@ export function AdhocForm({
           className={inputClass('ticket')}
           value={ticket}
           onChange={(e) => setTicket(e.target.value)}
-          placeholder="ABC-123 or https://…/browse/ABC-123"
+          placeholder="Ticket number or URL"
         />
+        <div className="field-hint muted">Enter a Jira ticket number or any URL to pass through to the agent.</div>
       </div>
       <div className="field">
         <label htmlFor="ah-prompt">Prompt</label>

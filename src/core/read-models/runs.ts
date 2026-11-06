@@ -11,6 +11,7 @@ import type {
   RunStatus,
   Trigger,
 } from '../domain/types';
+import { tryParseUrl } from '../domain/targets';
 import { jiraBrowseUrl } from '../prechecks/jiraClient';
 import type { RepositoryService } from '../repositories/repositoryService';
 import type { ReadDeps } from './deps';
@@ -24,10 +25,16 @@ export function ticketLink(
   repositories: RepositoryService,
 ): TicketLink | null {
   if (run.ticketKey === null) return null;
+  const suppliedUrl = tryParseUrl(run.ticketKey);
   return {
     key: run.ticketKey,
     title: run.ticketTitle,
-    url: jiraBrowseUrl(config, repositories.get(run.repository), run.ticketKey),
+    url:
+      suppliedUrl === null
+        ? jiraBrowseUrl(config, repositories.get(run.repository), run.ticketKey)
+        : suppliedUrl.protocol === 'http:' || suppliedUrl.protocol === 'https:'
+          ? run.ticketKey
+          : null,
   };
 }
 

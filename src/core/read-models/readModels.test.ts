@@ -385,6 +385,25 @@ describe('read models', () => {
     expect((await read.runDetail(finished))!.ticket).toEqual(ticket);
   });
 
+  test('Ticket URLs remain the link shown in Ad-hoc history', () => {
+    const { db, read } = setup();
+    const url = 'https://github.com/lacedon/Automator/issues/46';
+    const id = insertRun(db, {
+      trigger: 'adhoc',
+      priority: 0,
+      adhoc_prompt: null,
+      ticket_key: url,
+      ticket_title: null,
+      status: 'queued',
+    });
+
+    expect(read.adhocView().rows.find((row) => row.id === id)!.ticket).toEqual({
+      key: url,
+      title: null,
+      url,
+    });
+  });
+
   test('form options list repositories with gitlab host', () => {
     const { db, read, config } = setup({ runs: { models: ['gpt-5', 'claude-sonnet-4.5'] } });
     const persistedFolder = '/persisted/repositories/pages';

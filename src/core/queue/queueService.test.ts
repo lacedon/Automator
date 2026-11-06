@@ -371,14 +371,40 @@ describe('QueueService.requestAdhoc', () => {
     expect(lookups).toEqual(['alternate']);
   });
 
-  test('accepts a browse URL as well as a key', async () => {
-    const { queue } = setup({ ticketTitle: async () => 'T' });
+  test('preserves Jira URLs instead of parsing them as Jira keys', async () => {
+    const lookups: string[] = [];
+    const { queue } = setup({
+      ticketTitle: async (_conn, key) => {
+        lookups.push(key);
+        return 'T';
+      },
+    });
+    const url = 'https://jira.example.com/browse/abc-7?ref=source#details';
+
     const result = await queue.requestAdhoc({
       repository: 'pages',
       prompt: 'Do it',
-      ticket: 'https://jira.example.com/browse/abc-7',
+      ticket: url,
     });
-    expect(result).toMatchObject({ ok: true, value: { run: { ticketKey: 'ABC-7' } } });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { run: { ticketKey: url, ticketTitle: null } },
+    });
+    expect(lookups).toEqual([]);
+  });
+
+  test('accepts a URL without Jira enabled or a Jira connection', async () => {
+    const { db, queue } = setup({ jiraEnabled: false });
+    const url = 'https://github.com/lacedon/Automator/issues/46';
+
+    const result = await queue.requestAdhoc({ repository: 'api', ticket: url });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { run: { status: 'queued', ticketKey: url, ticketTitle: null, adhocPrompt: null } },
+    });
+    expect(statuses(db)).toHaveLength(1);
   });
 
   test('still queues the Run with the key only, plus a warning, when the title lookup fails', async () => {
@@ -401,7 +427,6 @@ describe('QueueService.requestAdhoc', () => {
 
   test.each([
     ['a malformed Ticket', 'pages', 'not a ticket', true, { code: 'INVALID_INPUT', field: 'ticket' }],
-    ['a non-Jira URL', 'pages', 'https://example.com/browse/ABC-1', true, { code: 'INVALID_INPUT', field: 'ticket' }],
     ['a bare key on a Repository without Jira', 'api', 'ABC-1', true, { code: 'INVALID_INPUT', field: 'ticket' }],
     ['Jira disabled', 'pages', 'ABC-1', false, { code: 'JIRA_DISABLED' }],
   ])('rejects %s and queues nothing', async (_name, repository, ticket, jiraEnabled, error) => {

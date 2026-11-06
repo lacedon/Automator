@@ -1,5 +1,6 @@
 import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
+import { tryParseUrl } from '../domain/targets';
 import type { EventSummary, Snapshot } from '../prechecks/types';
 import { jiraBrowseUrl } from '../prechecks/jiraClient';
 import type { Repository } from '../repositories/repositoryService';
@@ -97,7 +98,7 @@ export function buildAdhocPrompt(input: {
 function ticketSection(run: Run, config: Config, repository: Repository): string {
   const heading = run.ticketTitle === null ? run.ticketKey : `${run.ticketKey}: ${run.ticketTitle}`;
   const lines = ['## Ticket', '', `- ${heading}`];
-  const url = jiraBrowseUrl(config, repository, run.ticketKey!);
+  const url = tryParseUrl(run.ticketKey!) === null ? jiraBrowseUrl(config, repository, run.ticketKey!) : null;
   if (url !== null) lines.push(`- ${url}`);
   return lines.join('\n');
 }

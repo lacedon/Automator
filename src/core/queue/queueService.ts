@@ -3,7 +3,7 @@ import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
-import { parseTarget } from '../domain/targets';
+import { parseTarget, tryParseUrl } from '../domain/targets';
 import type { Clock, ProviderName, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
 import { repositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
@@ -200,24 +200,29 @@ export class QueueService {
     let warning: string | undefined;
     const prompt = input.prompt?.trim() || null;
     if (input.ticket !== undefined) {
-      if (!this.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
-      const target = parseTarget(input.ticket, this.config, this.repositories.get(input.repository));
-      if (!target.ok)
-        return err({
-          code: 'INVALID_INPUT',
-          field: 'ticket',
-          message: target.error.code === 'INVALID_TARGET' ? target.error.message : 'Invalid Ticket',
-        });
-      if (target.value.jira === undefined)
-        return err({ code: 'INVALID_INPUT', field: 'ticket', message: 'Not a Jira ticket' });
-      const { conn, key } = target.value.jira;
-      let title: string | null = null;
-      try {
-        title = (await this.deps.ticketTitle?.(conn, key)) ?? null;
-      } catch (e) {
-        warning = `Could not fetch the Ticket title: ${e instanceof Error && e.message ? e.message : 'unknown error'}`;
+      const ticketValue = input.ticket.trim();
+      if (tryParseUrl(ticketValue) !== null) {
+        ticket = { key: ticketValue, title: null };
+      } else {
+        if (!this.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+        const target = parseTarget(ticketValue, this.config, this.repositories.get(input.repository));
+        if (!target.ok)
+          return err({
+            code: 'INVALID_INPUT',
+            field: 'ticket',
+            message: target.error.code === 'INVALID_TARGET' ? target.error.message : 'Invalid Ticket',
+          });
+        if (target.value.jira === undefined)
+          return err({ code: 'INVALID_INPUT', field: 'ticket', message: 'Not a Jira ticket' });
+        const { conn, key } = target.value.jira;
+        let title: string | null = null;
+        try {
+          title = (await this.deps.ticketTitle?.(conn, key)) ?? null;
+        } catch (e) {
+          warning = `Could not fetch the Ticket title: ${e instanceof Error && e.message ? e.message : 'unknown error'}`;
+        }
+        ticket = { key, title };
       }
-      ticket = { key, title };
     } else if (prompt === null) {
       return err({ code: 'INVALID_INPUT', field: 'prompt', message: 'Prompt is required' });
     }

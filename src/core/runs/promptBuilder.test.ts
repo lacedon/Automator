@@ -486,5 +486,13 @@ describe('buildAdhocPrompt', () => {
       expect(prompt).not.toContain('null');
       expect(prompt).toContain('(none)');
     });
+
+    test('passes a URL through without deriving a Jira URL', () => {
+      const url = 'https://github.com/lacedon/Automator/issues/46';
+      const prompt = linked({ ticketKey: url, ticketTitle: null });
+
+      expect(prompt).toContain(`## Ticket\n\n- ${url}`);
+      expect(prompt).not.toContain(`https://jira.example.com/browse/${url}`);
+    });
   });
 });
