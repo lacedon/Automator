@@ -18,6 +18,7 @@ test('links the scheduled Repository error result from the Needs you card', () =
     instructions: null,
     intervalMs: null,
     model: null,
+    agentId: null,
     initialReview: null,
     mrSourceBranch: null,
     cursor: null,

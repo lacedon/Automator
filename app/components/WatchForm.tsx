@@ -6,6 +6,8 @@ import type { AppError, FormOptions, InitialReview, PreviewTargetResult, Watch, 
 import { createWatch, previewTarget, updateWatch } from '../actions/watches';
 import { formatInterval } from '../lib/format';
 import { providerLabel } from '../lib/providerLabel';
+import { defaultAgentId } from '../lib/defaultAgent';
+import { AgentSelect } from './AgentSelect';
 import { ErrorBox } from './ErrorBox';
 import { KindBadge } from './KindBadge';
 
@@ -216,6 +218,15 @@ export function WatchForm(props: Props) {
           <Link href="/settings/agents">Agent Settings</Link>.
         </div>
       </div>
+
+      {watch === null && (
+        <AgentSelect
+          id="wf-agent"
+          options={options}
+          defaultAgent={kind === null ? null : defaultAgentId(options.agentAssignments, repository, `${kind}-watch`)}
+          className={inputClass('agentId')}
+        />
+      )}
 
       <div className="field-row">
         <div className="field">

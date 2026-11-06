@@ -141,15 +141,18 @@ export class AgentService {
   resolve(
     repository: string,
     workflowType: WorkflowType,
+    agentId: number | null = null,
   ): {
     agent: Agent | null;
     template: OperationTemplate | null;
-    assignmentScope: 'repository' | 'default' | 'blocked';
+    assignmentScope: 'override' | 'repository' | 'default' | 'blocked';
   } {
     const repositoryAssignment = this.db
       .prepare('SELECT agent_id FROM agent_assignments WHERE repository = ? AND workflow_type = ?')
       .get(repository, workflowType) as { agent_id: number | null } | undefined;
     const template = this.getTemplate(workflowType);
+    const chosen = agentId === null ? null : this.getAgent(agentId);
+    if (chosen !== null) return { agent: chosen, template, assignmentScope: 'override' };
     if (repositoryAssignment !== undefined) {
       return {
         agent: repositoryAssignment.agent_id === null ? null : this.getAgent(repositoryAssignment.agent_id),

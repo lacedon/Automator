@@ -51,6 +51,15 @@ function queued(db: Database) {
 }
 
 describe('WatchService.create', () => {
+  test('stores the chosen Agent and rejects an unknown one', () => {
+    const { db, service } = setup();
+    const agentId = (db.prepare('SELECT id FROM agents LIMIT 1').get() as { id: number }).id;
+    expect(value(service.create({ target: MR, repository: 'pages', agentId })).agentId).toBe(agentId);
+    const r = service.create({ target: `${MR}0`, repository: 'pages', agentId: 9999 });
+    expect(r).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'agentId' } });
+    expect(value(service.create({ target: `${MR}1`, repository: 'pages' })).agentId).toBeNull();
+  });
+
   test('create unknown repository writes attempt file and saves nothing', () => {
     const { db, service, clock } = setup();
     const r = service.create({ target: MR, repository: 'nope' });

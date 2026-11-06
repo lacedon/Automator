@@ -37,6 +37,7 @@ function watch(partial: Partial<Watch> = {}): Watch {
     instructions: null,
     intervalMs: null,
     model: null,
+    agentId: null,
     initialReview: null,
     mrSourceBranch: null,
     cursor: null,

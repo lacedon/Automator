@@ -3,13 +3,15 @@
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import type { FormOptions } from '@core/index';
 import { queueAdhoc, type AdhocFormState } from '../actions/adhoc';
+import { defaultAgentId } from '../lib/defaultAgent';
+import { AgentSelect } from './AgentSelect';
 import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
 
 export function AdhocForm({
   options,
 }: {
-  options: Pick<FormOptions, 'repositories' | 'provider' | 'models' | 'defaultModel'>;
+  options: Pick<FormOptions, 'repositories' | 'provider' | 'models' | 'defaultModel' | 'agents' | 'agentAssignments'>;
 }) {
   const [state, formAction, pending] = useActionState(queueAdhoc, null);
   const [repository, setRepository] = useState(options.repositories[0]?.name ?? '');
@@ -34,6 +36,8 @@ export function AdhocForm({
     startTransition(() => formAction(data));
   };
 
+  const workflowType = ticket.trim() === '' ? 'free-adhoc' : 'ticket-adhoc';
+  const defaultAgent = defaultAgentId(options.agentAssignments, repository, workflowType);
   const repo = options.repositories.find((r) => r.name === repository);
   const otherModels = options.models.filter((m) => m !== options.defaultModel);
   const failed = state?.ok === false ? state.error : null;
@@ -96,6 +100,7 @@ export function AdhocForm({
           placeholder="What the selected provider should do in this Repository…"
         />
       </div>
+      <AgentSelect id="ah-agent" options={options} defaultAgent={defaultAgent} className={inputClass('agentId')} />
       <div className="field field-narrow">
         <label htmlFor="ah-model">Model</label>
         <select

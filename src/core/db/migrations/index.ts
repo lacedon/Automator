@@ -214,4 +214,10 @@ CREATE INDEX ix_project_repositories_project ON project_repositories(project_id)
   CHECK (provider IN ('copilot', 'claude-code', 'codex', 'opencode'));
 `,
   },
+  {
+    version: 9,
+    sql: `ALTER TABLE watches ADD COLUMN agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
+ALTER TABLE runs ADD COLUMN agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
+`,
+  },
 ];
