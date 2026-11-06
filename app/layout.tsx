@@ -17,10 +17,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const counts = core.read.navCounts(scope);
   const projects = core.projects.list();
   const active = typeof scope === 'number' ? projects.find((p) => p.id === scope) : undefined;
-  const accent = active ? `hsl(${projectHue(active.name)} 65% 55%)` : undefined;
+  const hue = active ? projectHue(active.name) : undefined;
+  const accent = hue === undefined ? undefined : `hsl(${hue} 65% 55%)`;
+  const header = hue === undefined ? undefined : `hsl(${hue} 55% 24%)`;
   return (
     <html lang="en">
-      <body style={accent ? ({ '--project-accent': accent } as CSSProperties) : undefined}>
+      <body style={accent ? ({ '--project-accent': accent, '--project-header': header } as CSSProperties) : undefined}>
         <TopBar counts={counts} projects={projects} scope={scope} />
         <div className="shell">
           <Sidebar counts={counts} />
