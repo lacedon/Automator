@@ -235,7 +235,7 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
       'prompt for the selected provider (optional when --ticket is given)',
       textOrFileArg,
     )
-    .option('--ticket <key|url>', 'Jira ticket to work on (key or browse URL)')
+    .option('--ticket <key|url>', 'Ticket to work on (Jira key or any URL)')
     .option('--model <model>', 'model configured for the selected provider')
     .action(async (opts: { repo: string; prompt?: string; ticket?: string; model?: string }) => {
       const r = await getCore().queue.requestAdhoc({

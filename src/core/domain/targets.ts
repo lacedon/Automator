@@ -21,6 +21,14 @@ function invalid(message: string): Result<ParsedTarget> {
   return err({ code: 'INVALID_TARGET', message });
 }
 
+export function tryParseUrl(input: string): URL | null {
+  try {
+    return new URL(input);
+  } catch {
+    return null;
+  }
+}
+
 // Config hosts may be given as full URLs or bare host names.
 function hostOf(value: string): string {
   try {
@@ -52,12 +60,8 @@ export function parseTarget(input: string, config: Config, repository?: Reposito
     return ok(jiraTarget(conn, connection.baseUrl, trimmed));
   }
 
-  let url: URL;
-  try {
-    url = new URL(trimmed);
-  } catch {
-    return invalid(`Not a URL or Jira key: ${trimmed}`);
-  }
+  const url = tryParseUrl(trimmed);
+  if (url === null) return invalid(`Not a URL or Jira key: ${trimmed}`);
   if (url.protocol !== 'http:' && url.protocol !== 'https:')
     return invalid(`Only http(s) URLs are supported: ${trimmed}`);
 
