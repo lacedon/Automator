@@ -394,7 +394,7 @@ describe('QueueService.requestFollowUp', () => {
     expect(setup().queue.requestFollowUp(999, 'hi')).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
   });
 
-  test('rejects a Watch Run', () => {
+  test('rejects an Automation Run', () => {
     const ctx = setup();
     const run = ctx.queue.enqueueWatch({ ...base, watchId: insertWatch(ctx.db), trigger: 'manual', reason: 'r' });
     ctx.db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(run.id);
@@ -487,7 +487,7 @@ describe('QueueService workflow types', () => {
     ['mr', 'mr-watch'],
     ['jira', 'jira-watch'],
     ['free', 'free-watch'],
-  ] as const)('a %s Watch Run persists %s', (kind, expected) => {
+  ] as const)('a %s Automation Run persists %s', (kind, expected) => {
     const { db, queue } = setup();
     const watchId = insertWatch(db, { kind });
     const run = queue.enqueueWatch({ watchId, repository: 'pages', trigger: 'manual', reason: 'r', model: 'm' });

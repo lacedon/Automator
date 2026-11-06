@@ -67,7 +67,7 @@ export class WorkerLoop {
     this.guard('cleanup', () => {
       if (!core.cleanup.isDue()) return;
       const { deletedWatches, deletedAttempts } = core.cleanup.run();
-      console.log(`${ts()} cleanup removed ${deletedWatches} watches and ${deletedAttempts} attempt files`);
+      console.log(`${ts()} cleanup removed ${deletedWatches} automations and ${deletedAttempts} attempt files`);
     });
   }
 

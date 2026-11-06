@@ -43,8 +43,8 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
   const send = async (event: NeedsYouEvent, teams: NonNullable<Config['teams']>): Promise<void> => {
     const watch = db.prepare('SELECT title FROM watches WHERE id = ?').get(event.watchId) as
       { title: string } | undefined;
-    const title = watch?.title ?? `Watch ${event.watchId}`;
-    const message = `Automator: "${title}" needs you: ${event.reason}. ${teams.dashboardUrl}/watches/${event.watchId}`;
+    const title = watch?.title ?? `Automation ${event.watchId}`;
+    const message = `Automator: "${title}" needs you: ${event.reason}. ${teams.dashboardUrl}/automations/${event.watchId}`;
     const prompt =
       `Send exactly this message to the Microsoft Teams chat with id ${teams.chatId} using the available Teams tool, then stop. ` +
       `Message: ${message}`;

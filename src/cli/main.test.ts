@@ -248,6 +248,16 @@ describe('runCli', () => {
     for (const result of [first, second]) expect(result.out.join('\n')).not.toContain('Private');
   });
 
+  test('automation command is primary and watch stays an alias', async () => {
+    const core = setup();
+    const added = await cli(core, 'automation', 'add', MR, '--repo', 'pages');
+    expect(added).toEqual({ code: 0, out: ['Automation #1 created (mr, pages)'], err: [] });
+    const removed = await cli(core, 'watch', 'rm', '1');
+    expect(removed).toEqual({ code: 0, out: ['Automation #1 deleted'], err: [] });
+    const listed = await cli(core, 'automation', 'list');
+    expect(listed.code).toBe(0);
+  });
+
   test('watch add success exits 0', async () => {
     const core = setup();
     const r = await cli(
@@ -264,7 +274,7 @@ describe('runCli', () => {
       '--initial-review',
       'unresolved',
     );
-    expect(r).toEqual({ code: 0, out: ['Watch #1 created (mr, pages)'], err: [] });
+    expect(r).toEqual({ code: 0, out: ['Automation #1 created (mr, pages)'], err: [] });
     expect(core.watches.get(1)).toMatchObject({ intervalMs: 30 * 60_000, model: 'm1', initialReview: 'unresolved' });
   });
 
@@ -276,7 +286,7 @@ describe('runCli', () => {
     const [file] = fs.readdirSync(core.dataDir.attemptsDir);
     const attemptFile = path.join(core.dataDir.attemptsDir, file!);
     expect(r.err).toEqual([
-      `Unknown Repository "nope". No Watch was created. Known: api, pages. Result file: ${attemptFile}`,
+      `Unknown Repository "nope". No Automation was created. Known: api, pages. Result file: ${attemptFile}`,
     ]);
     expect(core.watches.list()).toEqual([]);
   });
@@ -288,7 +298,7 @@ describe('runCli', () => {
     expect(r.code).toBe(1);
     expect(r.err).toEqual([
       expect.stringMatching(
-        /^Unknown Repository "nope"\. No Watch was created\. Known: api, pages\. Result file could not be written: .+/,
+        /^Unknown Repository "nope"\. No Automation was created\. Known: api, pages\. Result file could not be written: .+/,
       ),
     ]);
   });
@@ -297,7 +307,7 @@ describe('runCli', () => {
     const core = setup();
     await cli(core, 'watch', 'add', MR, '--repo', 'pages');
     const r = await cli(core, 'watch', 'add', MR, '--repo', 'pages');
-    expect(r).toEqual({ code: 1, out: [], err: ['Already watched: Watch #1 (active, every 15m)'] });
+    expect(r).toEqual({ code: 1, out: [], err: ['Already automated: Automation #1 (active, every 15m)'] });
   });
 
   test('missing --repo exits 2', async () => {
@@ -319,7 +329,7 @@ describe('runCli', () => {
   test('free-form watch without instructions exits 1', async () => {
     const core = setup();
     const r = await cli(core, 'watch', 'add', 'https://example.com/page', '--repo', 'pages');
-    expect(r).toEqual({ code: 1, out: [], err: ['Free-form Watches need --instructions'] });
+    expect(r).toEqual({ code: 1, out: [], err: ['Free-form Automations need --instructions'] });
   });
 
   test('run queues adhoc and prints position', async () => {
@@ -403,7 +413,7 @@ describe('runCli', () => {
   test('run-now on unknown watch exits 1', async () => {
     const core = setup();
     const r = await cli(core, 'run-now', '9');
-    expect(r).toEqual({ code: 1, out: [], err: ['Watch #9 not found'] });
+    expect(r).toEqual({ code: 1, out: [], err: ['Automation #9 not found'] });
   });
 
   test("watch rm while running exits 1 'Cancel the running Run first'", async () => {
@@ -420,7 +430,7 @@ describe('runCli', () => {
     const core = setup();
     await cli(core, 'watch', 'add', MR, '--repo', 'pages');
     const r = await cli(core, 'watch', 'rm', '1');
-    expect(r).toEqual({ code: 0, out: ['Watch #1 deleted'], err: [] });
+    expect(r).toEqual({ code: 0, out: ['Automation #1 deleted'], err: [] });
     expect(core.watches.get(1)).toBeNull();
   });
 
@@ -465,7 +475,7 @@ describe('runCli', () => {
       '--instructions',
       `@${file}`,
     );
-    expect(r).toEqual({ code: 0, out: ['Watch #1 created (free, pages)'], err: [] });
+    expect(r).toEqual({ code: 0, out: ['Automation #1 created (free, pages)'], err: [] });
     expect(core.watches.get(1)!.instructions).toBe('Summarize new posts');
   });
 

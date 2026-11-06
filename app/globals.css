@@ -565,7 +565,7 @@ textarea:focus {
   justify-content: flex-end;
 }
 
-/* Watch detail */
+/* Automation detail */
 
 .detail-head {
   display: flex;
@@ -631,7 +631,7 @@ textarea:focus {
   color: var(--text);
 }
 
-/* Watch form */
+/* Automation form */
 
 .page-title {
   margin: 4px 0 12px;

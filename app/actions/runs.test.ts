@@ -38,7 +38,7 @@ test('cancelQueued deletes a queued Run and refuses a running one', async () => 
   expect(await cancelQueued(0)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
 });
 
-test('closeWatchFromQueue closes the Watch and removes its queued request', async () => {
+test('closeWatchFromQueue closes the Automation and removes its queued request', async () => {
   const watchId = insertWatch(core.db);
   const other = insertWatch(core.db);
   core.queue.enqueueWatch({ watchId, repository: 'pages', trigger: 'schedule', reason: 'new comment', model: 'm' });

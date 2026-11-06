@@ -267,7 +267,7 @@ export class WatchService {
     }
   }
 
-  // Runs a state action in an immediate transaction: load, validate the transition, apply, return the updated Watch.
+  // Runs a state action in an immediate transaction: load, validate the transition, apply, return the updated Automation.
   private act(id: number, action: WatchAction, apply: (watch: Watch) => Result<void>): Result<Watch> {
     return this.deps.db
       .transaction((): Result<Watch> => {

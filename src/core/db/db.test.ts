@@ -221,7 +221,7 @@ describe('db', () => {
     ).toEqual([{ name: 'ux_agent_assignment_default' }, { name: 'ux_agent_assignment_repository' }]);
   });
 
-  test('migration 4 backfills Watch, root Ad-hoc, and follow-up Workflow types', () => {
+  test('migration 4 backfills Automation, root Ad-hoc, and follow-up Workflow types', () => {
     const db = setupVersion3();
     const watchIdFor = (kind: 'mr' | 'jira' | 'free') =>
       Number(
@@ -254,7 +254,7 @@ describe('db', () => {
     ]).toEqual(['mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc', 'ticket-adhoc', 'ticket-adhoc']);
   });
 
-  test('migration 4 inherits the parent Workflow type even when a child has a Watch', () => {
+  test('migration 4 inherits the parent Workflow type even when a child has an Automation', () => {
     const db = setupVersion3();
     const watchId = insertWatch(db);
     const parentId = insertLegacyRun(db, { ticketKey: 'ABC-123' });

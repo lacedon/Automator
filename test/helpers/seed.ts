@@ -97,7 +97,7 @@ export function seed(core: Core): void {
        cursor_json = '{"lastNoteId":9921,"handledPipelineId":55102,"handledConflictSha":null}' WHERE id = ?`,
   ).run(needsYou);
 
-  // One Watch per remaining state/kind so every Next check text and row menu variant shows up.
+  // One Automation per remaining state/kind so every Next check text and row menu variant shows up.
   const insertOther = db.prepare(
     `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, instructions, closed_reason, closed_at,
        created_at, updated_at)

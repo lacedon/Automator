@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 
 function runNowDisabledReason(view: WatchDetailView, jiraEnabled: boolean): string | undefined {
   if (!view.actions.includes('runNow'))
-    return view.watch.state === 'closed' ? 'Reopen the Watch first' : 'Resume the Watch first';
+    return view.watch.state === 'closed' ? 'Reopen the Automation first' : 'Resume the Automation first';
   if (view.watch.kind === 'jira' && !jiraEnabled) return 'Jira checking is off';
   return undefined;
 }
@@ -117,8 +117,8 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
   return (
     <ActionErrorProvider>
       <div className="muted">
-        <Link href="/watches">Watches</Link> /{' '}
-        <Link href={`/watches?repo=${encodeURIComponent(watch.repository)}`}>{watch.repository}</Link>
+        <Link href="/automations">Automations</Link> /{' '}
+        <Link href={`/automations?repo=${encodeURIComponent(watch.repository)}`}>{watch.repository}</Link>
       </div>
       <div className="detail-head">
         <h1 className="detail-title">{watch.title}</h1>

@@ -545,9 +545,9 @@ describe('RunExecutor', () => {
   });
 
   const cases: [string, WorkflowType, () => (s: ReturnType<typeof setup>) => Run][] = [
-    ['mr Watch', 'mr-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'mr'))],
-    ['jira Watch', 'jira-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'jira'))],
-    ['free Watch', 'free-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'free'))],
+    ['mr Automation', 'mr-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'mr'))],
+    ['jira Automation', 'jira-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'jira'))],
+    ['free Automation', 'free-watch', () => (s) => claim(s.db, s.clock.now(), addWatch(s.db, 'free'))],
     ['ticket ad-hoc', 'ticket-adhoc', () => (s) => claim(s.db, s.clock.now(), null, { workflowType: 'ticket-adhoc' })],
     ['free ad-hoc', 'free-adhoc', () => (s) => claim(s.db, s.clock.now(), null, { workflowType: 'free-adhoc' })],
   ];
@@ -653,7 +653,7 @@ describe('RunExecutor', () => {
     expect(final).toMatchObject({ resultStatus: 'success', outcome: 'needs-you' });
     const prompt = fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8');
     expect(prompt).toContain('Bump the version');
-    expect(prompt).not.toContain('## Watch');
+    expect(prompt).not.toContain('## Automation');
     expect(watchOf(s.db, watchId)).toEqual(before);
     expect(s.onNeedsYou).not.toHaveBeenCalled();
     expect(readResult(final.resultPath)).toMatchObject({ watchId: null, trigger: 'adhoc' });
@@ -742,7 +742,7 @@ describe('RunExecutor', () => {
       expect(fs.readFileSync(s.dataDir.promptPath(final.runId), 'utf8')).toContain('## Follow-up message');
     });
 
-    test('Watch Run passes no session id', async () => {
+    test('Automation Run passes no session id', async () => {
       const s = setup();
       const watchId = addWatch(s.db);
       const run = claim(s.db, s.clock.now(), watchId);

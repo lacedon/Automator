@@ -59,7 +59,7 @@ export function createPrechecks(deps: PrecheckDeps): Prechecks {
   };
 }
 
-// An MR Watch is a GitLab merge request or a GitHub pull request; the target URL decides which.
+// An MR Automation is a GitLab merge request or a GitHub pull request; the target URL decides which.
 class HostDispatchPrecheck implements Precheck {
   constructor(
     private readonly config: Config,

@@ -16,7 +16,7 @@ function NavigationItems({
   const pathname = usePathname();
   const items = [
     { href: '/', label: 'Home' },
-    { href: '/watches', label: 'Watches', count: counts.watches },
+    { href: '/automations', label: 'Automations', count: counts.watches },
     { href: '/queue', label: 'Queue', count: counts.queued },
     { href: '/runs', label: 'Runs' },
     { href: '/adhoc', label: 'Ad-hoc' },
@@ -60,8 +60,8 @@ export function MobileNavigation({ counts }: { counts: Counts }) {
       <div className="mobile-nav-sheet">
         <nav aria-label="Main">
           <NavigationItems counts={counts} onNavigate={close} />
-          <Link href="/watches/new" className="nav-item" onClick={close}>
-            New watch
+          <Link href="/automations/new" className="nav-item" onClick={close}>
+            New automation
           </Link>
         </nav>
       </div>

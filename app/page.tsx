@@ -23,7 +23,7 @@ function NeedsYou({ cards }: { cards: NeedsYouCard[] }) {
       {cards.map((card) => (
         <div key={card.watchId} className="card card-needs">
           <div>
-            <Link href={`/watches/${card.watchId}`} className="card-title">
+            <Link href={`/automations/${card.watchId}`} className="card-title">
               {card.title}
             </Link>{' '}
             <span className="muted">· {card.repository}</span>

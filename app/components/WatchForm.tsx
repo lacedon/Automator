@@ -20,8 +20,8 @@ type Props = { options: FormOptions } & (
 const PREVIEW_DEBOUNCE_MS = 500;
 const REVIEW_MODES: readonly InitialReview[] = ['baseline-only', 'unresolved'];
 const PLACEHOLDER: Record<WatchKind, string> = {
-  mr: 'Additional instructions for this MR Watch…',
-  jira: 'Additional instructions for this Jira Watch…',
+  mr: 'Additional instructions for this MR Automation…',
+  jira: 'Additional instructions for this Jira Automation…',
   free: 'What Copilot should do on every check…',
 };
 
@@ -186,14 +186,14 @@ export function WatchForm(props: Props) {
             </div>
           </div>
           <p className="field-hint muted locked-note">
-            To change the target or Repository, close this Watch and create a new one.
+            To change the target or Repository, close this Automation and create a new one.
           </p>
         </>
       )}
 
       {kind === 'jira' && !options.jiraEnabled && (
         <div className="notice">
-          Jira checking is off in the config, so this Watch won&apos;t be checked until it is turned on.
+          Jira checking is off in the config, so this Automation won&apos;t be checked until it is turned on.
         </div>
       )}
 
@@ -282,9 +282,9 @@ export function WatchForm(props: Props) {
 
       <div className="actions">
         <button type="submit" className="btn btn-primary" disabled={pending}>
-          {watch === null ? 'Create Watch' : 'Save changes'}
+          {watch === null ? 'Create Automation' : 'Save changes'}
         </button>
-        <Link href={watch === null ? '/watches' : `/watches/${watch.id}`} className="btn btn-secondary">
+        <Link href={watch === null ? '/automations' : `/automations/${watch.id}`} className="btn btn-secondary">
           Cancel
         </Link>
       </div>

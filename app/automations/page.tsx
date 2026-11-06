@@ -33,7 +33,7 @@ function WatchTableRow({ row, jiraEnabled }: { row: WatchRow; jiraEnabled: boole
       <td>{KIND_LABEL[row.kind]}</td>
       <td className="cell-text">
         <Link
-          href={`/watches/${row.id}`}
+          href={`/automations/${row.id}`}
           className={needsYou ? 'plain-link strong' : closed ? 'plain-link muted' : 'plain-link'}
           title={row.targetUrl}
         >
@@ -92,12 +92,12 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
       <WatchFilters filter={filter} counts={counts} repositories={repositories.map((r) => r.name)} />
       {jiraNotice && (
         <div className="notice">
-          Jira checking is off (<code>jira.enabled</code> is false). Jira Watches are kept but don&apos;t run on
+          Jira checking is off (<code>jira.enabled</code> is false). Jira Automations are kept but don&apos;t run on
           schedule or via Run now.
         </div>
       )}
       {rows.length === 0 ? (
-        <EmptyState>{filtered ? 'No Watches match these filters.' : 'No Watches yet.'}</EmptyState>
+        <EmptyState>{filtered ? 'No Automations match these filters.' : 'No Automations yet.'}</EmptyState>
       ) : (
         <table className="table">
           <thead>

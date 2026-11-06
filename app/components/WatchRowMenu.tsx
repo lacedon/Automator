@@ -61,8 +61,8 @@ function WatchActionItems({ watch, actions, jiraEnabled, itemClass, omit = [], o
           className={secondary}
           label="Close"
           message="Closing stops follow-up. History is kept until cleanup."
-          confirmLabel="Close Watch"
-          dismissLabel="Keep watching"
+          confirmLabel="Close Automation"
+          dismissLabel="Keep Automation"
           action={() => closeWatch(id)}
         />
       )}
@@ -71,16 +71,16 @@ function WatchActionItems({ watch, actions, jiraEnabled, itemClass, omit = [], o
           Reopen
         </ActionButton>
       )}
-      <Link href={`/watches/${id}/edit`} className={secondary}>
+      <Link href={`/automations/${id}/edit`} className={secondary}>
         Edit
       </Link>
       {(show('delete') || watch.running) && (
         <ConfirmDialog
           className={itemClass('danger')}
           label="Delete"
-          message="Deleting removes this Watch, its Run history, result files and transcripts."
-          confirmLabel="Delete Watch"
-          dismissLabel="Keep Watch"
+          message="Deleting removes this Automation, its Run history, result files and transcripts."
+          confirmLabel="Delete Automation"
+          dismissLabel="Keep Automation"
           danger
           disabledReason={watch.running ? 'Cancel the running Run first' : undefined}
           action={() => deleteWatch(id)}
@@ -106,7 +106,7 @@ export function WatchRowMenu(props: Props) {
   };
   return (
     <details ref={menu} className="menu">
-      <summary className="btn btn-secondary" aria-label="Watch actions" title="Watch actions">
+      <summary className="btn btn-secondary" aria-label="Automation actions" title="Automation actions">
         ⋯
       </summary>
       <div className="menu-pop">
@@ -120,7 +120,7 @@ export function WatchRowMenu(props: Props) {
   );
 }
 
-// Header buttons on the Watch detail page; Run now and Resume live in their own components there.
+// Header buttons on the Automation detail page; Run now and Resume live in their own components there.
 export function WatchActionBar(props: Props) {
   const omit: WatchAction[] = [
     'runNow',

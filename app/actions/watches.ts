@@ -38,7 +38,7 @@ export async function deleteWatch(id: number): Promise<ActionResult> {
   if (!input.ok) return input;
   const result = done(getCore().watches.delete(input.value));
   if (!result.ok) return result;
-  redirect('/watches');
+  redirect('/automations');
 }
 
 const resumeSchema = z.object({
@@ -108,7 +108,7 @@ const intervalField = z
     return z.NEVER;
   });
 
-// The form submits '' for the option that matches the config default, so the Watch keeps following the config.
+// The form submits '' for the option that matches the config default, so the Automation keeps following the config.
 const initialReviewField = z
   .enum(['', 'baseline-only', 'unresolved'])
   .optional()
@@ -139,7 +139,7 @@ export async function createWatch(
   });
   if (!result.ok) return { ...result, values };
   revalidatePath('/', 'layout');
-  redirect(`/watches/${result.value.id}`);
+  redirect(`/automations/${result.value.id}`);
 }
 
 export async function updateWatch(
@@ -153,7 +153,7 @@ export async function updateWatch(
   const result = getCore().watches.update(id, { instructions, intervalMs: interval, model, initialReview });
   if (!result.ok) return { ...result, values };
   revalidatePath('/', 'layout');
-  redirect(`/watches/${id}`);
+  redirect(`/automations/${id}`);
 }
 
 const previewSchema = z.object({ target: z.string(), repository: z.string() });

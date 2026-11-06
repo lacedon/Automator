@@ -18,7 +18,7 @@ function ProjectCard({ project, repositories }: { project: Project; repositories
         <ActionButton action={() => renameProject(project.id, name)}>Rename</ActionButton>
         <ConfirmDialog
           label="Delete"
-          message={`Delete ${project.name}? Its repositories become unassigned; no Watches or Runs are removed.`}
+          message={`Delete ${project.name}? Its repositories become unassigned; no Automations or Runs are removed.`}
           confirmLabel="Delete"
           danger
           action={() => deleteProject(project.id)}

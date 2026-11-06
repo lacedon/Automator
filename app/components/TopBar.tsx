@@ -17,8 +17,8 @@ export function TopBar({ counts, projects, scope }: Props) {
       <MobileNavigation counts={counts} />
       <ProjectSwitcher projects={projects} scope={scope} />
       <span className="spacer" />
-      <Link href="/watches/new" className="btn btn-secondary">
-        + Watch
+      <Link href="/automations/new" className="btn btn-secondary">
+        + Automation
       </Link>
       <Link href="/adhoc" className="btn btn-primary">
         Ad-hoc run

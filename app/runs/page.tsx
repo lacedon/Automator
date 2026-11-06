@@ -142,7 +142,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
           <thead>
             <tr>
               <th>#</th>
-              <th>Watch / prompt</th>
+              <th>Automation / prompt</th>
               <th>Repository</th>
               <th>Trigger</th>
               <th>Started</th>

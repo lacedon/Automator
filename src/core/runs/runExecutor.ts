@@ -274,7 +274,7 @@ export class RunExecutor {
       }
     } else {
       const watchRow = db.prepare('SELECT * FROM watches WHERE id = ?').get(run.watchId);
-      if (watchRow === undefined) return failure('PRECHECK_FAILED', `Watch #${run.watchId} not found`);
+      if (watchRow === undefined) return failure('PRECHECK_FAILED', `Automation #${run.watchId} not found`);
       const watch = toWatch(watchRow);
       if (watch.kind === 'jira' && !config.jira.enabled) {
         return failure('JIRA_DISABLED', 'Jira checking is off (jira.enabled is false)');
