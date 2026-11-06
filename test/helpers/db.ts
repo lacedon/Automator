@@ -40,7 +40,7 @@ export function insertWatch(
       partial.targetUrl ?? `https://gitlab.example.com/g/p/-/merge_requests/${watchSeq}`,
       partial.normalizedTarget ?? `gitlab:gitlab.example.com/g/p!${watchSeq}`,
       partial.repository ?? 'pages',
-      partial.title ?? `Watch ${watchSeq}`,
+      partial.title ?? `Automation ${watchSeq}`,
       partial.state ?? 'active',
       now,
       now,

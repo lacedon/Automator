@@ -33,7 +33,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           {run.watchId === null ? (
             'Ad-hoc run'
           ) : (
-            <Link href={`/watches/${run.watchId}`}>{watchTitle ?? `Watch #${run.watchId}`}</Link>
+            <Link href={`/automations/${run.watchId}`}>{watchTitle ?? `Automation #${run.watchId}`}</Link>
           )}
         </h1>
         <RunPill run={run} />

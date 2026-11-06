@@ -60,12 +60,12 @@ function Duplicate({ error }: { error: Extract<AppError, { code: 'DUPLICATE_WATC
   const { id, state, intervalMs } = error.existing;
   return (
     <>
-      <div className="error-title">Already watched</div>
+      <div className="error-title">Already automated</div>
       <p>
-        This target already has a Watch: <WatchStatePill state={state} /> every {formatInterval(intervalMs)}.
+        This target already has an Automation: <WatchStatePill state={state} /> every {formatInterval(intervalMs)}.
       </p>
       <p>
-        <Link href={`/watches/${id}`}>Open existing Watch →</Link>
+        <Link href={`/automations/${id}`}>Open existing Automation →</Link>
       </p>
     </>
   );
@@ -78,7 +78,7 @@ type Props = {
 };
 
 // One red box for every action failure: a domain error, or the message of an unexpected throw.
-export function ErrorBox({ error, unknownRepositoryOutcome = 'No Watch was created.' }: Props) {
+export function ErrorBox({ error, unknownRepositoryOutcome = 'No Automation was created.' }: Props) {
   return (
     <div className="error-box" role="alert">
       {typeof error === 'string' ? (

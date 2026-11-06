@@ -32,7 +32,7 @@ function NeedsYou({ cards }: { cards: NeedsYouCard[] }) {
                 </>
               )}
             </div>
-            <Link href={`/watches/${card.watchId}`} className="card-title">
+            <Link href={`/automations/${card.watchId}`} className="card-title">
               {card.title}
             </Link>
             <div className="task-meta">

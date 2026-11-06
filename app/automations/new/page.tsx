@@ -20,9 +20,9 @@ export default async function NewWatchPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <div className="muted">
-        <Link href="/watches">Watches</Link> / New
+        <Link href="/automations">Automations</Link> / New
       </div>
-      <h1 className="page-title">New Watch</h1>
+      <h1 className="page-title">New Automation</h1>
       <WatchForm mode="create" options={options} initial={initial} />
     </>
   );

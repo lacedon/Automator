@@ -41,7 +41,7 @@ export class Scheduler {
         if (enqueued) totals.enqueued += 1;
       } catch (e) {
         console.error(
-          `${new Date().toISOString()} scheduler: Watch #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`,
+          `${new Date().toISOString()} scheduler: Automation #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`,
         );
         this.postpone(watch);
       }
@@ -49,7 +49,7 @@ export class Scheduler {
     return totals;
   }
 
-  // A failing Watch still moves on by its interval so it cannot block the others.
+  // A failing Automation still moves on by its interval so it cannot block the others.
   private postpone(watch: Watch): void {
     const { db, clock, config } = this.deps;
     try {
@@ -61,7 +61,7 @@ export class Scheduler {
       );
     } catch (e) {
       console.error(
-        `${new Date().toISOString()} scheduler: cannot postpone Watch #${watch.id}: ${e instanceof Error ? e.message : String(e)}`,
+        `${new Date().toISOString()} scheduler: cannot postpone Automation #${watch.id}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   }

@@ -56,7 +56,7 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
       return `Unknown Repository "${error.name}". ${ctx.unknownRepoOutcome} Known: ${error.known.join(', ')}. ${file}`;
     }
     case 'DUPLICATE_WATCH':
-      return `Already watched: Watch #${error.existing.id} (${error.existing.state}, every ${formatDuration(error.existing.intervalMs)})`;
+      return `Already automated: Automation #${error.existing.id} (${error.existing.state}, every ${formatDuration(error.existing.intervalMs)})`;
     case 'RUN_IN_PROGRESS':
       return 'Cancel the running Run first';
     case 'INVALID_TARGET':
@@ -64,13 +64,13 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
     case 'RESTART_FAILED':
       return error.message;
     case 'MISSING_INSTRUCTIONS':
-      return 'Free-form Watches need --instructions';
+      return 'Free-form Automations need --instructions';
     case 'INVALID_STATE':
-      return `Watch #${ctx.watchId} is ${error.state}; cannot ${error.action}`;
+      return `Automation #${ctx.watchId} is ${error.state}; cannot ${error.action}`;
     case 'JIRA_DISABLED':
       return 'Jira checking is disabled (jira.enabled is false)';
     case 'NOT_FOUND':
-      return `Watch #${ctx.watchId} not found`;
+      return `Automation #${ctx.watchId} not found`;
   }
 }
 
@@ -95,11 +95,11 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
   const queued = (run: Run) => io.out(`Run #${run.id} queued (position ${getCore().queue.position(run.id)})`);
 
   const program = new Command('automator')
-    .description('Manage Automator Watches and Runs')
+    .description('Manage Automator Automations and Runs')
     .exitOverride()
     .configureOutput({ writeOut: (s) => io.out(s.trimEnd()), writeErr: (s) => io.err(s.trimEnd()) });
 
-  const watch = program.command('watch').description('Manage Watches');
+  const watch = program.command('automation').alias('watch').description('Manage Automations');
 
   program
     .command('prompts')
@@ -168,11 +168,11 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
 
   watch
     .command('add <target>')
-    .description('Create a Watch for an MR, Jira ticket or other URL')
+    .description('Create an Automation for an MR, Jira ticket or other URL')
     .requiredOption('--repo <name>', 'Repository name from the config')
     .option('--interval <duration>', 'check interval, e.g. 30m', durationArg)
     .option('--model <model>', 'model configured for the selected provider')
-    .option('--instructions <text|@file>', 'instructions (required for free-form Watches)', textOrFileArg)
+    .option('--instructions <text|@file>', 'instructions (required for free-form Automations)', textOrFileArg)
     .addOption(
       new Option('--initial-review <mode>', 'how existing comments are handled').choices([
         'baseline-only',
@@ -198,16 +198,16 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
           instructions: opts.instructions,
           initialReview: opts.initialReview,
         });
-        if (!r.ok) return fail(r.error, { unknownRepoOutcome: 'No Watch was created.' });
-        io.out(`Watch #${r.value.id} created (${r.value.kind}, ${r.value.repository})`);
+        if (!r.ok) return fail(r.error, { unknownRepoOutcome: 'No Automation was created.' });
+        io.out(`Automation #${r.value.id} created (${r.value.kind}, ${r.value.repository})`);
       },
     );
 
   watch
     .command('list')
-    .description('List Watches')
-    .addOption(new Option('--state <state>', 'only Watches in this state').choices(WATCH_STATES))
-    .option('--repo <name>', 'only Watches for this Repository')
+    .description('List Automations')
+    .addOption(new Option('--state <state>', 'only Automations in this state').choices(WATCH_STATES))
+    .option('--repo <name>', 'only Automations for this Repository')
     .action((opts: { state?: WatchState; repo?: string }) => {
       const { watches, config } = getCore();
       const rows = watches
@@ -218,12 +218,12 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
 
   watch
     .command('rm')
-    .description('Delete a Watch and its Runs')
-    .argument('<id>', 'Watch ID', idArg)
+    .description('Delete an Automation and its Runs')
+    .argument('<id>', 'Automation ID', idArg)
     .action((id: number) => {
       const r = getCore().watches.delete(id);
       if (!r.ok) return fail(r.error, { watchId: id });
-      io.out(`Watch #${id} deleted`);
+      io.out(`Automation #${id} deleted`);
     });
 
   program
@@ -251,8 +251,8 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
 
   program
     .command('run-now')
-    .description('Queue a manual Run for a Watch')
-    .argument('<watchId>', 'Watch ID', idArg)
+    .description('Queue a manual Run for an Automation')
+    .argument('<watchId>', 'Automation ID', idArg)
     .option('--instructions <text>', 'extra instructions for this Run')
     .option('--review-unresolved', 'also review existing unresolved discussions')
     .action((id: number, opts: { instructions?: string; reviewUnresolved?: boolean }) => {

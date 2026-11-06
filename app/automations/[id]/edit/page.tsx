@@ -15,7 +15,8 @@ export default async function EditWatchPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <div className="muted">
-        <Link href="/watches">Watches</Link> / <Link href={`/watches/${watch.id}`}>{watch.title}</Link> / Edit
+        <Link href="/automations">Automations</Link> / <Link href={`/automations/${watch.id}`}>{watch.title}</Link> /
+        Edit
       </div>
       <h1 className="page-title">Edit Watch · {watch.title}</h1>
       <WatchForm
