@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { AppError, Repository } from '@core/index';
 import { createRepository, deleteRepository, updateRepository } from '../actions/repositories';
+import { repositoryFromForm } from '../lib/repositoryForm';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox, errorMessage } from './ErrorBox';
 import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
@@ -90,25 +91,6 @@ function RepositoryFields({
   );
 }
 
-function inputFromForm(form: HTMLFormElement): Repository {
-  const data = new FormData(form);
-  const text = (key: string) => {
-    const value = data.get(key);
-    return typeof value === 'string' ? value : '';
-  };
-  return {
-    name: text('name'),
-    folder: text('folder'),
-    gitlab: text('gitlab') || null,
-    github: text('github') || null,
-    jira: text('jira') || null,
-    validate: text('validate')
-      .split(/\r?\n/)
-      .map((command) => command.trim())
-      .filter(Boolean),
-  };
-}
-
 function CreateRepository({ connections }: { connections: Connections }) {
   const formId = useId();
   const close = useSettingsDialog();
@@ -165,7 +147,7 @@ function RepositoryEditForm({
   const id = `repository-${index}`;
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const input = inputFromForm(event.currentTarget);
+    const input = repositoryFromForm(new FormData(event.currentTarget));
     setPending(true);
     startTransition(async () => {
       try {
