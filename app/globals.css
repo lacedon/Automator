@@ -962,8 +962,24 @@ textarea:focus {
 
 /* Projects */
 
+/* Header takes the project color; the dark shade keeps white text above 4.5:1 contrast. */
 .topbar {
   border-top: 3px solid var(--project-accent, transparent);
+  background: var(--project-header, var(--bg-sunken));
+}
+
+body[style*='--project-header'] .topbar .brand {
+  color: #fff;
+}
+
+body[style*='--project-header'] .topbar .btn-secondary,
+body[style*='--project-header'] .topbar select {
+  border-color: rgb(255 255 255 / 45%);
+}
+
+body[style*='--project-header'] .topbar :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .main {
