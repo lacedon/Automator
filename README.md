@@ -102,7 +102,7 @@ Run this checklist separately for each provider in a trusted test Repository. Re
 1. Install the CLI, record its version, complete native authentication, and confirm the CLI reports that it is ready.
 2. Select the provider and configure its executable, default model and supported models in Settings; restart Automator.
 3. Queue an ad-hoc Run and confirm its selected model, transcript, result and provider label in Run history.
-4. Create a Watch in the same Repository, trigger a Watch Run and confirm its transcript, result and provider label.
+4. Create an Automation in the same Repository, trigger an Automation Run and confirm its transcript, result and provider label.
 5. Cancel a running test Run and verify it is recorded as interrupted. Send a follow-up to a completed Run and verify it continues the same provider session.
 
 Tests:
@@ -341,7 +341,7 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Automations t
 - **Home** prioritizes current Needs you Automations and links to their decision/resume flow, followed by the running Run, the next three queued items and five recent completions. Historical failures do not become current blockers.
 - **Runs** is searchable execution history, with outcome, Repository, trigger and inclusive local-date filters. Dates use start time (queue time for Runs that never started). Historical Needs you outcomes remain visible even after resolution.
 - **Settings** groups Projects, Repositories, Agents and Configuration. Manage Repository folders, named service connections and validation commands directly under Repositories, alongside Project membership. Repository changes are stored in SQLite and take effect without restarting; credentials remain in Configuration and environment variables.
-- The project switcher remains in the header; Settings always covers the entire installation. On narrow screens the menu includes navigation, New watch and Ad-hoc run actions.
+- The project switcher remains in the header; Settings always covers the entire installation. On narrow screens the menu includes navigation, New automation and Ad-hoc run actions.
 
 ## CLI (v1)
 
