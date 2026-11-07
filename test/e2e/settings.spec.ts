@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('Settings summaries open editors in dialogs and Cancel discards drafts and restores focus', async ({ page }) => {
   await page.goto('/settings/repositories');
   await expect(page.getByRole('textbox')).toHaveCount(0);
-  const repository = page.getByRole('region', { name: 'pages', exact: true });
+  const repository = page.getByRole('row', { name: /^pages(\s|$)/ });
   const open = repository.getByRole('button', { name: 'Open', exact: true });
   await open.click();
   const dialog = page.getByRole('dialog', { name: 'Edit Repository: pages' });
@@ -24,7 +24,7 @@ test('Settings summaries open editors in dialogs and Cancel discards drafts and 
 test('Repository validation stays in its modal without losing input and saves update the summary', async ({ page }) => {
   await page.goto('/settings/repositories');
   await page
-    .getByRole('region', { name: 'pages', exact: true })
+    .getByRole('row', { name: /^pages(\s|$)/ })
     .getByRole('button', { name: 'Open', exact: true })
     .click();
   const existing = page.getByRole('dialog', { name: 'Edit Repository: pages' });
@@ -42,7 +42,7 @@ test('Repository validation stays in its modal without losing input and saves up
   await dialog.getByLabel('Local folder').fill(folder);
   await dialog.getByRole('button', { name: 'Add Repository', exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  const created = page.getByRole('region', { name: 'modal-test', exact: true });
+  const created = page.getByRole('row', { name: /^modal-test(\s|$)/ });
   await expect(created).toBeVisible();
   await created.getByRole('button', { name: 'Delete Repository', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete Repository', exact: true }).click();
@@ -78,7 +78,7 @@ test('Agents and Workflow settings use modal editors while direct Agent links st
   }
   await expect(create).not.toBeVisible();
   await page.unroute('**/settings/agents');
-  const agent = page.getByRole('region', { name: 'Modal agent', exact: true });
+  const agent = page.getByRole('row', { name: /^Modal agent(\s|$)/ });
   await agent.getByRole('button', { name: 'Open', exact: true }).click();
   const edit = page.getByRole('dialog', { name: 'Edit Agent: Modal agent' });
   await expect(edit.locator('.settings-dialog-footer').getByRole('button', { name: 'Save Agent' })).toBeVisible();
@@ -94,7 +94,7 @@ test('Agents and Workflow settings use modal editors while direct Agent links st
   await expect(page.getByLabel('Instructions', { exact: true })).toBeVisible();
   await page.goto('/settings/agents');
   await page
-    .getByRole('region', { name: 'MR Watch', exact: true })
+    .getByRole('row', { name: /^MR Watch(\s|$)/ })
     .getByRole('button', { name: 'Open', exact: true })
     .click();
   const workflow = page.getByRole('dialog', { name: 'MR Watch settings' });
@@ -215,4 +215,22 @@ test('Configuration aligns checkbox labels and pairs Schedule fields', async ({ 
       }
     }
   }
+});
+
+test('Settings entity lists are zebra tables with a lighter first row and non-heading entity names', async ({
+  page,
+}) => {
+  await page.goto('/settings/agents');
+  const rows = page.getByRole('table', { name: 'Agents' }).locator('tbody tr');
+  const [first, second] = await Promise.all(
+    [0, 1].map((i) => rows.nth(i).evaluate((row) => getComputedStyle(row).backgroundColor)),
+  );
+  const lightness = (rgb: string) =>
+    rgb
+      .match(/\d+/g)!
+      .slice(0, 3)
+      .reduce((sum, v) => sum + Number(v), 0);
+  expect(lightness(first)).toBeGreaterThan(lightness(second));
+  await expect(page.getByRole('heading', { level: 2, name: 'Agents', exact: true })).toBeVisible();
+  await expect(rows.first().getByRole('heading')).toHaveCount(0);
 });

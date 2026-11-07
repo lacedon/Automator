@@ -1427,34 +1427,61 @@ textarea:focus {
   margin-bottom: 20px;
 }
 
-.settings-object {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--border);
+/* Settings entity lists: lighter first row, darker second row */
+
+.zebra-table {
+  margin-bottom: 20px;
 }
 
-.settings-object > div:first-child {
-  min-width: 0;
+.zebra-table tbody tr:nth-child(odd) {
+  background: var(--btn-secondary-bg);
+}
+
+.zebra-table tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+
+.zebra-table th,
+.zebra-table td {
+  padding: 12px 14px;
+  vertical-align: top;
   overflow-wrap: anywhere;
 }
 
-.settings-object h2,
-.settings-object h3 {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
+.zebra-table tbody th,
+.zebra-table tbody td {
+  border-bottom: 1px solid var(--border);
 }
 
-.settings-object p {
+.zebra-table .entity-name {
+  width: 22%;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.zebra-table td p {
   margin: 4px 0;
 }
 
-.settings-object .actions {
-  flex-shrink: 0;
+.zebra-table td p:first-child {
+  margin-top: 0;
+}
+
+.zebra-table .row-actions {
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .settings-dialog {
@@ -1587,9 +1614,36 @@ body:has(.settings-dialog[open]) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .settings-object {
-    gap: 16px;
-    flex-wrap: wrap;
+  .zebra-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .zebra-table,
+  .zebra-table tbody,
+  .zebra-table tr,
+  .zebra-table th,
+  .zebra-table td {
+    display: block;
+  }
+
+  .zebra-table tbody th,
+  .zebra-table tbody td {
+    width: auto;
+    padding: 6px 14px;
+    border-bottom: 0;
+  }
+
+  .zebra-table tbody tr {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .zebra-table .row-actions {
+    justify-content: flex-start;
   }
 
   .settings-dialog {

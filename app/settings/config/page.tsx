@@ -5,6 +5,7 @@ import { ConfigForm } from '../../components/ConfigForm';
 import { ErrorBox } from '../../components/ErrorBox';
 import { RestartApplicationButton } from '../../components/RestartApplicationButton';
 import { SettingsDialog } from '../../components/SettingsDialog';
+import { SettingsTable, SettingsTableRow } from '../../components/SettingsTable';
 import { providerLabel } from '../../lib/providerLabel';
 
 export const dynamic = 'force-dynamic';
@@ -46,20 +47,22 @@ export default function ConfigurationSettingsPage() {
                 <ConfigForm initial={config} />
               </SettingsDialog>
             </div>
-            {Object.entries(config).map(([key, value]) => (
-              <section className="settings-object" key={key}>
-                <div>
-                  <h2>{key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase())}</h2>
-                  <p className="muted">
+            <SettingsTable label="Configuration" headers={['Setting', 'Value']}>
+              {Object.entries(config).map(([key, value]) => (
+                <SettingsTableRow
+                  key={key}
+                  name={key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase())}
+                >
+                  <span className="muted">
                     {key === 'provider'
                       ? providerLabel(config.provider)
                       : typeof value === 'object' && value !== null
                         ? `${Object.keys(value).length} configured settings`
                         : String(value)}
-                  </p>
-                </div>
-              </section>
-            ))}
+                  </span>
+                </SettingsTableRow>
+              ))}
+            </SettingsTable>
           </>
         )
       )}

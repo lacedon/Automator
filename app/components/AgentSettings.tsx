@@ -17,6 +17,7 @@ import type { ActionResult } from '../actions/types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
 import { ErrorBox, errorMessage } from './ErrorBox';
+import { SettingsTable, SettingsTableRow } from './SettingsTable';
 import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 type Props = {
@@ -130,29 +131,28 @@ function AgentCard({
     return { ok: true, value: buildAgentDeletionMessage(agent.name, result.value, labels) };
   };
   return (
-    <section className="settings-object" aria-label={agent.name}>
-      <div>
-        <h2>{agent.name}</h2>
-        <p className="muted field-hint">{served}</p>
-        <p className="agent-preview">
-          {agent.instructions.trim() === '' ? 'No instructions yet.' : agent.instructions}
-        </p>
-      </div>
-      <div className="actions">
-        <SettingsDialog title={`Edit Agent: ${agent.name}`} wide>
-          <AgentForm agent={agent} rows={16} />
-        </SettingsDialog>
-        <ConfirmDialog
-          danger
-          label="Delete Agent"
-          message={buildAgentDeletionMessage(agent.name, references, labels)}
-          confirmLabel="Delete Agent"
-          dismissLabel="Keep Agent"
-          action={deleteAgent.bind(null, agent.id)}
-          prepare={prepare}
-        />
-      </div>
-    </section>
+    <SettingsTableRow
+      name={agent.name}
+      actions={
+        <>
+          <SettingsDialog title={`Edit Agent: ${agent.name}`} wide>
+            <AgentForm agent={agent} rows={16} />
+          </SettingsDialog>
+          <ConfirmDialog
+            danger
+            label="Delete Agent"
+            message={buildAgentDeletionMessage(agent.name, references, labels)}
+            confirmLabel="Delete Agent"
+            dismissLabel="Keep Agent"
+            action={deleteAgent.bind(null, agent.id)}
+            prepare={prepare}
+          />
+        </>
+      }
+    >
+      <p className="muted field-hint">{served}</p>
+      <p className="agent-preview">{agent.instructions.trim() === '' ? 'No instructions yet.' : agent.instructions}</p>
+    </SettingsTableRow>
   );
 }
 
@@ -339,42 +339,50 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
       <h2 className="section-h">Agents</h2>
       <p className="muted">Agents are instruction-only profiles and can be assigned to any Workflow.</p>
       {agents.length === 0 && <EmptyState>No Agents yet.</EmptyState>}
-      {agents.map((agent) => (
-        <AgentCard key={agent.id} agent={agent} assignments={assignments} labels={labels} />
-      ))}
+      {agents.length > 0 && (
+        <SettingsTable label="Agents" headers={['Agent', 'Details', 'Actions']}>
+          {agents.map((agent) => (
+            <AgentCard key={agent.id} agent={agent} assignments={assignments} labels={labels} />
+          ))}
+        </SettingsTable>
+      )}
       <h2 className="section-h">Assignments and templates</h2>
       <p className="muted">
         Each Workflow uses its Repository Agent if one is set, otherwise the default. A slot with no Agent, or an Agent
         with empty instructions, blocks Runs before Copilot starts.
       </p>
-      {workflows.map(({ type, label }) => {
-        const defaultSlot = assignments.find(
-          (assignment) => assignment.repository === null && assignment.workflowType === type,
-        );
-        const defaultAgent = agents.find((agent) => agent.id === defaultSlot?.agentId);
-        return (
-          <section className="settings-object" key={type} aria-label={label}>
-            <div>
-              <h3>{label}</h3>
-              <p className="muted">
+      <SettingsTable label="Workflows" headers={['Workflow', 'Details', 'Actions']}>
+        {workflows.map(({ type, label }) => {
+          const defaultSlot = assignments.find(
+            (assignment) => assignment.repository === null && assignment.workflowType === type,
+          );
+          const defaultAgent = agents.find((agent) => agent.id === defaultSlot?.agentId);
+          return (
+            <SettingsTableRow
+              key={type}
+              name={label}
+              actions={
+                <SettingsDialog title={`${label} settings`} wide>
+                  <WorkflowEditor
+                    type={type}
+                    agents={agents}
+                    assignments={assignments}
+                    templates={templates}
+                    repositories={repositories}
+                  />
+                </SettingsDialog>
+              }
+            >
+              <span className="muted">
                 Default: {defaultAgent?.name ?? 'No Agent: Runs blocked'} ·{' '}
                 {templates.find((template) => template.workflowType === type)?.instructions.trim()
                   ? 'Operation template configured'
                   : 'No operation template'}
-              </p>
-            </div>
-            <SettingsDialog title={`${label} settings`} wide>
-              <WorkflowEditor
-                type={type}
-                agents={agents}
-                assignments={assignments}
-                templates={templates}
-                repositories={repositories}
-              />
-            </SettingsDialog>
-          </section>
-        );
-      })}
+              </span>
+            </SettingsTableRow>
+          );
+        })}
+      </SettingsTable>
     </div>
   );
 }

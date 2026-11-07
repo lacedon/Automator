@@ -56,7 +56,7 @@ test('Projects remain manageable in Settings while the header scopes operational
   await page.getByRole('button', { name: 'New project', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Project name').fill('Dashboard test');
   await page.getByRole('dialog').getByRole('button', { name: 'Create project', exact: true }).click();
-  const project = page.getByRole('region', { name: 'Dashboard test', exact: true });
+  const project = page.getByRole('row', { name: /^Dashboard test(\s|$)/ });
   await project.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(
     page.getByRole('dialog').locator('.settings-dialog-footer').getByRole('button', { name: 'Rename', exact: true }),
@@ -74,7 +74,7 @@ test('Projects remain manageable in Settings while the header scopes operational
   await expect(page.getByRole('combobox', { name: 'Project', exact: true })).toBeEnabled();
   await expect(project).toBeVisible();
   await page.goto('/settings/repositories');
-  await expect(page.getByRole('region', { name: 'pages' })).toContainText('Dashboard test');
+  await expect(page.getByRole('row', { name: /^pages(\s|$)/ })).toContainText('Dashboard test');
   await page.goto('/');
   await expect(page.getByText('Nothing needs you.', { exact: true })).toBeVisible();
   await expect(page.getByText('Nothing running.', { exact: true })).toBeVisible();
@@ -86,7 +86,7 @@ test('Projects remain manageable in Settings while the header scopes operational
   await project.getByRole('button', { name: 'Open', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Project name').fill('Renamed dashboard test');
   await page.getByRole('dialog').getByRole('button', { name: 'Rename', exact: true }).click();
-  const renamed = page.getByRole('region', { name: 'Renamed dashboard test', exact: true });
+  const renamed = page.getByRole('row', { name: /^Renamed dashboard test(\s|$)/ });
   await expect(renamed).toBeVisible();
   await renamed.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(page.getByRole('dialog').getByLabel('Project name')).toHaveValue('Renamed dashboard test');
@@ -111,7 +111,7 @@ test('Settings groups Projects and Repositories and preserves the legacy project
   await expect(page.getByRole('heading', { name: 'Repositories', exact: true, level: 1 })).toBeVisible();
   await expect(page.locator('main')).toContainText('pages');
   await page
-    .getByRole('region', { name: 'pages', exact: true })
+    .getByRole('row', { name: /^pages/ })
     .getByRole('button', { name: 'Open', exact: true })
     .click();
   await expect(page.getByRole('dialog').getByLabel('Local folder')).toBeVisible();
