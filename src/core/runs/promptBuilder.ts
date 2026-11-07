@@ -24,6 +24,20 @@ Stop, change nothing further, and finish with outcome "needs-you" instead of gue
 - validation commands are not configured or a required one fails,
 - updating the branch would not be safe.`;
 
+export interface PromptAdditions {
+  project?: string | null;
+  repository?: string | null;
+}
+
+function additionsSection(additions: PromptAdditions | undefined): string[] {
+  const parts = [
+    ['Project clarifications', additions?.project?.trim()],
+    ['Repository clarifications', additions?.repository?.trim()],
+  ].filter((part): part is [string, string] => Boolean(part[1]));
+  if (parts.length === 0) return [];
+  return ['---', ...parts.map(([heading, text]) => `# ${heading}:\n\n${text}`)];
+}
+
 type RecentRun = Pick<Run, 'id' | 'outcome' | 'summary' | 'endedAt'>;
 
 export function buildWatchPrompt(input: {
@@ -36,6 +50,7 @@ export function buildWatchPrompt(input: {
   hasJiraToken: boolean;
   agentInstructions: string;
   operationTemplate: string | null;
+  additions?: PromptAdditions;
 }): string {
   const { watch, run, snapshot, recent, config, resultPath, hasJiraToken } = input;
   const sections = [rulesSection(watch, snapshot), ...agentSections(input.agentInstructions, input.operationTemplate)];
@@ -45,6 +60,7 @@ export function buildWatchPrompt(input: {
     recentSection(recent),
     validationSection(config, watch.repository),
     resultSection(resultPath),
+    ...additionsSection(input.additions),
   );
   return join(sections);
 }
@@ -77,6 +93,7 @@ export function buildAdhocPrompt(input: {
   resultPath: string;
   agentInstructions: string;
   operationTemplate: string | null;
+  additions?: PromptAdditions;
 }): string {
   const { run, config, resultPath } = input;
   const sections = [`## Rules\n\n${ADHOC_RULES}`, ...agentSections(input.agentInstructions, input.operationTemplate)];
@@ -88,6 +105,7 @@ export function buildAdhocPrompt(input: {
       : `## Follow-up message\n\nThis continues the earlier conversation in this session.\n\nRepository: ${run.repository}\n\n${message}`,
     validationSection(config, run.repository),
     resultSection(resultPath),
+    ...additionsSection(input.additions),
   );
   return join(sections);
 }

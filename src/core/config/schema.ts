@@ -44,6 +44,7 @@ export function createConfigSchema(configDir: string) {
           github: nonEmpty.optional(),
           jira: nonEmpty.optional(),
           validate: z.array(z.string()).default([]),
+          promptAddition: z.string().optional(),
         })
         .refine((repo) => repo.gitlab !== undefined || repo.github !== undefined, {
           message: 'A repository needs a gitlab or github connection',

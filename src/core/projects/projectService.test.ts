@@ -36,6 +36,19 @@ describe('ProjectService', () => {
     expect(projects.list().map((p) => p.name)).toEqual(['Mobile', 'Web']);
   });
 
+  test('stores a trimmed prompt addition per Project', () => {
+    const { projects } = setup();
+    const web = projects.create('Web');
+    const apps = projects.create('Apps');
+    if (!web.ok || !apps.ok) throw new Error('setup failed');
+    expect(projects.setPromptAddition(web.value.id, '  Be brief  ')).toMatchObject({
+      ok: true,
+      value: { promptAddition: 'Be brief' },
+    });
+    expect(projects.get(apps.value.id)?.promptAddition).toBe('');
+    expect(projects.setPromptAddition(999, 'x')).toMatchObject({ ok: false });
+  });
+
   test('rejects blank and duplicate names, case-insensitively', () => {
     const { projects } = setup();
     projects.create('Web');

@@ -196,4 +196,9 @@ CREATE TABLE project_repositories (
 CREATE INDEX ix_project_repositories_project ON project_repositories(project_id);
 `,
   },
+  {
+    version: 7,
+    sql: `ALTER TABLE projects ADD COLUMN prompt_addition TEXT NOT NULL DEFAULT '';
+`,
+  },
 ];

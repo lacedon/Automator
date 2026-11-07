@@ -22,11 +22,14 @@ export class ProjectService {
       const id = a.project_id as number;
       byProject.set(id, [...(byProject.get(id) ?? []), a.repository as string]);
     }
-    return (this.db.prepare('SELECT id, name FROM projects ORDER BY name').all() as Row[]).map((r) => ({
-      id: r.id as number,
-      name: r.name as string,
-      repositories: byProject.get(r.id as number) ?? [],
-    }));
+    return (this.db.prepare('SELECT id, name, prompt_addition FROM projects ORDER BY name').all() as Row[]).map(
+      (r) => ({
+        id: r.id as number,
+        name: r.name as string,
+        repositories: byProject.get(r.id as number) ?? [],
+        promptAddition: r.prompt_addition as string,
+      }),
+    );
   }
 
   get(id: number): Project | null {
@@ -45,7 +48,7 @@ export class ProjectService {
     const row = this.db
       .prepare('INSERT INTO projects (name, created_at) VALUES (?, ?) RETURNING id')
       .get(valid.value, this.now()) as { id: number };
-    return ok({ id: row.id, name: valid.value, repositories: [] });
+    return ok({ id: row.id, name: valid.value, repositories: [], promptAddition: '' });
   }
 
   rename(id: number, name: string): Result<Project> {
@@ -57,6 +60,13 @@ export class ProjectService {
     }
     this.db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(valid.value, id);
     return ok(this.get(id)!);
+  }
+
+  setPromptAddition(id: number, promptAddition: string): Result<Project> {
+    const result = this.db
+      .prepare('UPDATE projects SET prompt_addition = ? WHERE id = ?')
+      .run(promptAddition.trim(), id);
+    return result.changes === 0 ? err({ code: 'NOT_FOUND' }) : ok(this.get(id)!);
   }
 
   // Deleting a Project leaves its repositories unassigned; no work is removed.

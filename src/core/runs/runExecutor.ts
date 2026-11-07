@@ -265,10 +265,16 @@ export class RunExecutor {
     const operationTemplate = template?.instructions ?? null;
 
     const resultPath = dataDir.copilotResultPath(run.id);
+    const projectRow = db
+      .prepare(
+        'SELECT p.prompt_addition FROM projects p JOIN project_repositories pr ON pr.project_id = p.id WHERE pr.repository = ?',
+      )
+      .get(run.repository) as { prompt_addition: string } | undefined;
+    const additions = { project: projectRow?.prompt_addition, repository: repo.promptAddition };
     let prompt: string;
     if (run.watchId === null) {
       try {
-        prompt = buildAdhocPrompt({ run, config, resultPath, agentInstructions, operationTemplate });
+        prompt = buildAdhocPrompt({ run, config, resultPath, agentInstructions, operationTemplate, additions });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));
       }
@@ -303,6 +309,7 @@ export class RunExecutor {
           hasJiraToken: watch.kind === 'jira' && prechecks.jira.hasToken(watch),
           agentInstructions,
           operationTemplate,
+          additions,
         });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));

@@ -66,6 +66,20 @@ function ConfigValue({
     );
   }
 
+  if (field === 'promptAddition') {
+    return (
+      <div className="field">
+        <label htmlFor={id}>{label(field)}</label>
+        <textarea
+          id={id}
+          rows={4}
+          value={String(value ?? '')}
+          onChange={(event) => onChange(path, event.target.value)}
+        />
+      </div>
+    );
+  }
+
   if (typeof value === 'boolean') {
     return (
       <div className="field">

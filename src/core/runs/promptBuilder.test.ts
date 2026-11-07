@@ -381,6 +381,36 @@ describe('buildAdhocPrompt', () => {
     expect(prompt).not.toContain('## Follow-up message');
   });
 
+  test('appends Project then Repository additions at the very end, skipping blank ones', () => {
+    const input = {
+      run: run({ watchId: null, trigger: 'adhoc', parentRunId: null, adhocPrompt: 'Bump it' }),
+      config: config(),
+      resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: null,
+    };
+    const both = buildAdhocPrompt({ ...input, additions: { project: ' P text ', repository: 'R text' } });
+    expect(
+      both.endsWith('---\n\n# Project clarifications:\n\nP text\n\n# Repository clarifications:\n\nR text\n'),
+    ).toBe(true);
+    const repoOnly = buildAdhocPrompt({ ...input, additions: { project: '  ', repository: 'R text' } });
+    expect(repoOnly).not.toContain('Project clarifications');
+    expect(buildAdhocPrompt({ ...input, additions: { project: '', repository: null } })).toBe(buildAdhocPrompt(input));
+    const watchPrompt = buildWatchPrompt({
+      watch: watch(),
+      run: run(),
+      snapshot: { events: [] } as unknown as Snapshot,
+      recent: [],
+      config: config(),
+      resultPath: RESULT_PATH,
+      hasJiraToken: false,
+      agentInstructions: AGENT,
+      operationTemplate: null,
+      additions: { project: 'P text' },
+    });
+    expect(watchPrompt.endsWith('# Project clarifications:\n\nP text\n')).toBe(true);
+  });
+
   test('orders fixed rules, Agent instructions, template, then the Request', () => {
     const prompt = buildAdhocPrompt({
       run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'REQUEST-TEXT' }),

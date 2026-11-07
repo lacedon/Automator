@@ -102,6 +102,21 @@ describe('writeEditableConfig', () => {
     });
   });
 
+  test('saves a repository prompt addition and drops it when blank', () => {
+    const { file } = writeConfig(config);
+    const editable = readEditableConfig(file);
+    const repo = Object.keys(editable.repositories)[0];
+    expect(editable.repositories[repo].promptAddition).toBe('');
+
+    editable.repositories[repo].promptAddition = '  Use pnpm ';
+    writeEditableConfig(file, editable);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).repositories[repo].promptAddition).toBe('Use pnpm');
+
+    editable.repositories[repo].promptAddition = '   ';
+    writeEditableConfig(file, editable);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).repositories[repo]).not.toHaveProperty('promptAddition');
+  });
+
   test('rejects invalid schema edits without overwriting the file', () => {
     const { file } = writeConfig(config);
     const editable = readEditableConfig(file);

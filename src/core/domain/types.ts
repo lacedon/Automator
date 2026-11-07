@@ -116,6 +116,7 @@ export interface Project {
   id: number;
   name: string;
   repositories: string[];
+  promptAddition: string;
 }
 
 // null: all work; 'none': work of repositories that belong to no Project; number: one Project.

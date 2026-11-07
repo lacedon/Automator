@@ -11,7 +11,7 @@ export type EditableConfig = Omit<ConfigInput, 'gitlab' | 'jira' | 'prompts'> & 
 };
 
 const editableFields = ['dataDir', 'copilotBin', 'repositories', 'schedule', 'runs', 'cleanup', 'teams'] as const;
-const repositoryFields = ['folder', 'gitlab', 'github', 'jira', 'validate'] as const;
+const repositoryFields = ['folder', 'gitlab', 'github', 'jira', 'validate', 'promptAddition'] as const;
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
@@ -101,7 +101,11 @@ export function readEditableConfig(configPath: string): EditableConfig {
   const file = path.resolve(configPath);
   const raw = readRawConfig(file);
   const parsed = validateConfig(raw, file);
-  return projectConfig(raw, parsed.jira);
+  const editable = projectConfig(raw, parsed.jira);
+  for (const repository of Object.values(editable.repositories)) {
+    (repository as RecordValue).promptAddition ??= '';
+  }
+  return editable;
 }
 
 function connectionKeys(value: unknown, pathName: string): RecordValue {
@@ -130,6 +134,13 @@ function mergeConfig(raw: RecordValue, input: EditableConfig): RecordValue {
   assertSameKeys(currentJiraConnectionRecords, editedJiraConnections, 'jira');
 
   const merged = { ...raw };
+  if (isRecord(edited.repositories)) {
+    for (const repository of Object.values(edited.repositories) as RecordValue[]) {
+      const addition = typeof repository.promptAddition === 'string' ? repository.promptAddition.trim() : '';
+      if (addition === '') delete repository.promptAddition;
+      else repository.promptAddition = addition;
+    }
+  }
   for (const field of editableFields) {
     if (Object.hasOwn(edited, field)) merged[field] = edited[field];
     else delete merged[field];
