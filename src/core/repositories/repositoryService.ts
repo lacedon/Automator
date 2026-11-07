@@ -42,25 +42,7 @@ export class RepositoryService {
   status(name: string): string[] {
     const repository = this.get(name);
     if (repository === null) return ['Repository not found'];
-    const issues: string[] = [];
-    if (repository.gitlab === null && repository.github === null) {
-      issues.push('A repository needs a GitLab or GitHub connection');
-    }
-    try {
-      if (!fs.statSync(repository.folder).isDirectory()) issues.push(`Folder is not a directory: ${repository.folder}`);
-    } catch {
-      issues.push(`Folder does not exist: ${repository.folder}`);
-    }
-    if (repository.gitlab !== null && !Object.hasOwn(this.config.gitlab, repository.gitlab)) {
-      issues.push(`Unknown GitLab connection "${repository.gitlab}"`);
-    }
-    if (repository.github !== null && !Object.hasOwn(this.config.github, repository.github)) {
-      issues.push(`Unknown GitHub connection "${repository.github}"`);
-    }
-    if (repository.jira !== null && !Object.hasOwn(this.config.jira.connections, repository.jira)) {
-      issues.push(`Unknown Jira connection "${repository.jira}"`);
-    }
-    return issues;
+    return this.problems(repository).map((problem) => problem.status);
   }
 
   create(input: RepositoryInput): Result<Repository> {
@@ -154,24 +136,36 @@ export class RepositoryService {
       jira: input.jira || null,
       validate: [...input.validate],
     };
+    const problems = this.problems(repository);
+    const problem = problems.find(({ field }) => field !== 'folder') ?? problems[0];
+    if (problem !== undefined) return invalid(problem.field, problem.reject);
+    return ok(repository);
+  }
+
+  // Shared checks: `status` reports `status` text for persisted records, `validate` rejects with `reject` text.
+  private problems(repository: Repository): { field: string; status: string; reject: string }[] {
+    const problems: { field: string; status: string; reject: string }[] = [];
+    const add = (field: string, status: string, reject = status) => problems.push({ field, status, reject });
     if (repository.gitlab === null && repository.github === null) {
-      return invalid('gitlab', 'A repository needs a GitLab or GitHub connection');
-    }
-    if (repository.gitlab !== null && !Object.hasOwn(this.config.gitlab, repository.gitlab)) {
-      return invalid('gitlab', `Unknown GitLab connection "${repository.gitlab}"`);
-    }
-    if (repository.github !== null && !Object.hasOwn(this.config.github, repository.github)) {
-      return invalid('github', `Unknown GitHub connection "${repository.github}"`);
-    }
-    if (repository.jira !== null && !Object.hasOwn(this.config.jira.connections, repository.jira)) {
-      return invalid('jira', `Unknown Jira connection "${repository.jira}"`);
+      add('gitlab', 'A repository needs a GitLab or GitHub connection');
     }
     try {
-      if (!fs.statSync(repository.folder).isDirectory()) return invalid('folder', 'Folder must be a directory');
+      if (!fs.statSync(repository.folder).isDirectory()) {
+        add('folder', `Folder is not a directory: ${repository.folder}`, 'Folder must be a directory');
+      }
     } catch {
-      return invalid('folder', 'Folder does not exist');
+      add('folder', `Folder does not exist: ${repository.folder}`, 'Folder does not exist');
     }
-    return ok(repository);
+    if (repository.gitlab !== null && !Object.hasOwn(this.config.gitlab, repository.gitlab)) {
+      add('gitlab', `Unknown GitLab connection "${repository.gitlab}"`);
+    }
+    if (repository.github !== null && !Object.hasOwn(this.config.github, repository.github)) {
+      add('github', `Unknown GitHub connection "${repository.github}"`);
+    }
+    if (repository.jira !== null && !Object.hasOwn(this.config.jira.connections, repository.jira)) {
+      add('jira', `Unknown Jira connection "${repository.jira}"`);
+    }
+    return problems;
   }
 
   private fromRow(row: RepositoryRow): Repository {

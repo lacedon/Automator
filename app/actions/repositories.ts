@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { RepositoryInput, Result } from '@core/index';
 import { getCore } from '../lib/core';
+import { repositoryFromForm } from '../lib/repositoryForm';
 import { parseInput } from './parse';
 import type { ActionResult, FormResult } from './types';
 
@@ -35,30 +36,11 @@ function toAction<T>(result: Result<T>): ActionResult {
   return { ok: true };
 }
 
-function text(data: FormData, key: string): string {
-  const value = data.get(key);
-  return typeof value === 'string' ? value : '';
-}
-
-function readForm(data: FormData): RepositoryInput {
-  return {
-    name: text(data, 'name'),
-    folder: text(data, 'folder'),
-    gitlab: text(data, 'gitlab') || null,
-    github: text(data, 'github') || null,
-    jira: text(data, 'jira') || null,
-    validate: text(data, 'validate')
-      .split(/\r?\n/)
-      .map((command) => command.trim())
-      .filter(Boolean),
-  };
-}
-
 export async function createRepository(
   _prev: FormResult<RepositoryInput>,
   formData: FormData,
 ): Promise<FormResult<RepositoryInput>> {
-  const values = readForm(formData);
+  const values = repositoryFromForm(formData);
   const input = parseInput(repositoryInputSchema, values);
   if (!input.ok) return { ...input, values };
   const created = getCore().repositories.create(input.value);
