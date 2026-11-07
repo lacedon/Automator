@@ -313,7 +313,7 @@ Failures:
   A credential-free example config is committed.
 
 - **Repositories** (local folders, connection names and validation commands) are stored in SQLite and managed on **Settings → Repositories**. Existing config entries are imported once when the database is empty; after import, the legacy `repositories` section is ignored.
-- A Repository must have a GitLab or GitHub connection and a valid local folder. Its configured validation commands are run as part of Runs. A Repository with Watches cannot be deleted; deleting one never deletes its local files.
+- A Repository must have a GitLab or GitHub connection and a valid local folder. Its configured validation commands are run as part of Runs. A Repository with Automations cannot be deleted; deleting one never deletes its local files.
 
 - **Secrets** (GitLab and Jira tokens) are read from environment variables or a gitignored `.env`. They are never added to prompts or result files.
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
@@ -338,7 +338,7 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Automations t
 - Queue view and Run history, with completed transcripts and result files
 - **Run now** with optional extra instructions
 - Ad-hoc Runs (pick a Repository, optionally a Jira Ticket, and enter a prompt), with explicit cancellation
-- **Home** prioritizes current Needs you Watches and links to their decision/resume flow, followed by the running Run, the next three queued items and five recent completions. Historical failures do not become current blockers.
+- **Home** prioritizes current Needs you Automations and links to their decision/resume flow, followed by the running Run, the next three queued items and five recent completions. Historical failures do not become current blockers.
 - **Runs** is searchable execution history, with outcome, Repository, trigger and inclusive local-date filters. Dates use start time (queue time for Runs that never started). Historical Needs you outcomes remain visible even after resolution.
 - **Settings** groups Projects, Repositories, Agents and Configuration. Manage Repository folders, named service connections and validation commands directly under Repositories, alongside Project membership. Repository changes are stored in SQLite and take effect without restarting; credentials remain in Configuration and environment variables.
 - The project switcher remains in the header; Settings always covers the entire installation. On narrow screens the menu includes navigation, New watch and Ad-hoc run actions.

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-// Tests share one seeded data dir and run in file order; the home test resumes the only Needs you Watch,
-// so the Watches list test that expects it pinned first runs before it.
+// Tests share one seeded data dir and run in file order; the home test resumes the only Needs you Automation,
+// so the Automations list test that expects it pinned first runs before it.
 
 test('provider settings show the global selector and provider model fields', async ({ page }) => {
   await page.goto('/settings/config');

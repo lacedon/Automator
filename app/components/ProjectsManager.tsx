@@ -96,7 +96,7 @@ export function ProjectsManager({ projects, repositories }: { projects: Project[
                   </SettingsDialog>
                   <ConfirmDialog
                     label="Delete"
-                    message={`Delete ${p.name}? Its repositories become unassigned; no Watches or Runs are removed.`}
+                    message={`Delete ${p.name}? Its repositories become unassigned; no Automations or Runs are removed.`}
                     confirmLabel="Delete"
                     danger
                     action={() => deleteProject(p.id)}

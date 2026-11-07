@@ -113,7 +113,7 @@ test('deletes an unreferenced Repository and revalidates', async () => {
   expect(revalidate).toHaveBeenCalledWith('/', 'layout');
 });
 
-test('keeps a Repository and reports the Watch reference when deletion is blocked', async () => {
+test('keeps a Repository and reports the Automation reference when deletion is blocked', async () => {
   core.db
     .prepare(
       `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, created_at, updated_at)

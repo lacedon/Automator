@@ -94,10 +94,10 @@ test('Agents and Workflow settings use modal editors while direct Agent links st
   await expect(page.getByLabel('Instructions', { exact: true })).toBeVisible();
   await page.goto('/settings/agents');
   await page
-    .getByRole('row', { name: /^MR Watch(\s|$)/ })
+    .getByRole('row', { name: /^MR Automation(\s|$)/ })
     .getByRole('button', { name: 'Open', exact: true })
     .click();
-  const workflow = page.getByRole('dialog', { name: 'MR Watch settings' });
+  const workflow = page.getByRole('dialog', { name: 'MR Automation settings' });
   await expect(
     workflow.locator('.settings-dialog-footer').getByRole('button', { name: 'Save template' }),
   ).toBeVisible();
