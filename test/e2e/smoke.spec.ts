@@ -66,7 +66,8 @@ test('run detail shows transcript, result json and prompt tabs', async ({ page }
 test('run detail auto-refreshes only while the run is not finished', async ({ page }) => {
   const refreshes: string[] = [];
   page.on('request', (req) => {
-    if (req.headers()['rsc'] === '1') refreshes.push(req.url());
+    const headers = req.headers();
+    if (headers['rsc'] === '1' && !headers['next-router-prefetch']) refreshes.push(req.url());
   });
 
   await page.goto('/queue');

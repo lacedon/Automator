@@ -972,8 +972,18 @@ body[style*='--project-header'] .topbar .brand {
   color: #fff;
 }
 
+body[style*='--project-header'] .topbar .mobile-nav-trigger {
+  color: #fff;
+}
+
+body[style*='--project-header'] .topbar .mobile-nav-trigger:hover,
+body[style*='--project-header'] .topbar .mobile-nav[open] > .mobile-nav-trigger {
+  background: rgb(255 255 255 / 16%);
+}
+
 body[style*='--project-header'] .topbar .btn-secondary,
-body[style*='--project-header'] .topbar select {
+body[style*='--project-header'] .topbar select,
+body[style*='--project-header'] .topbar .mobile-nav-trigger {
   border-color: rgb(255 255 255 / 45%);
 }
 
