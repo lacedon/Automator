@@ -5,9 +5,9 @@ import { getCore } from '../../lib/core';
 export const dynamic = 'force-dynamic';
 
 const WORKFLOWS: { type: WorkflowType; label: string }[] = [
-  { type: 'mr-watch', label: 'MR Watch' },
-  { type: 'jira-watch', label: 'Jira Watch' },
-  { type: 'free-watch', label: 'Free Watch' },
+  { type: 'mr-watch', label: 'MR Automation' },
+  { type: 'jira-watch', label: 'Jira Automation' },
+  { type: 'free-watch', label: 'Free Automation' },
   { type: 'ticket-adhoc', label: 'Ticket Ad-hoc' },
   { type: 'free-adhoc', label: 'Free-form Ad-hoc' },
 ];

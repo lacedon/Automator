@@ -11,13 +11,13 @@ test('buildAgentDeletionMessage lists every affected slot', () => {
     { repository: 'pages', workflowType: 'jira-watch', agentId: 7 },
   ];
   const labels = new Map<WorkflowType, string>([
-    ['mr-watch', 'Merge Request Watch'],
-    ['jira-watch', 'Jira Watch'],
+    ['mr-watch', 'Merge Request Automation'],
+    ['jira-watch', 'Jira Automation'],
     ['free-adhoc', 'Free Adhoc'],
   ]);
 
   expect(buildAgentDeletionMessage('Reviewer', references, labels)).toBe(
-    'Delete Agent "Reviewer"? It is assigned to: Default · Merge Request Watch; api · Free Adhoc; pages · Jira Watch. Each of these slots will have no Agent and block Runs until you assign another one.',
+    'Delete Agent "Reviewer"? It is assigned to: Default · Merge Request Automation; api · Free Adhoc; pages · Jira Automation. Each of these slots will have no Agent and block Runs until you assign another one.',
   );
 });
 

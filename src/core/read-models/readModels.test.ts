@@ -459,7 +459,7 @@ describe('read models', () => {
   describe('thread', () => {
     const adhoc = { trigger: 'adhoc', priority: 0, adhoc_prompt: 'p' };
 
-    test('Watch Run has no thread', async () => {
+    test('Automation Run has no thread', async () => {
       const { db, read } = setup();
       const id = insertRun(db, { watch_id: insertWatch(db) });
 

@@ -17,7 +17,7 @@ function hrefFor(filter: WatchFilterParams): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filter)) if (value) params.set(key, value);
   const query = params.toString();
-  return query ? `/watches?${query}` : '/watches';
+  return query ? `/automations?${query}` : '/automations';
 }
 
 type Props = { filter: WatchFilterParams; counts: WatchListView['counts']; repositories: string[] };
@@ -39,7 +39,7 @@ export function WatchFilters({ filter, counts, repositories }: Props) {
         );
       })}
       <span className="spacer" />
-      <form method="get" action="/watches" className="filter-form">
+      <form method="get" action="/automations" className="filter-form">
         {filter.state && <input type="hidden" name="state" value={filter.state} />}
         <select name="kind" defaultValue={filter.kind ?? ''} aria-label="Kind">
           <option value="">Kind: any</option>

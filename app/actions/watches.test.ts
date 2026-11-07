@@ -62,7 +62,7 @@ function queued(): QueuedRun[] {
     .all() as QueuedRun[];
 }
 
-test('pauseWatch pauses an active Watch and revalidates the layout', async () => {
+test('pauseWatch pauses an active Automation and revalidates the layout', async () => {
   const id = insertWatch(core.db);
   expect(await pauseWatch(id)).toEqual({ ok: true });
   expect(stateOf(id)).toBe('paused');
@@ -88,18 +88,18 @@ test('closeWatch closes and reopenWatch reopens', async () => {
   expect(revalidatePath).toHaveBeenCalledTimes(2);
 });
 
-test('reopenWatch reports a duplicate open Watch', async () => {
+test('reopenWatch reports a duplicate open Automation', async () => {
   const closed = insertWatch(core.db, { state: 'closed', normalizedTarget: 'gitlab:x!1' });
   insertWatch(core.db, { normalizedTarget: 'gitlab:x!1' });
   expect(await reopenWatch(closed)).toMatchObject({ ok: false, error: { code: 'DUPLICATE_WATCH' } });
 });
 
-test('deleteWatch deletes and redirects to /watches', async () => {
+test('deleteWatch deletes and redirects to /automations', async () => {
   const id = insertWatch(core.db);
-  await expect(deleteWatch(id)).rejects.toThrow('NEXT_REDIRECT /watches');
+  await expect(deleteWatch(id)).rejects.toThrow('NEXT_REDIRECT /automations');
   expect(core.watches.get(id)).toBeNull();
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
-  expect(redirect).toHaveBeenCalledWith('/watches');
+  expect(redirect).toHaveBeenCalledWith('/automations');
 });
 
 test('deleteWatch refuses while a Run is in progress', async () => {
@@ -129,7 +129,7 @@ test('runWatchNow treats blank instructions and a missing checkbox as not set', 
   expect(queued()[0]).toMatchObject({ extraInstructions: null, reviewUnresolved: 0 });
 });
 
-test('runWatchNow returns JIRA_DISABLED for Jira Watches when Jira is off', async () => {
+test('runWatchNow returns JIRA_DISABLED for Jira Automations when Jira is off', async () => {
   const id = insertWatch(core.db, { kind: 'jira', normalizedTarget: 'jira:PROJ-1' });
   expect(await runWatchNow(null, form({ id: String(id) }))).toEqual({ ok: false, error: { code: 'JIRA_DISABLED' } });
   expect(queued()).toEqual([]);
@@ -144,8 +144,8 @@ const watchFields = {
   initialReview: '',
 };
 
-test('createWatch creates the Watch, revalidates and redirects to it', async () => {
-  await expect(createWatch(null, form(watchFields))).rejects.toThrow(/NEXT_REDIRECT \/watches\/\d+/);
+test('createWatch creates the Automation, revalidates and redirects to it', async () => {
+  await expect(createWatch(null, form(watchFields))).rejects.toThrow(/NEXT_REDIRECT \/automations\/\d+/);
   const [watch] = core.watches.list();
   expect(watch).toMatchObject({
     kind: 'mr',
@@ -155,7 +155,7 @@ test('createWatch creates the Watch, revalidates and redirects to it', async () 
     model: null,
   });
   expect(watch!.initialReview).toBeNull();
-  expect(redirect).toHaveBeenCalledWith(`/watches/${watch!.id}`);
+  expect(redirect).toHaveBeenCalledWith(`/automations/${watch!.id}`);
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
 });
 
@@ -196,7 +196,7 @@ test('createWatch reports an unknown Repository with the attempt file and echoes
   expect(redirect).not.toHaveBeenCalled();
 });
 
-test('createWatch reports a duplicate open Watch', async () => {
+test('createWatch reports a duplicate open Automation', async () => {
   await expect(createWatch(null, form(watchFields))).rejects.toThrow('NEXT_REDIRECT');
   const [existing] = core.watches.list();
   expect(await createWatch(null, form(watchFields))).toEqual({
@@ -234,7 +234,7 @@ test('createWatch rejects an unknown initial review mode', async () => {
   });
 });
 
-test('updateWatch saves the editable fields and redirects to the Watch', async () => {
+test('updateWatch saves the editable fields and redirects to the Automation', async () => {
   const id = insertWatch(core.db);
   const fields = {
     id: String(id),
@@ -243,7 +243,7 @@ test('updateWatch saves the editable fields and redirects to the Watch', async (
     model: 'gpt-5',
     initialReview: 'unresolved',
   };
-  await expect(updateWatch(null, form(fields))).rejects.toThrow(`NEXT_REDIRECT /watches/${id}`);
+  await expect(updateWatch(null, form(fields))).rejects.toThrow(`NEXT_REDIRECT /automations/${id}`);
   expect(core.watches.get(id)).toMatchObject({
     instructions: 'New text',
     intervalMs: 2 * 3_600_000,

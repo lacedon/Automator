@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 type Item = Pick<QueueRow, 'runId' | 'watchId' | 'watchTitle' | 'adhocPrompt' | 'ticket'>;
 
 function QueueItem({ run, strong }: { run: Item; strong?: boolean }) {
-  const href = run.watchId === null ? `/runs/${run.runId}` : `/watches/${run.watchId}`;
+  const href = run.watchId === null ? `/runs/${run.runId}` : `/automations/${run.watchId}`;
   return (
     <Link href={href} className={strong ? 'plain-link strong' : 'plain-link'}>
       <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
@@ -58,10 +58,10 @@ function WaitingAction({ row }: { row: QueueRow }) {
     return (
       <ConfirmDialog
         className="btn-link"
-        label="close Watch"
+        label="close Automation"
         message="Closing stops follow-up and removes its queued request. History is kept until cleanup."
-        confirmLabel="Close Watch"
-        dismissLabel="Keep watching"
+        confirmLabel="Close Automation"
+        dismissLabel="Keep Automation"
         action={closeWatchFromQueue.bind(null, row.watchId)}
       />
     );

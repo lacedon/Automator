@@ -196,7 +196,7 @@ function RepositoryCard({
             danger
             label="Delete Repository"
             confirmLabel="Delete Repository"
-            message={`Delete Repository "${repository.name}"? A Repository with Watches cannot be deleted. This removes only its settings. Local files are never deleted.`}
+            message={`Delete Repository "${repository.name}"? A Repository with Automations cannot be deleted. This removes only its settings. Local files are never deleted.`}
             action={() => deleteRepository(repository.name)}
           />
         </>

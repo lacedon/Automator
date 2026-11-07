@@ -8,7 +8,7 @@ export type Me = { id: number; username: string };
 
 export type ReviewConnection = { client: ReviewClient; projectId: string; iid: number; me: Me };
 
-// What differs between hosts: how a Watch resolves to a connection, and how CI is named.
+// What differs between hosts: how an Automation resolves to a connection, and how CI is named.
 export interface ReviewHost {
   name: 'gitlab' | 'github';
   ciName: string;

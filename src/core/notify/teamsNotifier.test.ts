@@ -98,7 +98,7 @@ describe('TeamsNotifier', () => {
     expect(arg('--model')).toBe('claude-sonnet-4.5');
     expect(arg('-p')).toBe(
       'Send exactly this message to the Microsoft Teams chat with id 19:abc@thread.v2 using the available Teams tool, then stop. ' +
-        `Message: Automator: "Fix login" needs you: pipeline failed. http://127.0.0.1:4317/watches/${watchId}`,
+        `Message: Automator: "Fix login" needs you: pipeline failed. http://127.0.0.1:4317/automations/${watchId}`,
     );
     expect(fs.realpathSync(record.cwd)).toBe(fs.realpathSync(s.dataDir.root));
     expect(s.starts[0]).toMatchObject({

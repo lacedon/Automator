@@ -362,7 +362,7 @@ describe('Scheduler.tick', () => {
     }
     expect(errors).toHaveBeenCalledTimes(2);
     expect(errors).toHaveBeenCalledWith(
-      expect.stringMatching(new RegExp(`^\\S+Z .*Watch #${ids.checkThrows}.*check exploded`)),
+      expect.stringMatching(new RegExp(`^\\S+Z .*Automation #${ids.checkThrows}.*check exploded`)),
     );
     errors.mockRestore();
   });

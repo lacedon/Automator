@@ -38,7 +38,7 @@ test('shows invalid imported Repository diagnostics and explains deletion safety
   expect(markup).toContain('name="folder" value="/missing/legacy"');
   expect(markup).toContain('Unknown GitLab connection');
   expect(markup).toMatch(/local files are never deleted/i);
-  expect(markup).toContain('Repository with Watches cannot be deleted');
+  expect(markup).toContain('Repository with Automations cannot be deleted');
   expect(markup).toContain('retired');
   expect(markup).toContain('Legacy project');
   expect(markup).toContain('href="/settings/projects"');
