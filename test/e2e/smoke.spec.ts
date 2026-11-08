@@ -65,8 +65,9 @@ test('run detail shows transcript, result json and prompt tabs', async ({ page }
 
 test('run detail auto-refreshes only while the run is not finished', async ({ page }) => {
   const refreshes: string[] = [];
+  // Link prefetches (e.g. /watches/2) are also RSC requests; only count refreshes of the run page itself.
   page.on('request', (req) => {
-    if (req.headers()['rsc'] === '1') refreshes.push(req.url());
+    if (req.headers()['rsc'] === '1' && /\/runs\/\d+$/.test(new URL(req.url()).pathname)) refreshes.push(req.url());
   });
 
   await page.goto('/queue');
