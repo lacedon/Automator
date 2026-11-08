@@ -20,6 +20,16 @@ Prerequisites:
 - For GitLab MR Automations: [`glab`](https://gitlab.com/gitlab-org/cli) installed and logged in (see below)
 - For GitHub PR Automations: [`gh`](https://cli.github.com) installed and logged in (see below)
 
+### Upgrading
+
+Stop any running Automator instance first (the command does not stop it), then run:
+
+```
+npm run upgrade-and-restart
+```
+
+It runs `git checkout master && git pull origin && npm ci && npm run build && npm run start`, stopping at the first failing step. It fails if the working tree has uncommitted changes that block the checkout or pull. The app runs in the foreground.
+
 ### GitLab access for Copilot
 
 Copilot needs its own way to read and reply to MRs, because Automator removes `GITLAB_TOKEN` from the environment it starts Copilot with. GitLab's MCP endpoint (`/api/v4/mcp`) rejects classic personal access tokens (`403 insufficient_scope`), so use the `glab` CLI instead:

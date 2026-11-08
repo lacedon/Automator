@@ -14,6 +14,7 @@
     "dev": "node scripts/start.mjs dev",
     "build": "next build",
     "start": "node scripts/start.mjs",
+    "upgrade-and-restart": "git checkout master && git pull origin && npm ci && npm run build && npm run start",
     "automator": "node bin/automator.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
