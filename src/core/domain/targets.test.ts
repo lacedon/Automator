@@ -30,6 +30,7 @@ function repositoryFor(name: string, source = config): Repository | undefined {
         github: repository.github ?? null,
         jira: repository.jira ?? null,
         validate: repository.validate,
+        promptAddition: '',
       };
 }
 

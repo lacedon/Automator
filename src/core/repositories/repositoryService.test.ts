@@ -37,6 +37,7 @@ function setup() {
       github: null,
       jira: null,
       validate: ['npm test'],
+      promptAddition: '',
     }),
   };
 }
@@ -54,6 +55,14 @@ describe('RepositoryService', () => {
     expect(service.get('PAGES')).toEqual(input());
     expect(service.status('pages')).toEqual([]);
     expect(service.get('missing')).toBeNull();
+  });
+
+  test('stores a trimmed prompt addition on create and update', () => {
+    const { service, input } = setup();
+    service.create({ ...input(), promptAddition: '  Use pnpm  ' });
+    expect(service.get('pages')?.promptAddition).toBe('Use pnpm');
+    service.update('pages', { ...input(), promptAddition: '   ' });
+    expect(service.get('pages')?.promptAddition).toBe('');
   });
 
   test('reports missing folders and configured connections by name', () => {

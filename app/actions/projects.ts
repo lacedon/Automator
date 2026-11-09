@@ -57,6 +57,12 @@ export async function deleteProject(id: number): Promise<ActionResult> {
   return toAction(getCore().projects.delete(input.value));
 }
 
+export async function setProjectPromptAddition(id: number, promptAddition: string): Promise<ActionResult> {
+  const input = parseInput(z.object({ id: idSchema, promptAddition: z.string() }), { id, promptAddition });
+  if (!input.ok) return input;
+  return toAction(getCore().projects.setPromptAddition(input.value.id, input.value.promptAddition));
+}
+
 export async function setProjectRepositories(id: number, repositories: string[]): Promise<ActionResult> {
   const input = parseInput(z.object({ id: idSchema, repositories: z.array(z.string().min(1)) }), {
     id,

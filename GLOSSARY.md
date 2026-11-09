@@ -39,6 +39,9 @@ _Avoid_: Trigger
 A named group of Repositories used to separate work visually. A Repository belongs to at most one Project; Repositories without one are "Unassigned". Selecting a Project in the top bar scopes Home, Automations, Queue, Runs and Ad-hoc to its Repositories and tints the UI with the Project's colour.
 _Avoid_: Workspace
 
+**Prompt addition**:
+Optional free text on a Project or Repository, appended after a `---` rule under `# Project clarifications:` then `# Repository clarifications:` headings at the end of every Automation and Ad-hoc prompt. Blank additions are skipped.
+
 **Agent**:
 A reusable set of instructions selected for a Repository and Workflow type.
 

@@ -220,4 +220,10 @@ CREATE INDEX ix_project_repositories_project ON project_repositories(project_id)
 ALTER TABLE runs ADD COLUMN agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
 `,
   },
+  {
+    version: 10,
+    sql: `ALTER TABLE projects ADD COLUMN prompt_addition TEXT NOT NULL DEFAULT '';
+ALTER TABLE repositories ADD COLUMN prompt_addition TEXT NOT NULL DEFAULT '';
+`,
+  },
 ];

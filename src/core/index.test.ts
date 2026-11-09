@@ -73,6 +73,7 @@ describe('createCore', () => {
           github: null,
           jira: null,
           validate: ['npm test'],
+          promptAddition: '',
         },
       ]);
       expect(log.mock.calls.flat().join(' ')).toContain('imported');

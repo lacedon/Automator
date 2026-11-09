@@ -5,7 +5,7 @@ vi.mock('next/headers', () => ({ cookies: async () => ({}) }));
 
 const { parseScope, projectHue } = await import('./scope');
 
-const projects = [{ id: 2, name: 'Alpha', repositories: [] }];
+const projects = [{ id: 2, name: 'Alpha', repositories: [], promptAddition: '' }];
 
 test('parseScope accepts none and existing Project ids only', () => {
   expect(parseScope(undefined, projects)).toBeNull();

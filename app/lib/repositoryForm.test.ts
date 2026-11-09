@@ -9,6 +9,7 @@ describe('repositoryFromForm', () => {
     data.set('gitlab', 'corp');
     data.set('github', '');
     data.set('validate', ' npm test \r\n\r\n  npm run check\n');
+    data.set('promptAddition', 'Use pnpm');
     expect(repositoryFromForm(data)).toEqual({
       name: 'pages',
       folder: '/repo',
@@ -16,6 +17,7 @@ describe('repositoryFromForm', () => {
       github: null,
       jira: null,
       validate: ['npm test', 'npm run check'],
+      promptAddition: 'Use pnpm',
     });
   });
 });

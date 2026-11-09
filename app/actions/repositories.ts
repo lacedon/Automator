@@ -15,6 +15,7 @@ const repositorySchema = z.object({
   github: z.string().trim().nullable(),
   jira: z.string().trim().nullable(),
   validate: z.array(z.string()),
+  promptAddition: z.string().default(''),
 });
 
 const repositoryInputSchema = repositorySchema.transform(

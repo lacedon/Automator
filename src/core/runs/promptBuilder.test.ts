@@ -27,6 +27,7 @@ function repository(source: Config): Repository {
     github: configured.github ?? null,
     jira: configured.jira ?? null,
     validate: configured.validate,
+    promptAddition: '',
   };
 }
 
@@ -367,6 +368,36 @@ describe('buildAdhocPrompt', () => {
     expect(prompt).not.toContain('## Automation');
     expect(prompt).not.toContain('## Recent Runs');
     expect(prompt).not.toContain('## Ticket');
+  });
+
+  test('appends Project then Repository additions at the end, skipping blank ones', () => {
+    const base = {
+      run: run({ watchId: null, trigger: 'adhoc', adhocPrompt: 'Bump it' }),
+      config: config(),
+      resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: null,
+    };
+    const repo = repository(base.config);
+    const both = buildAdhocPrompt({
+      ...base,
+      repository: { ...repo, promptAddition: 'R text' },
+      projectPromptAddition: ' P text ',
+    });
+    expect(
+      both.endsWith('---\n\n# Project clarifications:\n\nP text\n\n# Repository clarifications:\n\nR text\n'),
+    ).toBe(true);
+    const repoOnly = buildAdhocPrompt({
+      ...base,
+      repository: { ...repo, promptAddition: 'R text' },
+      projectPromptAddition: '  ',
+    });
+    expect(repoOnly).not.toContain('Project clarifications');
+    expect(repoOnly).toContain('# Repository clarifications:');
+    expect(buildAdhocPrompt({ ...base, repository: repo, projectPromptAddition: '' })).toBe(adhocPrompt(base));
+    expect(watchPrompt({ projectPromptAddition: 'P text' }).endsWith('# Project clarifications:\n\nP text\n')).toBe(
+      true,
+    );
   });
 
   test('a follow-up whose parent was deleted keeps the follow-up framing', () => {

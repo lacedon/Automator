@@ -88,6 +88,16 @@ function RepositoryFields({
         <textarea id={`${id}-validate`} name="validate" rows={3} defaultValue={repository?.validate.join('\n') ?? ''} />
         <div className="field-hint muted">One command per line. Leave blank for no validation commands.</div>
       </div>
+      <div className="field">
+        <label htmlFor={`${id}-prompt-addition`}>Prompt addition</label>
+        <textarea
+          id={`${id}-prompt-addition`}
+          name="promptAddition"
+          rows={3}
+          defaultValue={repository?.promptAddition ?? ''}
+        />
+        <div className="field-hint muted">Appended to every Automation and Ad-hoc prompt for this Repository.</div>
+      </div>
     </>
   );
 }
@@ -110,6 +120,7 @@ function CreateRepository({ connections }: { connections: Connections }) {
       ? undefined
       : {
           ...defaults,
+          promptAddition: defaults.promptAddition ?? '',
           gitlab: defaults.gitlab ?? null,
           github: defaults.github ?? null,
           jira: defaults.jira ?? null,

@@ -15,5 +15,6 @@ export function repositoryFromForm(data: FormData): RepositoryInput {
       .split(/\r?\n/)
       .map((command) => command.trim())
       .filter(Boolean),
+    promptAddition: text('promptAddition'),
   };
 }

@@ -32,6 +32,7 @@ export function testRepositoryReader(config: Config): RepositoryReader {
             github: repository.github ?? null,
             jira: repository.jira ?? null,
             validate: repository.validate,
+            promptAddition: '',
           };
     },
   };
