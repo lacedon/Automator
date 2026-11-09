@@ -63,6 +63,8 @@ export function SettingsDialog({
           // Reset before opening so native focus targets the fresh editor.
           flushSync(() => setSession((value) => value + 1));
           dialog.current?.showModal();
+          // An overflowing content area would otherwise take the initial focus.
+          dialog.current?.querySelector<HTMLElement>('.settings-dialog-content :is(input, select, textarea)')?.focus();
         }}
       >
         {trigger}

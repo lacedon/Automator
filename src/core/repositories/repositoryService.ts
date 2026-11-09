@@ -11,12 +11,16 @@ export type Repository = {
   github: string | null;
   jira: string | null;
   validate: string[];
+  promptAddition: string;
 };
 
-export type RepositoryInput = Repository;
+export type RepositoryInput = Omit<Repository, 'promptAddition'> & { promptAddition?: string };
 export type RepositoryReader = Pick<RepositoryService, 'get'>;
 
-type RepositoryRow = Omit<Repository, 'validate'> & { validate_json: string };
+type RepositoryRow = Omit<Repository, 'validate' | 'promptAddition'> & {
+  validate_json: string;
+  prompt_addition: string;
+};
 type RepositoryConfig = Pick<Config, 'configDir' | 'gitlab' | 'github' | 'jira'>;
 
 const invalid = (field: string, message: string): Result<never> => err({ code: 'INVALID_INPUT', field, message });
@@ -51,8 +55,8 @@ export class RepositoryService {
     if (this.get(valid.value.name) !== null) return invalid('name', 'Name is already in use');
     this.db
       .prepare(
-        `INSERT INTO repositories (name, folder, gitlab, github, jira, validate_json)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO repositories (name, folder, gitlab, github, jira, validate_json, prompt_addition)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         valid.value.name,
@@ -61,6 +65,7 @@ export class RepositoryService {
         valid.value.github,
         valid.value.jira,
         JSON.stringify(valid.value.validate),
+        valid.value.promptAddition,
       );
     return ok(valid.value);
   }
@@ -77,7 +82,8 @@ export class RepositoryService {
       this.db.transaction(() => {
         this.db
           .prepare(
-            `UPDATE repositories SET name = ?, folder = ?, gitlab = ?, github = ?, jira = ?, validate_json = ?
+            `UPDATE repositories
+             SET name = ?, folder = ?, gitlab = ?, github = ?, jira = ?, validate_json = ?, prompt_addition = ?
              WHERE name = ?`,
           )
           .run(
@@ -87,6 +93,7 @@ export class RepositoryService {
             valid.value.github,
             valid.value.jira,
             JSON.stringify(valid.value.validate),
+            valid.value.promptAddition,
             existing.name,
           );
         if (existing.name !== valid.value.name) {
@@ -135,6 +142,7 @@ export class RepositoryService {
       github: input.github || null,
       jira: input.jira || null,
       validate: [...input.validate],
+      promptAddition: (input.promptAddition ?? '').trim(),
     };
     const problems = this.problems(repository);
     const problem = problems.find(({ field }) => field !== 'folder') ?? problems[0];
@@ -169,7 +177,7 @@ export class RepositoryService {
   }
 
   private fromRow(row: RepositoryRow): Repository {
-    const { validate_json, ...repository } = row;
-    return { ...repository, validate: JSON.parse(validate_json) as string[] };
+    const { validate_json, prompt_addition, ...repository } = row;
+    return { ...repository, validate: JSON.parse(validate_json) as string[], promptAddition: prompt_addition };
   }
 }

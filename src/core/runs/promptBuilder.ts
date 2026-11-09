@@ -26,6 +26,15 @@ Stop, change nothing further, and finish with outcome "needs-you" instead of gue
 - validation commands are not configured or a required one fails,
 - updating the branch would not be safe.`;
 
+function additionsSection(repository: Repository, projectPromptAddition: string | null | undefined): string[] {
+  const parts = [
+    ['Project clarifications', projectPromptAddition?.trim()],
+    ['Repository clarifications', repository.promptAddition.trim()],
+  ].filter((part): part is [string, string] => Boolean(part[1]));
+  if (parts.length === 0) return [];
+  return ['---', ...parts.map(([heading, text]) => `# ${heading}:\n\n${text}`)];
+}
+
 type RecentRun = Pick<Run, 'id' | 'outcome' | 'summary' | 'endedAt'>;
 
 export function buildWatchPrompt(input: {
@@ -38,6 +47,7 @@ export function buildWatchPrompt(input: {
   hasJiraToken: boolean;
   agentInstructions: string;
   operationTemplate: string | null;
+  projectPromptAddition?: string | null;
 }): string {
   const { watch, run, snapshot, recent, repository, resultPath, hasJiraToken } = input;
   const sections = [rulesSection(watch, snapshot), ...agentSections(input.agentInstructions, input.operationTemplate)];
@@ -47,6 +57,7 @@ export function buildWatchPrompt(input: {
     recentSection(recent),
     validationSection(repository),
     resultSection(resultPath),
+    ...additionsSection(repository, input.projectPromptAddition),
   );
   return join(sections);
 }
@@ -80,6 +91,7 @@ export function buildAdhocPrompt(input: {
   resultPath: string;
   agentInstructions: string;
   operationTemplate: string | null;
+  projectPromptAddition?: string | null;
 }): string {
   const { run, config, repository, resultPath } = input;
   const sections = [`## Rules\n\n${ADHOC_RULES}`, ...agentSections(input.agentInstructions, input.operationTemplate)];
@@ -91,6 +103,7 @@ export function buildAdhocPrompt(input: {
       : `## Follow-up message\n\nThis continues the earlier conversation in this session.\n\nRepository: ${run.repository}\n\n${message}`,
     validationSection(repository),
     resultSection(resultPath),
+    ...additionsSection(repository, input.projectPromptAddition),
   );
   return join(sections);
 }

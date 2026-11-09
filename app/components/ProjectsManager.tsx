@@ -2,7 +2,13 @@
 
 import { useActionState, useId, useState } from 'react';
 import type { Project } from '@core/index';
-import { createProject, deleteProject, renameProject, setProjectRepositories } from '../actions/projects';
+import {
+  createProject,
+  deleteProject,
+  renameProject,
+  setProjectPromptAddition,
+  setProjectRepositories,
+} from '../actions/projects';
 import { ActionButton, ActionErrorProvider } from './ActionButton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
@@ -13,6 +19,8 @@ function ProjectEditor({ project, repositories }: { project: Project; repositori
   const close = useSettingsDialog();
   const [name, setName] = useState(project.name);
   const [selected, setSelected] = useState<string[]>(project.repositories);
+  const [promptAddition, setPromptAddition] = useState(project.promptAddition);
+  const promptId = useId();
   const toggle = (repo: string) => setSelected((s) => (s.includes(repo) ? s.filter((r) => r !== repo) : [...s, repo]));
   return (
     <ActionErrorProvider>
@@ -27,6 +35,13 @@ function ProjectEditor({ project, repositories }: { project: Project; repositori
           </label>
         ))}
       </fieldset>
+      <div className="field">
+        <label htmlFor={promptId}>Prompt addition</label>
+        <textarea id={promptId} rows={4} value={promptAddition} onChange={(e) => setPromptAddition(e.target.value)} />
+        <div className="field-hint muted">
+          Appended to every Automation and Ad-hoc prompt for this Project&apos;s Repositories.
+        </div>
+      </div>
       <SettingsDialogActions>
         <ActionButton action={() => renameProject(project.id, name)} onDone={close}>
           Rename
@@ -37,6 +52,13 @@ function ProjectEditor({ project, repositories }: { project: Project; repositori
           onDone={close}
         >
           Save repositories
+        </ActionButton>
+        <ActionButton
+          className="btn btn-primary"
+          action={() => setProjectPromptAddition(project.id, promptAddition)}
+          onDone={close}
+        >
+          Save prompt addition
         </ActionButton>
       </SettingsDialogActions>
     </ActionErrorProvider>

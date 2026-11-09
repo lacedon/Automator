@@ -298,6 +298,16 @@ export class RunExecutor {
     const operationTemplate = template?.instructions ?? null;
 
     const resultPath = dataDir.copilotResultPath(run.id);
+    const projectPromptAddition =
+      (
+        db
+          .prepare(
+            `SELECT p.prompt_addition FROM projects p
+             JOIN project_repositories pr ON pr.project_id = p.id
+             WHERE pr.repository = ? COLLATE NOCASE`,
+          )
+          .get(repo.name) as { prompt_addition: string } | undefined
+      )?.prompt_addition ?? null;
     let prompt: string;
     if (run.watchId === null) {
       try {
@@ -308,6 +318,7 @@ export class RunExecutor {
           resultPath,
           agentInstructions,
           operationTemplate,
+          projectPromptAddition,
         });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));
@@ -343,6 +354,7 @@ export class RunExecutor {
           hasJiraToken: watch.kind === 'jira' && prechecks.jira.hasToken(watch),
           agentInstructions,
           operationTemplate,
+          projectPromptAddition,
         });
       } catch (e) {
         return failure('PROMPT_FAILED', errorMessage(e));

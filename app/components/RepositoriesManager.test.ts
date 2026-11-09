@@ -21,6 +21,7 @@ test('shows invalid imported Repository diagnostics and explains deletion safety
     github: null,
     jira: null,
     validate: [],
+    promptAddition: '',
   };
   const markup = renderToStaticMarkup(
     createElement(RepositoriesManager, {
@@ -53,6 +54,7 @@ test('settings page passes connection names only, not credential environment bin
     github: null,
     jira: 'work',
     validate: [],
+    promptAddition: '',
   };
   coreHolder.core = {
     config: {
