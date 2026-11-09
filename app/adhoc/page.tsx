@@ -101,8 +101,9 @@ function History({ rows }: { rows: AdhocRow[] }) {
 
 export default async function AdhocPage() {
   const core = getCore();
-  const { repositories, provider, models, defaultModel, agents, agentAssignments } = core.read.formOptions();
-  const { rows } = core.read.adhocView(await currentScope());
+  const scope = await currentScope();
+  const { repositories, provider, models, defaultModel, agents, agentAssignments } = core.read.formOptions(scope);
+  const { rows } = core.read.adhocView(scope);
   return (
     <ActionErrorProvider>
       <h1 className="page-title">New ad-hoc run</h1>

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { WatchForm } from '../../components/WatchForm';
 import { getCore } from '../../lib/core';
+import { currentScope } from '../../lib/scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ function first(value: string | string[] | undefined): string | undefined {
 
 export default async function NewWatchPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const options = getCore().read.formOptions();
+  const options = getCore().read.formOptions(await currentScope());
   const initial = {
     target: first(params.target) ?? '',
     repository: first(params.repository) || (options.repositories[0]?.name ?? ''),

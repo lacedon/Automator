@@ -141,4 +141,16 @@ describe('Project scope in read models', () => {
       ['pages', 'A'],
     ]);
   });
+
+  test('form options are scoped to the selected Project', () => {
+    const { projects, read } = setup();
+    const a = projects.create('A');
+    if (!a.ok) throw new Error('setup');
+    projects.setRepositories(a.value.id, ['pages']);
+    const names = (scope: Parameters<typeof read.formOptions>[0]) =>
+      read.formOptions(scope).repositories.map((r) => r.name);
+    expect(names(a.value.id)).toEqual(['pages']);
+    expect(names('none')).toEqual(['api']);
+    expect(names(null)).toEqual(['api', 'pages']);
+  });
 });
