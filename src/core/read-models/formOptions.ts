@@ -1,6 +1,7 @@
 import { providerOptions } from '../config/providers';
-import type { AgentAssignment, InitialReview, ProviderName, WorkflowType } from '../domain/types';
+import type { AgentAssignment, InitialReview, ProjectScope, ProviderName, WorkflowType } from '../domain/types';
 import type { ReadDeps } from './deps';
+import { scopeFilter } from './scope';
 
 export type FormOptions = {
   repositories: { name: string; folder: string; host: string | null; project: string | null }[];
@@ -14,7 +15,9 @@ export type FormOptions = {
   agentAssignments: AgentAssignment[];
 };
 
-export function formOptions({ config, db, repositories }: ReadDeps): FormOptions {
+export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOptions {
+  const { config, db, repositories } = deps;
+  const inScope = scopeFilter(deps, scope);
   const { runs } = config;
   const options = providerOptions(config, config.provider);
   const projectOf = new Map(
@@ -25,13 +28,18 @@ export function formOptions({ config, db, repositories }: ReadDeps): FormOptions
     ).map((r) => [r.repository, r.name]),
   );
   return {
-    repositories: repositories.list().map((repo) => ({
-      name: repo.name,
-      folder: repo.folder,
-      project: projectOf.get(repo.name) ?? null,
-      host:
-        (repo.gitlab && config.gitlab[repo.gitlab]?.host) || (repo.github && config.github[repo.github]?.host) || null,
-    })),
+    repositories: repositories
+      .list()
+      .filter((repo) => inScope(repo.name))
+      .map((repo) => ({
+        name: repo.name,
+        folder: repo.folder,
+        project: projectOf.get(repo.name) ?? null,
+        host:
+          (repo.gitlab && config.gitlab[repo.gitlab]?.host) ||
+          (repo.github && config.github[repo.github]?.host) ||
+          null,
+      })),
     provider: config.provider,
     models: [...new Set([options.defaultModel, ...options.models])],
     defaultModel: options.defaultModel,

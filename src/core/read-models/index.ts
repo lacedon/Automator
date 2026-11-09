@@ -32,7 +32,7 @@ export interface ReadModels {
   runList(f: RunFilter): RunRow[];
   runDetail(id: number): Promise<RunDetailView | null>;
   adhocView(scope?: ProjectScope): { rows: AdhocRow[] };
-  formOptions(): FormOptions;
+  formOptions(scope?: ProjectScope): FormOptions;
   nextCheckText(w: Watch, ctx: NextCheckContext): NextCheck;
   navCounts(scope?: ProjectScope): { watches: number; queued: number };
 }
@@ -46,7 +46,7 @@ export function createReadModels(deps: ReadDeps): ReadModels {
     runList: (f) => runList(deps, f),
     runDetail: (id) => runDetail(deps, id),
     adhocView: (scope) => adhocView(deps, scope),
-    formOptions: () => formOptions(deps),
+    formOptions: (scope) => formOptions(deps, scope),
     nextCheckText,
     navCounts: (scope = null) => {
       const inScope = scopeFilter(deps, scope);
