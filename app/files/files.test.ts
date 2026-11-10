@@ -5,6 +5,7 @@ import { DataDir } from '@core/index';
 
 const core = vi.hoisted(() => ({ dataDir: null as unknown }));
 vi.mock('../lib/core', () => ({ getCore: () => core }));
+vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
 
 const { GET: getRunFile } = await import('./run/[id]/[name]/route');
 const { GET: getAttemptFile } = await import('./attempt/[name]/route');

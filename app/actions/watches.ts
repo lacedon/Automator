@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { parseDuration, type PreviewTargetResult, type Result } from '@core/index';
 import { getCore } from '../lib/core';
+import { requireWriteOnRepository, requireWriteOnWatch } from '../lib/guard';
 import { parseInput } from './parse';
 import type { ActionResult, FormResult } from './types';
 
@@ -18,24 +19,32 @@ function done(result: Result<unknown>): ActionResult {
 export async function pauseWatch(id: number): Promise<ActionResult> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireWriteOnWatch(input.value);
+  if (!guard.ok) return guard;
   return done(getCore().watches.pause(input.value));
 }
 
 export async function closeWatch(id: number): Promise<ActionResult> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireWriteOnWatch(input.value);
+  if (!guard.ok) return guard;
   return done(getCore().watches.close(input.value));
 }
 
 export async function reopenWatch(id: number): Promise<ActionResult> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireWriteOnWatch(input.value);
+  if (!guard.ok) return guard;
   return done(getCore().watches.reopen(input.value));
 }
 
 export async function deleteWatch(id: number): Promise<ActionResult> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireWriteOnWatch(input.value);
+  if (!guard.ok) return guard;
   const result = done(getCore().watches.delete(input.value));
   if (!result.ok) return result;
   redirect('/automations');
@@ -54,6 +63,8 @@ export async function resumeWatch(_prev: ActionResult | null, formData: FormData
     runNow: formData.get('runNow') ?? undefined,
   });
   if (!input.ok) return input;
+  const guard = await requireWriteOnWatch(input.value.id);
+  if (!guard.ok) return guard;
   return done(getCore().watches.resume(input.value.id, { note: input.value.note, runNow: input.value.runNow === '1' }));
 }
 
@@ -74,6 +85,8 @@ export async function runWatchNow(_prev: ActionResult | null, formData: FormData
   });
   if (!input.ok) return input;
   const { id, extraInstructions, reviewUnresolved } = input.value;
+  const guard = await requireWriteOnWatch(id);
+  if (!guard.ok) return guard;
   return done(getCore().watches.runNow(id, { extraInstructions, reviewUnresolved: reviewUnresolved !== undefined }));
 }
 
@@ -145,6 +158,8 @@ export async function createWatch(
   const values = formValues(formData);
   const input = parseInput(createSchema, values);
   if (!input.ok) return { ...input, values };
+  const guard = await requireWriteOnRepository(input.value.repository);
+  if (!guard.ok) return { ...guard, values };
   const { interval, initialReview, ...rest } = input.value;
   const result = getCore().watches.create({
     ...rest,
@@ -152,6 +167,7 @@ export async function createWatch(
     initialReview: initialReview ?? undefined,
   });
   if (!result.ok) return { ...result, values };
+  getCore().access.setOwner('watches', result.value.id, guard.userId);
   revalidatePath('/', 'layout');
   redirect(`/automations/${result.value.id}`);
 }
@@ -164,6 +180,8 @@ export async function updateWatch(
   const input = parseInput(updateSchema, values);
   if (!input.ok) return { ...input, values };
   const { id, instructions, interval, model, initialReview } = input.value;
+  const guard = await requireWriteOnWatch(id);
+  if (!guard.ok) return { ...guard, values };
   const result = getCore().watches.update(id, { instructions, intervalMs: interval, model, initialReview });
   if (!result.ok) return { ...result, values };
   revalidatePath('/', 'layout');
@@ -175,5 +193,7 @@ const previewSchema = z.object({ target: z.string(), repository: z.string() });
 export async function previewTarget(target: string, repository: string): Promise<PreviewTargetResult> {
   const input = parseInput(previewSchema, { target, repository });
   if (!input.ok) return { kind: null, preview: null, error: input.error };
+  const guard = await requireWriteOnRepository(input.value.repository);
+  if (!guard.ok) return { kind: null, preview: null, error: guard.error };
   return getCore().watches.previewTarget(input.value.target, input.value.repository);
 }

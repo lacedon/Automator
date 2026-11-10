@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { RepositoryInput, Result } from '@core/index';
 import { getCore } from '../lib/core';
+import { requireAdmin } from '../lib/guard';
 import { repositoryFromForm } from '../lib/repositoryForm';
 import { parseInput } from './parse';
 import type { ActionResult, FormResult } from './types';
@@ -44,6 +45,8 @@ export async function createRepository(
   const values = repositoryFromForm(formData);
   const input = parseInput(repositoryInputSchema, values);
   if (!input.ok) return { ...input, values };
+  const guard = await requireAdmin();
+  if (!guard.ok) return { ...guard, values };
   const created = getCore().repositories.create(input.value);
   if (!created.ok) return { ...created, values };
   refresh();
@@ -56,11 +59,15 @@ export async function updateRepository(name: string, input: RepositoryInput): Pr
     input,
   });
   if (!parsed.ok) return parsed;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   return toAction(getCore().repositories.update(parsed.value.name, parsed.value.input));
 }
 
 export async function deleteRepository(name: string): Promise<ActionResult> {
   const parsed = parseInput(z.string().trim().min(1), name);
   if (!parsed.ok) return parsed;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   return toAction(getCore().repositories.delete(parsed.value));
 }

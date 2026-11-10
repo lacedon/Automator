@@ -6,6 +6,7 @@ import { testConfig } from '../../test/helpers/config';
 const holder = vi.hoisted(() => ({ core: null as unknown }));
 const jar = vi.hoisted(() => ({ set: vi.fn(), delete: vi.fn() }));
 vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
+vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/headers', () => ({ cookies: async () => jar }));
 

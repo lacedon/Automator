@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
+vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
+
 const { requestApplicationRestart } = await import('./restart');
 
 type RestartMessage = { type: 'restart'; requestId: string };

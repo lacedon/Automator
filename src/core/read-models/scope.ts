@@ -9,6 +9,11 @@ export function scopeFilter({ db }: ReadDeps, scope: ProjectScope): (repository:
     project_id: number;
   }[];
   const projectOf = new Map(rows.map((r) => [r.repository, r.project_id]));
+  if (typeof scope === 'object')
+    return (repository) => {
+      const project = projectOf.get(repository);
+      return project === undefined ? scope.unassigned : scope.projects.includes(project);
+    };
   return scope === 'none'
     ? (repository) => !projectOf.has(repository)
     : (repository) => projectOf.get(repository) === scope;

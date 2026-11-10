@@ -6,6 +6,7 @@ import { testConfig } from '../../test/helpers/config';
 const holder = vi.hoisted(() => ({ core: null as unknown }));
 const revalidatePath = vi.hoisted(() => vi.fn());
 vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
+vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
 vi.mock('next/cache', () => ({ revalidatePath }));
 
 const { sendRunMessage } = await import('./chat');

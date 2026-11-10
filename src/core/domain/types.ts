@@ -126,5 +126,6 @@ export interface Project {
   promptAddition: string;
 }
 
-// null: all work; 'none': work of repositories that belong to no Project; number: one Project.
-export type ProjectScope = number | 'none' | null;
+// null: all work; 'none': work of repositories that belong to no Project; number: one Project;
+// object: the union of the listed Projects (and, when `unassigned`, repositories without a Project).
+export type ProjectScope = number | 'none' | null | { projects: number[]; unassigned: boolean };

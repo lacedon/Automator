@@ -1,5 +1,6 @@
 import type { Database } from '../db/open';
 import { err, ok, type Result } from '../domain/result';
+import type { ProjectScope } from '../domain/types';
 
 export type Permission = 'read' | 'write';
 export const PERMISSIONS: readonly Permission[] = ['read', 'write'];
@@ -125,6 +126,59 @@ export class AccessService {
   // Managing users, roles and global settings takes a global `write`.
   canAdminister(userId: number): boolean {
     return this.can(userId, 'write', null);
+  }
+
+  projectOfRepository(repository: string): number | null {
+    const row = this.db.prepare('SELECT project_id FROM project_repositories WHERE repository = ?').get(repository) as
+      { project_id: number } | undefined;
+    return row?.project_id ?? null;
+  }
+
+  // A Repository inherits the Project's access; one outside every Project (or unknown) needs a global grant.
+  canOnRepository(userId: number, permission: Permission, repository: string | null): boolean {
+    return this.can(userId, permission, repository === null ? null : this.projectOfRepository(repository));
+  }
+
+  canOnWatch(userId: number, permission: Permission, watchId: number): boolean {
+    return this.canOnRepository(userId, permission, this.repositoryOf('watches', watchId));
+  }
+
+  canOnRun(userId: number, permission: Permission, runId: number): boolean {
+    return this.canOnRepository(userId, permission, this.repositoryOf('runs', runId));
+  }
+
+  // What a user may list: their requested scope, narrowed to the Projects they can read.
+  readScope(userId: number, requested: ProjectScope, allProjectIds: number[]): ProjectScope {
+    if (this.can(userId, 'read', null)) return requested;
+    const readable = this.readableProjectIds(userId, allProjectIds);
+    if (typeof requested === 'number' && readable.includes(requested)) return requested;
+    return { projects: readable, unassigned: false };
+  }
+
+  // Gives work that has no owner yet to the bootstrap admin, so existing data stays reachable.
+  ensureOwnership(): void {
+    const owner = this.db
+      .prepare("SELECT id FROM users ORDER BY username = 'admin' COLLATE NOCASE DESC, id LIMIT 1")
+      .get() as { id: number } | undefined;
+    if (owner === undefined) return;
+    for (const table of ['watches', 'runs'])
+      this.db.prepare(`UPDATE ${table} SET owner_user_id = ? WHERE owner_user_id IS NULL`).run(owner.id);
+  }
+
+  setOwner(table: 'watches' | 'runs', id: number, userId: number): void {
+    this.db.prepare(`UPDATE ${table} SET owner_user_id = ? WHERE id = ?`).run(userId, id);
+  }
+
+  ownerOf(table: 'watches' | 'runs', id: number): number | null {
+    const row = this.db.prepare(`SELECT owner_user_id FROM ${table} WHERE id = ?`).get(id) as
+      { owner_user_id: number | null } | undefined;
+    return row?.owner_user_id ?? null;
+  }
+
+  private repositoryOf(table: 'watches' | 'runs', id: number): string | null {
+    const row = this.db.prepare(`SELECT repository FROM ${table} WHERE id = ?`).get(id) as
+      { repository: string | null } | undefined;
+    return row?.repository ?? null;
   }
 
   // Projects a user may see: those with a scoped grant, or all of them with a global one.

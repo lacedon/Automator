@@ -7,6 +7,7 @@ import { RunTabs } from '../../components/RunTabs';
 import { NoAutoRefresh } from '../../components/NoAutoRefresh';
 import { keepsRefreshing } from '../../lib/autoRefresh';
 import { getCore } from '../../lib/core';
+import { canReadRun } from '../../lib/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ function noTranscriptText(run: Run): string {
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!/^\d+$/.test(id)) notFound();
+  if (!/^\d+$/.test(id) || !(await canReadRun(Number(id)))) notFound();
   const view = await getCore().read.runDetail(Number(id));
   if (view === null) notFound();
   const { run, watchTitle } = view;

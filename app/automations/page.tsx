@@ -83,7 +83,7 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
     q: filter.q,
     project: await currentScope(),
   });
-  const { repositories, jiraEnabled, byRepository } = core.read.formOptions();
+  const { repositories, jiraEnabled, byRepository } = core.read.formOptions(await currentScope());
   const filtered =
     filter.state !== undefined || filter.kind !== undefined || filter.repo !== undefined || filter.q !== undefined;
 

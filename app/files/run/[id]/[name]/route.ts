@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { getCore } from '../../../../lib/core';
+import { canReadRun } from '../../../../lib/guard';
 import { notFound, serveDataFile } from '../../../serve';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,6 @@ const RUN_FILES = new Set(['prompt.md', 'transcript.md', 'result.json', 'copilot
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string; name: string }> }): Promise<Response> {
   const { id, name } = await ctx.params;
   const { dataDir } = getCore();
-  if (!/^\d+$/.test(id) || !RUN_FILES.has(name)) return notFound();
+  if (!/^\d+$/.test(id) || !RUN_FILES.has(name) || !(await canReadRun(Number(id)))) return notFound();
   return serveDataFile(dataDir, path.join(dataDir.runDir(Number(id)), name));
 }

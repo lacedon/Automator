@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { createConnection, type Socket } from 'node:net';
+import { requireAdmin } from '../lib/guard';
 import type { ActionResult } from './types';
 
 const ACKNOWLEDGEMENT_TIMEOUT_MS = 5_000;
@@ -11,6 +12,9 @@ function failure(message: string): ActionResult<{ accepted: boolean }> {
 }
 
 export async function requestApplicationRestart(): Promise<ActionResult<{ accepted: boolean }>> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+
   const socketPath = process.env.AUTOMATOR_SUPERVISOR_SOCKET;
   const send = process.send;
   if (socketPath === undefined && (typeof send !== 'function' || process.connected === false))

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { AppError } from '@core/index';
 import { getCore } from '../lib/core';
+import { requireWriteOnRepository, requireWriteOnRun } from '../lib/guard';
 import { parseInput } from './parse';
 import type { ActionResult } from './types';
 
@@ -40,9 +41,13 @@ export async function queueAdhoc(_prev: AdhocFormState, formData: FormData): Pro
   }
   const input = parseInput(adhocSchema, values);
   if (!input.ok) return { ...input, values };
-  const { queue } = getCore();
+  const guard = await requireWriteOnRepository(input.value.repository);
+  if (!guard.ok) return { ...guard, values };
+  const core = getCore();
+  const { queue } = core;
   const result = await queue.requestAdhoc(input.value);
   if (!result.ok) return { ...result, values };
+  core.access.setOwner('runs', result.value.run.id, guard.userId);
   revalidatePath('/', 'layout');
   const { run, warning } = result.value;
   return {
@@ -54,6 +59,8 @@ export async function queueAdhoc(_prev: AdhocFormState, formData: FormData): Pro
 export async function deleteAdhocRun(id: number): Promise<ActionResult> {
   const input = parseInput(z.number().int().positive(), id);
   if (!input.ok) return input;
+  const guard = await requireWriteOnRun(input.value);
+  if (!guard.ok) return guard;
   const result = getCore().queue.deleteAdhoc(input.value);
   revalidatePath('/', 'layout');
   return result.ok ? { ok: true } : result;
