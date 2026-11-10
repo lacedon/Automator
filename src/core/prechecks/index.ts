@@ -1,4 +1,5 @@
 import type { Secrets } from '../config/load';
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import type { WatchKind } from '../domain/types';
 import { fetchWithRetry, type FetchLike } from '../http/fetchWithRetry';
@@ -19,6 +20,8 @@ export type Prechecks = { mr: Precheck; jira: JiraPrecheck; free: Precheck };
 export type PrecheckDeps = {
   config: Config;
   secrets: Secrets;
+  configFor?: ConfigFor;
+  secretsFor?: (config: Config) => Secrets;
   repositories: RepositoryReader;
   fetchImpl?: FetchLike;
   gitlabMeCache?: GitLabPrecheckDeps['meCache'];
@@ -30,24 +33,30 @@ export type PrecheckDeps = {
 
 export function createPrechecks(deps: PrecheckDeps): Prechecks {
   const { config, secrets, repositories, fetchImpl = fetchWithRetry } = deps;
+  const configFor: ConfigFor = deps.configFor ?? (() => config);
+  const secretsFor = (repository: string): Secrets => deps.secretsFor?.(configFor(repository)) ?? secrets;
   const gitlabClientFor =
     deps.gitlabClientFor ??
-    ((conn: string) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn], fetchImpl));
+    ((conn: string, repository?: string) =>
+      createGitLabClient(config.gitlab[conn]!.host, secretsFor(repository ?? '').gitlab[conn], fetchImpl));
   const githubClientFor =
     deps.githubClientFor ??
-    ((conn: string) => createGitHubClient(config.github[conn]!.host, secrets.github[conn], fetchImpl));
+    ((conn: string, repository?: string) =>
+      createGitHubClient(config.github[conn]!.host, secretsFor(repository ?? '').github[conn], fetchImpl));
   return {
     mr: new HostDispatchPrecheck(
       config,
       repositories,
       new GitLabPrecheck({
         config,
+        configFor,
         repositories,
         clientFor: gitlabClientFor,
         meCache: deps.gitlabMeCache ?? memoryMeCache(gitlabClientFor),
       }),
       new GitHubPrecheck({
         config,
+        configFor,
         repositories,
         clientFor: githubClientFor,
         meCache: deps.githubMeCache ?? memoryMeCache(githubClientFor),
@@ -57,9 +66,11 @@ export function createPrechecks(deps: PrecheckDeps): Prechecks {
       config,
       repositories,
       secrets,
+      secretsFor,
       clientFor:
         deps.jiraClientFor ??
-        ((conn) => createJiraClient(config.jira.connections[conn]!, secrets.jira[conn] ?? {}, fetchImpl)),
+        ((conn, repository) =>
+          createJiraClient(config.jira.connections[conn]!, secretsFor(repository ?? '').jira[conn] ?? {}, fetchImpl)),
     }),
     free: new FreeformPrecheck(),
   };
@@ -95,12 +106,13 @@ export function precheckFor(prechecks: Prechecks, kind: WatchKind): Precheck {
 function memoryMeCache(clientFor: GitLabPrecheckDeps['clientFor']): GitLabPrecheckDeps['meCache'] {
   const cache = new Map<string, ReturnType<GitLabPrecheckDeps['meCache']['get']>>();
   return {
-    get(conn) {
-      let me = cache.get(conn);
+    get(conn, repository) {
+      const key = `${repository ?? ''}\0${conn}`;
+      let me = cache.get(key);
       if (me === undefined) {
-        me = clientFor(conn).me();
-        me.catch(() => cache.delete(conn));
-        cache.set(conn, me);
+        me = clientFor(conn, repository).me();
+        me.catch(() => cache.delete(key));
+        cache.set(key, me);
       }
       return me;
     },

@@ -11,7 +11,10 @@ import { providerLabel } from '../lib/providerLabel';
 export function AdhocForm({
   options,
 }: {
-  options: Pick<FormOptions, 'repositories' | 'provider' | 'models' | 'defaultModel' | 'agents' | 'agentAssignments'>;
+  options: Pick<
+    FormOptions,
+    'repositories' | 'provider' | 'models' | 'defaultModel' | 'byRepository' | 'agents' | 'agentAssignments'
+  >;
 }) {
   const [state, formAction, pending] = useActionState(queueAdhoc, null);
   const [repository, setRepository] = useState(options.repositories[0]?.name ?? '');
@@ -39,7 +42,8 @@ export function AdhocForm({
   const workflowType = ticket.trim() === '' ? 'free-adhoc' : 'ticket-adhoc';
   const defaultAgent = defaultAgentId(options.agentAssignments, repository, workflowType);
   const repo = options.repositories.find((r) => r.name === repository);
-  const otherModels = options.models.filter((m) => m !== options.defaultModel);
+  const settings = options.byRepository[repository] ?? options;
+  const otherModels = settings.models.filter((m) => m !== settings.defaultModel);
   const failed = state?.ok === false ? state.error : null;
   const inputClass = (field: string) =>
     (failed?.code === 'UNKNOWN_REPOSITORY' && field === 'repository') ||
@@ -110,14 +114,14 @@ export function AdhocForm({
           value={model}
           onChange={(e) => setModel(e.target.value)}
         >
-          <option value="">default ({options.defaultModel})</option>
+          <option value="">default ({settings.defaultModel})</option>
           {otherModels.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>
           ))}
         </select>
-        <div className="field-hint muted">Provider: {providerLabel(options.provider)}</div>
+        <div className="field-hint muted">Provider: {providerLabel(settings.provider)}</div>
       </div>
       <div className="actions">
         <button type="submit" className="btn btn-primary" disabled={pending}>

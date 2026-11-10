@@ -3,7 +3,7 @@ import { providerOptions } from '../config/providers';
 import { intervalFor } from '../domain/schedule';
 import type { Cursor, InitialReview, JiraCursor, MrCursor, NeedsYouEvent, Watch } from '../domain/types';
 import type { WatchAction } from '../domain/watchState';
-import type { ReadDeps } from './deps';
+import { configOf, type ReadDeps } from './deps';
 import type { NextCheck } from './nextCheck';
 import { toRunningCard, type RunningCard } from './queue';
 import { RUNS_WITH_TITLE, toRunRow, toRunWithTitle, type RunRow } from './runs';
@@ -52,10 +52,11 @@ function lastHandledLines(kind: Watch['kind'], cursor: Cursor | null): string[] 
 }
 
 export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null {
-  const { db, config, repositories } = deps;
+  const { db, repositories } = deps;
   const row = db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
   if (row === undefined) return null;
   const watch = toWatch(row);
+  const config = configOf(deps, watch.repository);
   const modelOptions = providerOptions(config, config.provider);
   const src = nextCheckSource(deps);
   const running = src.running?.watchId === watch.id ? src.running : null;

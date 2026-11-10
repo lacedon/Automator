@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { loadConfig, loadDotenv, readRawConfig, resolveSecrets, type Secrets } from './config/load';
+import { loadConfig, loadDotenv, readRawConfig, type Secrets } from './config/load';
+import { ConfigResolver } from './config/resolver';
 import type { Config } from './config/schema';
 import { migrate } from './db/migrate';
 import { openDb, type Database } from './db/open';
@@ -31,6 +32,8 @@ import { WatchService, type WatchServiceDeps } from './watches/watchService';
 export { ConfigError, loadConfig, loadDotenv, resolveSecrets, type Secrets } from './config/load';
 export { readEditableConfig, writeEditableConfig, type EditableConfig } from './config/editor';
 export type { Config } from './config/schema';
+export { ConfigResolver, type ConfigFor } from './config/resolver';
+export type { OverrideRow, OverrideValues } from './config/overrides';
 export type { Database } from './db/open';
 export * from './domain/types';
 export { err, ok, type AppError, type Result } from './domain/result';
@@ -76,9 +79,9 @@ export { resolveJiraDoneNames } from './worker/jiraDoneNames';
 
 export interface Deps {
   clock: Clock;
-  gitlab: (conn: string) => GitLabClient;
-  github: (conn: string) => GitHubClient;
-  jira: (conn: string) => JiraClient;
+  gitlab: (conn: string, repository?: string) => GitLabClient;
+  github: (conn: string, repository?: string) => GitHubClient;
+  jira: (conn: string, repository?: string) => JiraClient;
   copilot: CopilotLauncher;
   launchers: ProviderLaunchers;
   notifier: Notifier;
@@ -97,6 +100,7 @@ export interface Core {
   cleanup: CleanupService;
   agents: AgentService;
   projects: ProjectService;
+  configs: ConfigResolver;
   repositories: RepositoryService;
   notifier: Notifier;
   read: ReadModels;
@@ -115,20 +119,20 @@ function metaMeCache(
   db: Database,
   host: 'gitlab' | 'github',
   clientFor: Deps['gitlab'] | Deps['github'],
-  secrets: Secrets,
+  secretsFor: (repository?: string) => Secrets,
 ): GitLabPrecheckDeps['meCache'] {
   return {
-    async get(conn) {
+    async get(conn, repository) {
       const key = `${host}_me:${conn}`;
       const tokenHash = createHash('sha256')
-        .update(secrets[host][conn] ?? '')
+        .update(secretsFor(repository)[host][conn] ?? '')
         .digest('hex')
         .slice(0, 16);
       const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
       const cached =
         row === undefined ? null : (JSON.parse(row.value) as { id: number; username: string; tokenHash?: string });
       if (cached !== null && cached.tokenHash === tokenHash) return { id: cached.id, username: cached.username };
-      const { id, username } = await clientFor(conn).me();
+      const { id, username } = await clientFor(conn, repository).me();
       upsertMeta(db, key, JSON.stringify({ id, username, tokenHash }));
       return { id, username };
     },
@@ -149,12 +153,15 @@ function mrPreview(deps: Pick<Deps, 'gitlab' | 'github'>): NonNullable<WatchServ
 }
 
 export function createCore(config: Config, overrides: Partial<Deps> = {}, legacyConfig?: unknown): Core {
-  const secrets = resolveSecrets(config, process.env);
   const dataDir = new DataDir(config.dataDir);
   const db = openDb(dataDir.db);
   migrate(db);
   if (legacyConfig !== undefined) importLegacyRepositories(db, legacyConfig, config.configDir);
   const repositories = new RepositoryService(db, config);
+  const configs = new ConfigResolver(db, config);
+  const configFor = (repository: string | null) => configs.forRepository(repository);
+  const secrets = configs.secretsFor(config);
+  const secretsOf = (repository?: string) => configs.secretsFor(configs.forRepository(repository ?? null));
 
   const copilot = overrides.copilot ?? createCopilotLauncher(config, secrets);
   const launchers =
@@ -167,12 +174,28 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     } satisfies ProviderLaunchers);
   const deps: Deps = {
     clock: overrides.clock ?? systemClock,
-    gitlab: overrides.gitlab ?? ((conn) => createGitLabClient(config.gitlab[conn]!.host, secrets.gitlab[conn])),
-    github: overrides.github ?? ((conn) => createGitHubClient(config.github[conn]!.host, secrets.github[conn])),
-    jira: overrides.jira ?? ((conn) => createJiraClient(config.jira.connections[conn]!, secrets.jira[conn] ?? {})),
+    gitlab:
+      overrides.gitlab ??
+      ((conn, repository) => createGitLabClient(config.gitlab[conn]!.host, secretsOf(repository).gitlab[conn])),
+    github:
+      overrides.github ??
+      ((conn, repository) => createGitHubClient(config.github[conn]!.host, secretsOf(repository).github[conn])),
+    jira:
+      overrides.jira ??
+      ((conn, repository) => createJiraClient(config.jira.connections[conn]!, secretsOf(repository).jira[conn] ?? {})),
     copilot,
     launchers,
-    notifier: overrides.notifier ?? createTeamsNotifier({ db, config, launcher: copilot, dataDir, secrets }),
+    notifier:
+      overrides.notifier ??
+      createTeamsNotifier({
+        db,
+        config,
+        configFor,
+        secretsFor: (effective) => configs.secretsFor(effective),
+        launcher: copilot,
+        dataDir,
+        secrets,
+      }),
   };
   const { clock, notifier } = deps;
   const onNeedsYou = (e: NeedsYouEvent) => notifier.notifyNeedsYou(e);
@@ -180,14 +203,17 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
   const prechecks = createPrechecks({
     config,
     secrets,
+    configFor,
+    secretsFor: (effective) => configs.secretsFor(effective),
     repositories,
     gitlabClientFor: deps.gitlab,
     githubClientFor: deps.github,
     jiraClientFor: deps.jira,
-    gitlabMeCache: metaMeCache(db, 'gitlab', deps.gitlab, secrets),
-    githubMeCache: metaMeCache(db, 'github', deps.github, secrets),
+    gitlabMeCache: metaMeCache(db, 'gitlab', deps.gitlab, secretsOf),
+    githubMeCache: metaMeCache(db, 'github', deps.github, secretsOf),
   });
   const queue = new QueueService(db, clock, dataDir, config, repositories, {
+    configFor,
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
   const agents = new AgentService(db);
@@ -195,6 +221,8 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     db,
     clock,
     config,
+    configFor,
+    secretsFor: (effective) => configs.secretsFor(effective),
     repositories,
     dataDir,
     launchers,
@@ -209,16 +237,17 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     dataDir,
     deps,
     executorDeps,
-    watches: new WatchService({ db, clock, config, repositories, queue, dataDir, preview: mrPreview(deps) }),
+    watches: new WatchService({ db, clock, config, configFor, repositories, queue, dataDir, preview: mrPreview(deps) }),
     queue,
-    scheduler: new Scheduler({ db, clock, config, dataDir, queue, repositories, prechecks, onNeedsYou }),
+    scheduler: new Scheduler({ db, clock, config, configFor, dataDir, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
-    cleanup: new CleanupService({ db, clock, config, dataDir }),
+    cleanup: new CleanupService({ db, clock, config, configFor, allConfigs: () => configs.all(), dataDir }),
     agents,
     projects: new ProjectService(db, repositories, () => clock.now()),
+    configs,
     repositories,
     notifier,
-    read: createReadModels({ db, config, clock, dataDir, repositories }),
+    read: createReadModels({ db, config, configFor, clock, dataDir, repositories }),
     close() {
       if (db.open) db.close();
     },

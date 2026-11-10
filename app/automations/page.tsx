@@ -83,7 +83,7 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
     q: filter.q,
     project: await currentScope(),
   });
-  const { repositories, jiraEnabled } = core.read.formOptions();
+  const { repositories, jiraEnabled, byRepository } = core.read.formOptions();
   const filtered =
     filter.state !== undefined || filter.kind !== undefined || filter.repo !== undefined || filter.q !== undefined;
 
@@ -92,8 +92,8 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
       <WatchFilters filter={filter} counts={counts} repositories={repositories.map((r) => r.name)} />
       {jiraNotice && (
         <div className="notice">
-          Jira checking is off (<code>jira.enabled</code> is false). Jira Automations are kept but don&apos;t run on
-          schedule or via Run now.
+          Jira checking is off (<code>jira.enabled</code> is false) for some Repositories. Their Jira Automations are
+          kept but don&apos;t run on schedule or via Run now.
         </div>
       )}
       {rows.length === 0 ? (
@@ -114,7 +114,11 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
           </thead>
           <tbody>
             {rows.map((row) => (
-              <WatchTableRow key={row.id} row={row} jiraEnabled={jiraEnabled} />
+              <WatchTableRow
+                key={row.id}
+                row={row}
+                jiraEnabled={byRepository[row.repository]?.jiraEnabled ?? jiraEnabled}
+              />
             ))}
           </tbody>
         </table>

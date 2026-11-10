@@ -1,11 +1,12 @@
 'use client';
 
 import { useActionState, useId, useState } from 'react';
-import type { Project } from '@core/index';
+import type { OverrideRow, Project } from '@core/index';
 import {
   createProject,
   deleteProject,
   renameProject,
+  setProjectConfig,
   setProjectPromptAddition,
   setProjectRepositories,
 } from '../actions/projects';
@@ -65,6 +66,100 @@ function ProjectEditor({ project, repositories }: { project: Project; repositori
   );
 }
 
+function OverrideInput({
+  row,
+  value,
+  onChange,
+}: {
+  row: OverrideRow;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const label = `${row.group}: ${row.label}`;
+  if (row.kind === 'select' || row.kind === 'boolean') {
+    const options = row.kind === 'boolean' ? ['true', 'false'] : (row.options ?? []);
+    return (
+      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">inherit ({row.inherited})</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  return (
+    <input
+      aria-label={label}
+      value={value}
+      placeholder={row.inherited === '' ? 'inherit' : `inherit (${row.inherited})`}
+      inputMode={row.kind === 'number' ? 'numeric' : undefined}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function ProjectConfigEditor({ project, rows }: { project: Project; rows: OverrideRow[] }) {
+  const close = useSettingsDialog();
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(rows.map((row) => [row.id, row.override])),
+  );
+  const groups = [...new Set(rows.map((row) => row.group))];
+  return (
+    <ActionErrorProvider>
+      <p className="muted">
+        Blank settings inherit the global value, including later global changes. Overrides apply to this Project&apos;s
+        Repositories for work started after saving.
+      </p>
+      {groups.map((group) => (
+        <fieldset key={group} className="project-config-group">
+          <legend>{group}</legend>
+          {rows
+            .filter((row) => row.group === group)
+            .map((row) => (
+              <div className="field" key={row.id}>
+                <label>
+                  {row.label}{' '}
+                  <span className="muted">{(values[row.id] ?? '') === '' ? '(inherited)' : '(overridden)'}</span>
+                  <OverrideInput
+                    row={row}
+                    value={values[row.id] ?? ''}
+                    onChange={(value) => setValues((current) => ({ ...current, [row.id]: value }))}
+                  />
+                </label>
+                {row.hint !== undefined && <div className="field-hint muted">{row.hint}</div>}
+                {(values[row.id] ?? '') !== '' && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setValues((current) => ({ ...current, [row.id]: '' }))}
+                  >
+                    Use global value
+                  </button>
+                )}
+              </div>
+            ))}
+        </fieldset>
+      ))}
+      <SettingsDialogActions>
+        <ActionButton
+          action={() => setProjectConfig(project.id, {})}
+          onDone={() => {
+            setValues(Object.fromEntries(rows.map((row) => [row.id, ''])));
+            close?.();
+          }}
+        >
+          Reset all to global
+        </ActionButton>
+        <ActionButton className="btn btn-primary" action={() => setProjectConfig(project.id, values)} onDone={close}>
+          Save settings
+        </ActionButton>
+      </SettingsDialogActions>
+    </ActionErrorProvider>
+  );
+}
+
 function NewProjectForm() {
   const formId = useId();
   const close = useSettingsDialog();
@@ -96,7 +191,15 @@ function NewProjectForm() {
   );
 }
 
-export function ProjectsManager({ projects, repositories }: { projects: Project[]; repositories: string[] }) {
+export function ProjectsManager({
+  projects,
+  repositories,
+  projectConfigs,
+}: {
+  projects: Project[];
+  repositories: string[];
+  projectConfigs: Record<number, OverrideRow[]>;
+}) {
   return (
     <>
       <div className="settings-toolbar">
@@ -115,6 +218,9 @@ export function ProjectsManager({ projects, repositories }: { projects: Project[
                 <>
                   <SettingsDialog title={`Edit Project: ${p.name}`}>
                     <ProjectEditor project={p} repositories={repositories} />
+                  </SettingsDialog>
+                  <SettingsDialog title={`Settings: ${p.name}`} trigger="Settings" wide>
+                    <ProjectConfigEditor project={p} rows={projectConfigs[p.id] ?? []} />
                   </SettingsDialog>
                   <ConfirmDialog
                     label="Delete"

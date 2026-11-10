@@ -233,4 +233,9 @@ ALTER TABLE agents ADD COLUMN allowed_tools TEXT NOT NULL DEFAULT '[]';
 ALTER TABLE agents ADD COLUMN blocked_tools TEXT NOT NULL DEFAULT '[]';
 `,
   },
+  {
+    version: 12,
+    sql: `ALTER TABLE projects ADD COLUMN config_overrides TEXT NOT NULL DEFAULT '{}';
+`,
+  },
 ];

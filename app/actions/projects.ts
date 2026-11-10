@@ -71,3 +71,13 @@ export async function setProjectRepositories(id: number, repositories: string[])
   if (!input.ok) return input;
   return toAction(getCore().projects.setRepositories(input.value.id, input.value.repositories));
 }
+
+// Blank values remove the override so the Project inherits the global setting again.
+export async function setProjectConfig(id: number, values: Record<string, string>): Promise<ActionResult> {
+  const input = parseInput(z.object({ id: idSchema, values: z.record(z.string(), z.string()) }), { id, values });
+  if (!input.ok) return input;
+  const result = getCore().configs.setValues(input.value.id, input.value.values);
+  if (!result.ok) return result;
+  refresh();
+  return { ok: true };
+}

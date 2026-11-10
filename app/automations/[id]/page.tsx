@@ -111,8 +111,9 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
   const core = getCore();
   const view = core.read.watchDetail(Number(id));
   if (view === null) notFound();
-  const { jiraEnabled } = core.read.formOptions();
+  const { jiraEnabled: globalJiraEnabled, byRepository } = core.read.formOptions();
   const { watch, running } = view;
+  const jiraEnabled = byRepository[watch.repository]?.jiraEnabled ?? globalJiraEnabled;
 
   return (
     <ActionErrorProvider>

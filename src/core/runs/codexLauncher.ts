@@ -77,11 +77,12 @@ function providerError(exit: ProviderExit, output: string): ProviderExit {
   };
 }
 
-export function createCodexLauncher(config: Config, secrets: Secrets): ProviderLauncher {
-  const codexConfig = providerOptions(config, 'codex');
-
+export function createCodexLauncher(baseConfig: Config, baseSecrets: Secrets): ProviderLauncher {
   return {
     start(startOptions: ProviderStartOptions) {
+      const config = startOptions.scope?.config ?? baseConfig;
+      const secrets = startOptions.scope?.secrets ?? baseSecrets;
+      const codexConfig = providerOptions(config, 'codex');
       if (config.runs.denyTools.length > 0) {
         return failedProcess({
           code: 'PROVIDER_CAPABILITY_UNSUPPORTED',

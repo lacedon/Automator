@@ -1,3 +1,4 @@
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
@@ -42,6 +43,7 @@ export interface AdhocRequest {
 }
 
 export interface QueueDeps {
+  configFor?: ConfigFor;
   ticketTitle?: (connection: string, key: string) => Promise<string>;
 }
 
@@ -67,6 +69,10 @@ export class QueueService {
     private readonly repositories: RepositoryService,
     private readonly deps: QueueDeps = {},
   ) {}
+
+  private configFor(repository: string): Config {
+    return this.deps.configFor?.(repository) ?? this.config;
+  }
 
   enqueueWatch(input: EnqueueWatchInput): Run {
     return this.db
@@ -95,7 +101,7 @@ export class QueueService {
             reason: input.reason,
             extra: mergeInstructions(existing?.extra_instructions ?? null, input.extraInstructions),
             reviewUnresolved: input.reviewUnresolved ? 1 : 0,
-            provider: this.config.provider,
+            provider: this.configFor(input.repository).provider,
             model: input.model,
             now: this.clock.now(),
           });
@@ -124,7 +130,7 @@ export class QueueService {
         input.prompt,
         input.ticketKey ?? null,
         input.ticketTitle ?? null,
-        input.provider ?? this.config.provider,
+        input.provider ?? this.configFor(input.repository).provider,
         input.model,
         input.parentRunId ?? null,
         input.sessionId ?? null,
@@ -192,13 +198,14 @@ export class QueueService {
   async requestAdhoc(input: AdhocRequest): Promise<Result<{ run: Run; warning?: string }>> {
     const invalidRepository = repositoryError(this.repositories, this.dataDir, input.repository, this.clock.now());
     if (invalidRepository) return err(invalidRepository);
-    const options = providerOptions(this.config, this.config.provider);
+    const config = this.configFor(input.repository);
+    const options = providerOptions(config, config.provider);
     const model = input.model ?? options.defaultModel;
     if (![options.defaultModel, ...options.models].includes(model)) {
       return err({
         code: 'INVALID_INPUT',
         field: 'model',
-        message: `Model "${model}" is not configured for ${this.config.provider}`,
+        message: `Model "${model}" is not configured for ${config.provider}`,
       });
     }
     if (input.agentId !== undefined && !this.db.prepare('SELECT 1 FROM agents WHERE id = ?').get(input.agentId)) {
@@ -212,7 +219,7 @@ export class QueueService {
       if (tryParseUrl(ticketValue) !== null) {
         ticket = { key: ticketValue, title: null };
       } else {
-        if (!this.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+        if (!config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
         const target = parseTarget(ticketValue, this.config, this.repositories.get(input.repository));
         if (!target.ok)
           return err({
@@ -244,7 +251,7 @@ export class QueueService {
           this.enqueueAdhoc({
             repository: repository.name,
             prompt,
-            provider: this.config.provider,
+            provider: config.provider,
             model,
             agentId: input.agentId,
             ticketKey: ticket?.key,

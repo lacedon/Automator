@@ -1,4 +1,4 @@
-import type { Config } from '../config/schema';
+import type { ConfigFor } from '../config/resolver';
 import type { Cursor, MrCursor, Watch } from '../domain/types';
 import { HttpError } from '../http/fetchWithRetry';
 import type { ReviewClient, ReviewDiscussion, ReviewNote, ReviewRequest } from './reviewClient';
@@ -57,7 +57,7 @@ function analyze(mr: ReviewRequest, discussions: ReviewDiscussion[], me: Me, cur
 export class MrPrecheck implements Precheck {
   constructor(
     private readonly host: ReviewHost,
-    private readonly config: Config,
+    private readonly configFor: ConfigFor,
   ) {}
 
   async check(w: Watch): Promise<PrecheckResult> {
@@ -133,6 +133,6 @@ export class MrPrecheck implements Precheck {
   }
 
   private initialReview(w: Watch) {
-    return w.initialReview ?? this.config.runs.initialReview;
+    return w.initialReview ?? this.configFor(w.repository).runs.initialReview;
   }
 }

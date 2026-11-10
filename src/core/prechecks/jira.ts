@@ -8,9 +8,10 @@ import { jiraBaseUrl, type JiraClient, type JiraIssue } from './jiraClient';
 import type { EventSummary, Precheck, PrecheckResult, Snapshot } from './types';
 
 export type JiraPrecheckDeps = {
-  clientFor(conn: string): JiraClient;
+  clientFor(conn: string, repository?: string): JiraClient;
   config: Config;
   secrets: Secrets;
+  secretsFor?: (repository: string) => Secrets;
   repositories: RepositoryReader;
 };
 
@@ -72,7 +73,8 @@ export class JiraPrecheck implements Precheck {
   hasToken(w: Watch): boolean {
     const parsed = parseTarget(w.targetUrl, this.deps.config, this.deps.repositories.get(w.repository));
     const conn = parsed.ok ? parsed.value.jira?.conn : undefined;
-    const token = conn === undefined ? undefined : this.deps.secrets.jira[conn]?.token;
+    const secrets = this.deps.secretsFor?.(w.repository) ?? this.deps.secrets;
+    const token = conn === undefined ? undefined : secrets.jira[conn]?.token;
     return token !== undefined && token !== '';
   }
 
@@ -139,12 +141,12 @@ export class JiraPrecheck implements Precheck {
     if (!parsed.ok) throw new Error(`Invalid Jira target ${w.targetUrl}`);
     const jira = parsed.value.jira;
     if (jira === undefined) throw new Error(`Not a Jira issue: ${w.targetUrl}`);
-    const client = this.deps.clientFor(jira.conn);
+    const client = this.deps.clientFor(jira.conn, w.repository);
     return {
       client,
       conn: jira.conn,
       key: jira.key,
-      meId: await this.meFor(jira.conn, client),
+      meId: await this.meFor(`${w.repository}\0${jira.conn}`, client),
     };
   }
 

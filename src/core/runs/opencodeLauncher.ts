@@ -84,11 +84,12 @@ function providerError(exit: ProviderExit, output: string): ProviderExit {
   };
 }
 
-export function createOpenCodeLauncher(config: Config, secrets: Secrets): ProviderLauncher {
-  const opencodeConfig = providerOptions(config, 'opencode');
-
+export function createOpenCodeLauncher(baseConfig: Config, baseSecrets: Secrets): ProviderLauncher {
   return {
     start(startOptions: ProviderStartOptions) {
+      const config = startOptions.scope?.config ?? baseConfig;
+      const secrets = startOptions.scope?.secrets ?? baseSecrets;
+      const opencodeConfig = providerOptions(config, 'opencode');
       if (config.runs.denyTools.length > 0) {
         return failedProcess({
           code: 'PROVIDER_CAPABILITY_UNSUPPORTED',

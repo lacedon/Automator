@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import type { Secrets } from '../config/load';
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { NeedsYouEvent } from '../domain/types';
@@ -14,6 +15,8 @@ export interface Notifier {
 export interface TeamsNotifierDeps {
   db: Database;
   config: Config;
+  configFor?: ConfigFor;
+  secretsFor?: (config: Config) => Secrets;
   launcher: CopilotLauncher;
   dataDir: DataDir;
   secrets: Secrets;
@@ -41,10 +44,12 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
     ).run(status, error, eventId);
   };
 
-  const send = async (event: NeedsYouEvent, teams: NonNullable<Config['teams']>): Promise<void> => {
-    const watch = db.prepare('SELECT title FROM watches WHERE id = ?').get(event.watchId) as
-      { title: string } | undefined;
-    const title = watch?.title ?? `Automation ${event.watchId}`;
+  const send = async (
+    event: NeedsYouEvent,
+    effective: Config,
+    teams: NonNullable<Config['teams']>,
+    title: string,
+  ): Promise<void> => {
     const message = `Automator: "${title}" needs you: ${event.reason}. ${teams.dashboardUrl}/automations/${event.watchId}`;
     const prompt =
       `Send exactly this message to the Microsoft Teams chat with id ${teams.chatId} using the available Teams tool, then stop. ` +
@@ -56,10 +61,11 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
     const proc = launcher.start({
       cwd: dataDir.root,
       prompt,
-      model: teams.model ?? config.runs.defaultModel,
+      model: teams.model ?? effective.runs.defaultModel,
       transcriptPath: dataDir.notifyTranscriptPath(event.id),
       logPath,
-      env: childEnv(process.env, secrets),
+      env: childEnv(process.env, deps.secretsFor?.(effective) ?? secrets),
+      scope: { config: effective, secrets: deps.secretsFor?.(effective) ?? secrets },
       extraArgs: ['--available-tools', teams.tool],
     });
 
@@ -83,10 +89,14 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
 
   return {
     async notifyNeedsYou(event) {
-      const teams = config.teams;
-      if (teams === undefined || event.teamsStatus !== 'pending') return;
+      if (event.teamsStatus !== 'pending') return;
       try {
-        await send(event, teams);
+        const watch = db.prepare('SELECT title, repository FROM watches WHERE id = ?').get(event.watchId) as
+          { title: string; repository: string } | undefined;
+        const effective = watch === undefined ? config : (deps.configFor?.(watch.repository) ?? config);
+        const teams = effective.teams;
+        if (teams === undefined) return;
+        await send(event, effective, teams, watch?.title ?? `Automation ${event.watchId}`);
       } catch (error) {
         try {
           finish(event.id, 'failed', error instanceof Error ? error.message : String(error));

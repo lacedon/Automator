@@ -1,5 +1,5 @@
 import type { ProjectScope, Trigger } from '../domain/types';
-import type { ReadDeps } from './deps';
+import { configOf, type ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 import { RUNS_WITH_TITLE, ticketLink, toRunWithTitle, type RunWithTitle, type TicketLink } from './runs';
 
@@ -48,7 +48,7 @@ export function toRunningCard(run: RunWithTitle | null, deps: ReadDeps): Running
     trigger: run.trigger,
     reason: run.reason,
     startedAt: run.startedAt ?? run.queuedAt,
-    timeoutMs: deps.config.runs.timeoutMs,
+    timeoutMs: configOf(deps, run.repository).runs.timeoutMs,
     cancelRequested: run.cancelRequestedAt !== null,
   };
 }

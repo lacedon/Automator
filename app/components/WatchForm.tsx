@@ -109,7 +109,7 @@ export function WatchForm(props: Props) {
   // Until edited, the interval field shows the effective interval and is not submitted, so defaults stay defaults.
   const [interval, setIntervalText] = useState<string | null>(null);
   const [model, setModel] = useState(watch?.model ?? '');
-  const [review, setReview] = useState<InitialReview>(watch?.initialReview ?? options.initialReview);
+  const [review, setReview] = useState<InitialReview | null>(watch?.initialReview ?? null);
   // Edit mode mirrors the interval rule: an untouched initial review is not submitted, so it stays as stored.
   const [reviewTouched, setReviewTouched] = useState(false);
 
@@ -123,14 +123,17 @@ export function WatchForm(props: Props) {
 
   const detected = useDetectedKind(mode === 'create', target, repository);
   const kind = watch?.kind ?? detected?.kind ?? null;
-  const kindDefaultMs = kind === 'mr' ? options.intervals.mr : options.intervals.default;
+  // Settings in effect for the selected Repository, which include its Project's overrides.
+  const settings = options.byRepository[repository] ?? options;
+  const shownReview = review ?? settings.initialReview;
+  const kindDefaultMs = kind === 'mr' ? settings.intervals.mr : settings.intervals.default;
   const intervalIsDefault = interval === null ? watch?.intervalMs == null : interval.trim() === '';
   const shownInterval = interval ?? formatInterval(watch?.intervalMs ?? kindDefaultMs);
 
   const invalid = errorField(state?.error);
   const inputClass = (field: string) => (invalid === field ? 'input-err' : undefined);
   const repo = options.repositories.find((r) => r.name === repository);
-  const otherModels = options.models.filter((m) => m !== options.defaultModel);
+  const otherModels = settings.models.filter((m) => m !== settings.defaultModel);
 
   return (
     <form action={formAction} onSubmit={submit} className="watch-form">
@@ -194,7 +197,7 @@ export function WatchForm(props: Props) {
         </>
       )}
 
-      {kind === 'jira' && !options.jiraEnabled && (
+      {kind === 'jira' && !settings.jiraEnabled && (
         <div className="notice">
           Jira checking is off in the config, so this Automation won&apos;t be checked until it is turned on.
         </div>
@@ -251,7 +254,7 @@ export function WatchForm(props: Props) {
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
-            <option value="">default ({options.defaultModel})</option>
+            <option value="">default ({settings.defaultModel})</option>
             {model !== '' && !otherModels.includes(model) && <option value={model}>{model}</option>}
             {otherModels.map((m) => (
               <option key={m} value={m}>
@@ -259,18 +262,18 @@ export function WatchForm(props: Props) {
               </option>
             ))}
           </select>
-          <div className="field-hint muted">Provider: {providerLabel(options.provider)}</div>
+          <div className="field-hint muted">Provider: {providerLabel(settings.provider)}</div>
         </div>
         {kind === 'mr' && (
           <div className="field">
             <span className="field-label">Initial review</span>
             <div className="seg" role="radiogroup" aria-label="Initial review">
               {REVIEW_MODES.map((option) => (
-                <label key={option} className={review === option ? 'on' : undefined}>
+                <label key={option} className={shownReview === option ? 'on' : undefined}>
                   <input
                     type="radio"
                     name="initialReviewChoice"
-                    checked={review === option}
+                    checked={shownReview === option}
                     onChange={() => {
                       setReview(option);
                       setReviewTouched(true);
@@ -281,7 +284,11 @@ export function WatchForm(props: Props) {
               ))}
             </div>
             {(watch === null || reviewTouched) && (
-              <input type="hidden" name="initialReview" value={review === options.initialReview ? '' : review} />
+              <input
+                type="hidden"
+                name="initialReview"
+                value={shownReview === settings.initialReview ? '' : shownReview}
+              />
             )}
           </div>
         )}

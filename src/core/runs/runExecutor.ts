@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { z } from 'zod';
+import type { Secrets } from '../config/load';
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import { toWatch } from '../db/rows';
@@ -65,6 +67,8 @@ export interface RunExecutorDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  configFor?: ConfigFor;
+  secretsFor?: (config: Config) => Secrets;
   repositories: RepositoryService;
   dataDir: DataDir;
   launchers: ProviderLaunchers;
@@ -72,6 +76,10 @@ export interface RunExecutorDeps {
   agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;
   onNeedsYou(e: NeedsYouEvent): Promise<void>;
+}
+
+function effectiveConfig(deps: RunExecutorDeps, repository: string): Config {
+  return deps.configFor?.(repository) ?? deps.config;
 }
 
 export type RunConclusion = Pick<
@@ -153,7 +161,7 @@ export async function finalizeRun(deps: RunExecutorDeps, run: Run, conclusion: R
   };
   writeJsonAtomic(final.resultPath, file);
 
-  const { needsYou } = applyOutcome(deps.db, deps.config, final);
+  const { needsYou } = applyOutcome(deps.db, effectiveConfig(deps, run.repository), final);
   await notifyNeedsYou(deps, needsYou);
   return final;
 }
@@ -164,7 +172,7 @@ async function finalizeAfterFailure(deps: RunExecutorDeps, run: Run, cause: unkn
   const final = toFinal(deps, run, failure('INTERNAL_ERROR', `Internal error: ${errorMessage(cause)}`));
   let needsYou: NeedsYouEvent | null = null;
   try {
-    ({ needsYou } = applyOutcome(deps.db, deps.config, final));
+    ({ needsYou } = applyOutcome(deps.db, effectiveConfig(deps, run.repository), final));
   } catch (e) {
     console.error(`Run #${run.id}: applying the failure outcome failed: ${errorMessage(e)}`);
     deps.db
@@ -244,7 +252,8 @@ export class RunExecutor {
     if (a === null || a.proc === null || a.exited) return;
     const now = this.deps.clock.now();
     if (this.cancelRequested(a.run.id)) a.interrupted = 'cancelled';
-    else if (a.interrupted === null && now - a.startedAt > this.deps.config.runs.timeoutMs) a.interrupted = 'timeout';
+    else if (a.interrupted === null && now - a.startedAt > effectiveConfig(this.deps, a.run.repository).runs.timeoutMs)
+      a.interrupted = 'timeout';
     if (a.interrupted === null) return;
 
     if (a.termSentAt === null) {
@@ -263,8 +272,9 @@ export class RunExecutor {
   }
 
   private async conclude(active: Active): Promise<RunConclusion> {
-    const { db, config, dataDir, prechecks, launchers, clock } = this.deps;
+    const { db, dataDir, prechecks, launchers, clock } = this.deps;
     const { run } = active;
+    const config = effectiveConfig(this.deps, run.repository);
     dataDir.ensureRunDir(run.id);
 
     const repo = this.deps.repositories.get(run.repository);
@@ -401,6 +411,7 @@ export class RunExecutor {
           logPath: dataDir.cliLogPath(run.id),
           sessionId,
           env: process.env,
+          ...(this.deps.secretsFor === undefined ? {} : { scope: { config, secrets: this.deps.secretsFor(config) } }),
           ...(agent === null
             ? {}
             : {
@@ -441,7 +452,7 @@ export class RunExecutor {
       const message =
         active.interrupted === 'cancelled'
           ? 'Run cancelled'
-          : `Run timed out after ${Math.round((this.deps.config.runs.timeoutMs / 60_000) * 10) / 10} min`;
+          : `Run timed out after ${Math.round((effectiveConfig(this.deps, run.repository).runs.timeoutMs / 60_000) * 10) / 10} min`;
       return failure('INTERRUPTED', message, { exitCode, interrupted: active.interrupted });
     }
     if (exit.error !== undefined) {
