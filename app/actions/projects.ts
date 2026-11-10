@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { Result } from '@core/index';
 import { getCore } from '../lib/core';
+import { requireAdmin } from '../lib/guard';
 import { SCOPE_COOKIE } from '../lib/scope';
 import { parseInput } from './parse';
 import type { ActionResult, FormResult } from './types';
@@ -39,6 +40,8 @@ export async function createProject(
   const values: ProjectFormValues = { name: typeof name === 'string' ? name : '' };
   const input = parseInput(nameSchema, values.name);
   if (!input.ok) return { ...input, values };
+  const guard = await requireAdmin();
+  if (!guard.ok) return { ...guard, values };
   const created = getCore().projects.create(input.value);
   if (!created.ok) return { ...created, values };
   refresh();
@@ -48,18 +51,24 @@ export async function createProject(
 export async function renameProject(id: number, name: string): Promise<ActionResult> {
   const input = parseInput(z.object({ id: idSchema, name: nameSchema }), { id, name });
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   return toAction(getCore().projects.rename(input.value.id, input.value.name));
 }
 
 export async function deleteProject(id: number): Promise<ActionResult> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   return toAction(getCore().projects.delete(input.value));
 }
 
 export async function setProjectPromptAddition(id: number, promptAddition: string): Promise<ActionResult> {
   const input = parseInput(z.object({ id: idSchema, promptAddition: z.string() }), { id, promptAddition });
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   return toAction(getCore().projects.setPromptAddition(input.value.id, input.value.promptAddition));
 }
 
@@ -69,6 +78,8 @@ export async function setProjectRepositories(id: number, repositories: string[])
     repositories,
   });
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   return toAction(getCore().projects.setRepositories(input.value.id, input.value.repositories));
 }
 
@@ -76,6 +87,8 @@ export async function setProjectRepositories(id: number, repositories: string[])
 export async function setProjectConfig(id: number, values: Record<string, string>): Promise<ActionResult> {
   const input = parseInput(z.object({ id: idSchema, values: z.record(z.string(), z.string()) }), { id, values });
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   const result = getCore().configs.setValues(input.value.id, input.value.values);
   if (!result.ok) return result;
   refresh();

@@ -13,6 +13,8 @@ import { RunNowPopover } from '../../components/RunNowPopover';
 import { RunsTable } from '../../components/RunsTable';
 import { WatchActionBar } from '../../components/WatchRowMenu';
 import { getCore } from '../../lib/core';
+import { canReadWatch } from '../../lib/guard';
+import { currentScope } from '../../lib/scope';
 import { formatDateTime } from '../../lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -107,11 +109,11 @@ function LastHandledCard({ lines }: { lines: string[] }) {
 
 export default async function WatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!/^\d+$/.test(id)) notFound();
+  if (!/^\d+$/.test(id) || !(await canReadWatch(Number(id)))) notFound();
   const core = getCore();
   const view = core.read.watchDetail(Number(id));
   if (view === null) notFound();
-  const { jiraEnabled: globalJiraEnabled, byRepository } = core.read.formOptions();
+  const { jiraEnabled: globalJiraEnabled, byRepository } = core.read.formOptions(await currentScope());
   const { watch, running } = view;
   const jiraEnabled = byRepository[watch.repository]?.jiraEnabled ?? globalJiraEnabled;
 

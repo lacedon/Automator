@@ -13,6 +13,7 @@ const redirect = vi.hoisted(() =>
   }),
 );
 vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
+vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
 vi.mock('next/cache', () => ({ revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect }));
 

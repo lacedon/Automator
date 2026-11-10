@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { readEditableConfig, writeEditableConfig, type EditableConfig } from '@core/index';
+import { requireAdmin } from '../lib/guard';
 import type { FormResult } from './types';
 
 export type ConfigFormState = FormResult<EditableConfig>;
@@ -52,6 +53,8 @@ function validateEditableShape(input: unknown, current: unknown, field: string):
 }
 
 export async function saveConfig(_prev: ConfigFormState, formData: FormData): Promise<ConfigFormState> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return { ...guard, values: {} as EditableConfig };
   const file = configPath();
   let current: EditableConfig;
   try {

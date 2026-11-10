@@ -121,3 +121,32 @@ describe('last administrator', () => {
     expect(access.unassign(access.listAssignments()[0]!.id)).toMatchObject({ ok: true });
   });
 });
+
+describe('enforcement helpers', () => {
+  function readerOf(project: number) {
+    const role = must(access.createRole('reader', ['read'])).id;
+    access.assign(alice, role, project);
+  }
+
+  test('a Repository inherits access from its Project; unassigned ones need a global grant', () => {
+    handle.db.prepare('INSERT INTO project_repositories (repository, project_id) VALUES (?, ?)').run('in-a', projectA);
+    readerOf(projectA);
+
+    expect(access.canOnRepository(alice, 'read', 'in-a')).toBe(true);
+    expect(access.canOnRepository(alice, 'write', 'in-a')).toBe(false);
+    expect(access.canOnRepository(alice, 'read', 'loose')).toBe(false);
+    expect(access.canOnRepository(alice, 'read', null)).toBe(false);
+  });
+
+  test('readScope narrows to readable Projects unless the user can read globally', () => {
+    readerOf(projectA);
+    const all = [projectA, projectB];
+
+    expect(access.readScope(alice, null, all)).toEqual({ projects: [projectA], unassigned: false });
+    expect(access.readScope(alice, projectB, all)).toEqual({ projects: [projectA], unassigned: false });
+    expect(access.readScope(alice, projectA, all)).toBe(projectA);
+
+    access.assign(alice, must(access.createRole('global', ['read'])).id, null);
+    expect(access.readScope(alice, null, all)).toBeNull();
+  });
+});

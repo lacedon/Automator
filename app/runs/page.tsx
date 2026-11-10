@@ -147,7 +147,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
         startedBefore: dates.startedBefore,
       })
     : [];
-  const repositories = core.read.formOptions().repositories.map((r) => r.name);
+  const repositories = core.read.formOptions(await currentScope()).repositories.map((r) => r.name);
   const filtered = Object.values(filter).some((value) => value !== undefined);
 
   return (

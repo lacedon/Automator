@@ -4,19 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { PERMISSIONS, type Result } from '@core/index';
 import { getCore } from '../lib/core';
-import { currentUser } from '../lib/session';
+import { requireAdmin as admin } from '../lib/guard';
 import { parseInput } from './parse';
 import type { ActionResult } from './types';
 
 const idSchema = z.number().int().positive();
 const permissionsSchema = z.array(z.enum(PERMISSIONS));
-
-// Managing users and roles takes a global `write`; checked here, not in the UI.
-async function admin(): Promise<{ ok: true; userId: number } | Extract<ActionResult, { ok: false }>> {
-  const user = await currentUser();
-  if (user === null || !getCore().access.canAdminister(user.id)) return { ok: false, error: { code: 'FORBIDDEN' } };
-  return { ok: true, userId: user.id };
-}
 
 function done<T>(result: Result<T>): ActionResult {
   if (!result.ok) return result;

@@ -174,6 +174,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
   users.ensureBootstrapAdmin();
   const access = new AccessService(db);
   access.ensureBootstrap();
+  access.ensureOwnership();
   const repositories = new RepositoryService(db, config);
   const configs = new ConfigResolver(db, config);
   const configFor = (repository: string | null) => configs.forRepository(repository);

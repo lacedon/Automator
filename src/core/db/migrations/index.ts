@@ -281,4 +281,25 @@ CREATE TABLE role_assignments (
 CREATE UNIQUE INDEX ux_role_assignments ON role_assignments(user_id, role_id, COALESCE(project_id, 0));
 `,
   },
+  {
+    version: 15,
+    sql: `ALTER TABLE watches ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE runs ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE TRIGGER watches_default_owner AFTER INSERT ON watches WHEN NEW.owner_user_id IS NULL
+BEGIN
+  UPDATE watches SET owner_user_id = (
+    SELECT id FROM users ORDER BY username = 'admin' COLLATE NOCASE DESC, id LIMIT 1
+  ) WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER runs_default_owner AFTER INSERT ON runs WHEN NEW.owner_user_id IS NULL
+BEGIN
+  UPDATE runs SET owner_user_id = COALESCE(
+    (SELECT owner_user_id FROM watches WHERE id = NEW.watch_id),
+    (SELECT id FROM users ORDER BY username = 'admin' COLLATE NOCASE DESC, id LIMIT 1)
+  ) WHERE id = NEW.id;
+END;
+`,
+  },
 ];

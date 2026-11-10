@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { AgentAssignment, AppError } from '@core/index';
 import { getCore } from '../lib/core';
+import { requireAdmin } from '../lib/guard';
 import { parseInput } from './parse';
 import type { ActionResult, FormResult } from './types';
 
@@ -54,6 +55,8 @@ export async function saveAgent(
   }
   const input = parseInput(agentSchema, { ...values, id: values.id || undefined });
   if (!input.ok) return { ...input, values };
+  const guard = await requireAdmin();
+  if (!guard.ok) return { ...guard, values };
   const { id, ...fields } = input.value;
   const agent = {
     name: fields.name,
@@ -85,6 +88,8 @@ export async function assignAgent(
 ): Promise<ActionResult> {
   const input = parseInput(assignSchema, { repository, workflowType, agentId });
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   const agents = getCore().agents;
   if (input.value.repository !== null) {
     const unknown = unknownRepository(input.value.repository);
@@ -101,6 +106,8 @@ const clearSchema = z.object({ repository: z.string().min(1), workflowType: work
 export async function clearRepositoryAgent(repository: string, workflowType: string): Promise<ActionResult> {
   const input = parseInput(clearSchema, { repository, workflowType });
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   const unknown = unknownRepository(input.value.repository);
   if (unknown) return { ok: false, error: unknown };
   getCore().agents.clearRepositoryOverride(input.value.repository, input.value.workflowType);
@@ -125,6 +132,8 @@ export async function saveTemplate(
   }
   const input = parseInput(templateSchema, values);
   if (!input.ok) return { ...input, values };
+  const guard = await requireAdmin();
+  if (!guard.ok) return { ...guard, values };
   const { workflowType, instructions } = input.value;
   getCore().agents.setTemplate(workflowType, instructions.trim() === '' ? null : instructions);
   refresh();
@@ -134,6 +143,8 @@ export async function saveTemplate(
 export async function agentDeletionImpact(id: number): Promise<ActionResult<AgentAssignment[]>> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   const agents = getCore().agents;
   if (agents.getAgent(input.value) === null) return { ok: false, error: { code: 'NOT_FOUND' } };
   return { ok: true, value: agents.assignmentReferences(input.value) };
@@ -142,6 +153,8 @@ export async function agentDeletionImpact(id: number): Promise<ActionResult<Agen
 export async function deleteAgent(id: number): Promise<ActionResult<AgentAssignment[]>> {
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
   const references = getCore().agents.deleteAgent(input.value);
   if (references === null) return { ok: false, error: { code: 'NOT_FOUND' } };
   refresh();
