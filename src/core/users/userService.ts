@@ -54,6 +54,14 @@ export class UserService {
     }
   }
 
+  list(): (User & { disabled: boolean })[] {
+    return (this.db.prepare('SELECT id, username, disabled FROM users ORDER BY username').all() as Row[]).map((r) => ({
+      id: r.id as number,
+      username: r.username as string,
+      disabled: r.disabled === 1,
+    }));
+  }
+
   setDisabled(userId: number, disabled: boolean): void {
     this.db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(disabled ? 1 : 0, userId);
     if (disabled) this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);

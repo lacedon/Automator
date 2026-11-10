@@ -69,6 +69,8 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
       return `Automation #${ctx.watchId} is ${error.state}; cannot ${error.action}`;
     case 'JIRA_DISABLED':
       return 'Jira checking is disabled (jira.enabled is false)';
+    case 'FORBIDDEN':
+      return 'Permission denied';
     case 'NOT_FOUND':
       return `Automation #${ctx.watchId} not found`;
   }
