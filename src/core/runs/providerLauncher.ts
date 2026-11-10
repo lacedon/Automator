@@ -1,4 +1,5 @@
-import type { Env } from '../config/load';
+import type { Env, Secrets } from '../config/load';
+import type { Config } from '../config/schema';
 import type { ProviderName, RunError } from '../domain/types';
 
 export type ProviderExit = { code: number | null; signal: string | null; error?: RunError };
@@ -19,6 +20,8 @@ export type ProviderStartOptions = {
   env: Env;
   sessionId?: string;
   tools?: { allowAll: boolean; allowed: string[]; blocked: string[] };
+  // Effective settings of the Repository's Project; the launcher's own config is used when absent.
+  scope?: { config: Config; secrets: Secrets };
 };
 
 export interface ProviderLauncher {

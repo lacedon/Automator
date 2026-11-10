@@ -76,11 +76,12 @@ function providerError(exit: ProviderExit, output: string): ProviderExit {
   };
 }
 
-export function createClaudeCodeLauncher(config: Config, secrets: Secrets): ProviderLauncher {
-  const providerConfig = providerOptions(config, 'claude-code');
-
+export function createClaudeCodeLauncher(baseConfig: Config, baseSecrets: Secrets): ProviderLauncher {
   return {
     start(startOptions: ProviderStartOptions) {
+      const config = startOptions.scope?.config ?? baseConfig;
+      const secrets = startOptions.scope?.secrets ?? baseSecrets;
+      const providerConfig = providerOptions(config, 'claude-code');
       if (config.runs.denyTools.length > 0) {
         return failedProcess({
           code: 'PROVIDER_CAPABILITY_UNSUPPORTED',

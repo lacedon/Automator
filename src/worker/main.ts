@@ -56,7 +56,7 @@ function main(): void {
     try {
       const recovered = await recoverInterruptedRuns(core.executorDeps);
       if (recovered > 0) console.log(`${ts()} recovered ${recovered} interrupted run(s)`);
-      if (core.config.jira.enabled && !shuttingDown) await resolveJiraDoneNames(core);
+      if (core.configs.all().some((c) => c.jira.enabled) && !shuttingDown) await resolveJiraDoneNames(core);
     } finally {
       clearInterval(startupHeartbeat);
     }

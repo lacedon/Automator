@@ -1,3 +1,4 @@
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
@@ -19,6 +20,7 @@ export interface WatchServiceDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  configFor?: ConfigFor;
   repositories: RepositoryService;
   queue: QueueService;
   dataDir: DataDir;
@@ -83,6 +85,10 @@ function isUniqueViolation(e: unknown): boolean {
 export class WatchService {
   constructor(private readonly deps: WatchServiceDeps) {}
 
+  private configFor(repository: string): Config {
+    return this.deps.configFor?.(repository) ?? this.deps.config;
+  }
+
   get(id: number): Watch | null {
     const row = this.deps.db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
     return row ? toWatch(row) : null;
@@ -113,7 +119,7 @@ export class WatchService {
     if (target.kind === 'free' && instructions === null) return err({ code: 'MISSING_INSTRUCTIONS' });
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
-    const badModel = invalidModel(config, input.model);
+    const badModel = invalidModel(this.configFor(repository.name), input.model);
     if (badModel) return err(badModel);
     if (input.agentId !== undefined && !this.deps.db.prepare('SELECT 1 FROM agents WHERE id = ?').get(input.agentId)) {
       return err({ code: 'INVALID_INPUT', field: 'agentId', message: `Agent #${input.agentId} does not exist` });
@@ -158,12 +164,12 @@ export class WatchService {
   update(id: number, input: UpdateWatchInput): Result<Watch> {
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
-    const badModel = invalidModel(this.deps.config, input.model);
-    if (badModel) return err(badModel);
     return this.deps.db
       .transaction((): Result<Watch> => {
         const watch = this.get(id);
         if (!watch) return err({ code: 'NOT_FOUND' });
+        const badModel = invalidModel(this.configFor(watch.repository), input.model);
+        if (badModel) return err(badModel);
         const sets: string[] = [];
         const params: Record<string, unknown> = { id, now: this.deps.clock.now() };
         if (input.instructions !== undefined) {
@@ -231,7 +237,8 @@ export class WatchService {
 
   resume(id: number, opts: { note?: string; runNow?: boolean }): Result<Watch> {
     return this.act(id, opts.runNow ? 'resumeRunNow' : 'resume', (watch) => {
-      if (opts.runNow && watch.kind === 'jira' && !this.deps.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+      if (opts.runNow && watch.kind === 'jira' && !this.configFor(watch.repository).jira.enabled)
+        return err({ code: 'JIRA_DISABLED' });
       if (opts.runNow) {
         const invalidRepository = repositoryError(
           this.deps.repositories,
@@ -262,7 +269,8 @@ export class WatchService {
         if (nextState(watch.state, 'runNow') === null) {
           return err({ code: 'INVALID_STATE', state: watch.state, action: 'runNow' });
         }
-        if (watch.kind === 'jira' && !this.deps.config.jira.enabled) return err({ code: 'JIRA_DISABLED' });
+        if (watch.kind === 'jira' && !this.configFor(watch.repository).jira.enabled)
+          return err({ code: 'JIRA_DISABLED' });
         const invalidRepository = repositoryError(
           this.deps.repositories,
           this.deps.dataDir,
@@ -356,7 +364,8 @@ export class WatchService {
     reason: string,
     opts: { extraInstructions?: string; reviewUnresolved?: boolean },
   ): Run {
-    const options = providerOptions(this.deps.config, this.deps.config.provider);
+    const config = this.configFor(watch.repository);
+    const options = providerOptions(config, config.provider);
     return this.deps.queue.enqueueWatch({
       watchId: watch.id,
       repository: watch.repository,
@@ -376,7 +385,11 @@ export class WatchService {
     const existing = toWatch(row);
     return err({
       code: 'DUPLICATE_WATCH',
-      existing: { id: existing.id, state: existing.state, intervalMs: intervalFor(existing, this.deps.config) },
+      existing: {
+        id: existing.id,
+        state: existing.state,
+        intervalMs: intervalFor(existing, this.configFor(repository)),
+      },
     });
   }
 

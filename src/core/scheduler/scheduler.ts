@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
@@ -19,6 +20,7 @@ export interface SchedulerDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  configFor?: ConfigFor;
   dataDir: DataDir;
   queue: QueueService;
   repositories: Pick<RepositoryService, 'status'>;
@@ -29,11 +31,17 @@ export interface SchedulerDeps {
 export class Scheduler {
   constructor(private readonly deps: SchedulerDeps) {}
 
+  private configFor(repository: string): Config {
+    return this.deps.configFor?.(repository) ?? this.deps.config;
+  }
+
   async tick(): Promise<{ checked: number; enqueued: number }> {
-    const { clock, config } = this.deps;
+    const { clock } = this.deps;
     const totals = { checked: 0, enqueued: 0 };
-    if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) return totals;
     for (const watch of this.dueWatches(clock.now())) {
+      const config = this.configFor(watch.repository);
+      if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) continue;
+      if (watch.kind === 'jira' && !config.jira.enabled) continue;
       try {
         const result = await this.check(watch);
         const enqueued = this.apply(watch.id, result);
@@ -51,11 +59,11 @@ export class Scheduler {
 
   // A failing Automation still moves on by its interval so it cannot block the others.
   private postpone(watch: Watch): void {
-    const { db, clock, config } = this.deps;
+    const { db, clock } = this.deps;
     try {
       const now = clock.now();
       db.prepare("UPDATE watches SET next_check_at = ?, updated_at = ? WHERE id = ? AND state = 'active'").run(
-        now + intervalFor(watch, config),
+        now + intervalFor(watch, this.configFor(watch.repository)),
         now,
         watch.id,
       );
@@ -71,11 +79,10 @@ export class Scheduler {
       .prepare(
         `SELECT * FROM watches w
          WHERE w.state = 'active' AND w.next_check_at <= ?
-           AND (w.kind <> 'jira' OR ?)
            AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.watch_id = w.id AND r.status IN ('queued', 'running'))
          ORDER BY w.next_check_at, w.id`,
       )
-      .all(now, this.deps.config.jira.enabled ? 1 : 0)
+      .all(now)
       .map(toWatch);
   }
 
@@ -106,14 +113,15 @@ export class Scheduler {
 
   // Applies one check outcome atomically; returns whether a Run was enqueued.
   private apply(watchId: number, result: PrecheckResult): boolean {
-    const { db, clock, config, queue } = this.deps;
-    const modelOptions = providerOptions(config, config.provider);
+    const { db, clock, queue } = this.deps;
     let event: NeedsYouEvent | null = null;
     const enqueued = db
       .transaction((): boolean => {
         const row = db.prepare("SELECT * FROM watches WHERE id = ? AND state = 'active'").get(watchId);
         if (!row) return false;
         const watch = toWatch(row);
+        const config = this.configFor(watch.repository);
+        const modelOptions = providerOptions(config, config.provider);
         const now = clock.now();
         const needsYou = (reason: string) => {
           event = enterNeedsYou(db, { watchId, runId: null, reason, now, teamsEnabled: config.teams !== undefined });

@@ -11,7 +11,7 @@ import type {
   WatchState,
 } from '../domain/types';
 import { allowedActions, type WatchAction } from '../domain/watchState';
-import type { ReadDeps } from './deps';
+import { configOf, type ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 import { nextCheckText, type NextCheck } from './nextCheck';
 import { runningRun, waitingRows } from './queue';
@@ -70,7 +70,7 @@ export function nextCheckFor(watch: Watch, src: NextCheckSource, deps: ReadDeps)
     now: deps.clock.now(),
     running: src.running,
     queuedPos: src.queuedPos(watch.id),
-    config: deps.config,
+    config: configOf(deps, watch.repository),
   });
 }
 
@@ -97,7 +97,7 @@ function lastRuns({ db }: ReadDeps): Map<number, LastRun> {
 }
 
 export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
-  const { db, config } = deps;
+  const { db } = deps;
   const q = f.q?.trim().toLowerCase() || null;
   const inScope = scopeFilter(deps, f.project ?? null);
   const watches = db
@@ -114,9 +114,11 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
   const counts: WatchListView['counts'] = { all: watches.length, needs_you: 0, active: 0, paused: 0, closed: 0 };
   for (const w of watches) counts[w.state] += 1;
 
-  const jiraNotice =
-    !config.jira.enabled &&
-    db.prepare("SELECT 1 FROM watches WHERE kind = 'jira' AND state <> 'closed' LIMIT 1").get() !== undefined;
+  const jiraNotice = (
+    db.prepare("SELECT DISTINCT repository FROM watches WHERE kind = 'jira' AND state <> 'closed'").all() as {
+      repository: string;
+    }[]
+  ).some(({ repository }) => !configOf(deps, repository).jira.enabled);
 
   const src = nextCheckSource(deps);
   const last = lastRuns(deps);
@@ -130,7 +132,7 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
       title: w.title,
       targetUrl: w.targetUrl,
       repository: w.repository,
-      everyMs: intervalFor(w, config),
+      everyMs: intervalFor(w, configOf(deps, w.repository)),
       nextCheck: nextCheckFor(w, src, deps),
       lastRun: last.get(w.id) ?? null,
       needsYouReason: w.needsYouReason,

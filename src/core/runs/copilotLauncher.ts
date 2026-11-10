@@ -15,9 +15,11 @@ export interface CopilotLauncher extends ProviderLauncher {
 
 export { childEnv };
 
-export function createCopilotLauncher(config: Config, secrets: Secrets): CopilotLauncher {
+export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets): CopilotLauncher {
   return {
     start(opts) {
+      const config = opts.scope?.config ?? baseConfig;
+      const secrets = opts.scope?.secrets ?? baseSecrets;
       const secretEnvNames = new Set(secrets.envNames);
       for (const name of copilotAuthEnvNames) {
         if (opts.env[name] !== undefined) secretEnvNames.add(name);

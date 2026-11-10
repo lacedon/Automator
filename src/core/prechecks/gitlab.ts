@@ -1,3 +1,4 @@
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import { parseTarget } from '../domain/targets';
 import type { Watch } from '../domain/types';
@@ -6,10 +7,11 @@ import type { GitLabClient } from './gitlabClient';
 import { MrPrecheck, type Me, type ReviewHost } from './mrPrecheck';
 
 export type GitLabPrecheckDeps = {
-  clientFor(conn: string): GitLabClient;
+  clientFor(conn: string, repository?: string): GitLabClient;
   config: Config;
+  configFor?: ConfigFor;
   repositories: RepositoryReader;
-  meCache: { get(conn: string): Promise<Me> };
+  meCache: { get(conn: string, repository?: string): Promise<Me> };
 };
 
 export class GitLabPrecheck extends MrPrecheck {
@@ -22,11 +24,11 @@ export class GitLabPrecheck extends MrPrecheck {
         if (!parsed.ok) throw new Error(`Invalid MR target ${w.targetUrl}`);
         const gitlab = parsed.value.gitlab;
         if (gitlab === undefined) throw new Error(`Not a GitLab merge request: ${w.targetUrl}`);
-        const client = deps.clientFor(gitlab.conn);
-        const me = await deps.meCache.get(gitlab.conn);
+        const client = deps.clientFor(gitlab.conn, w.repository);
+        const me = await deps.meCache.get(gitlab.conn, w.repository);
         return { client, projectId: gitlab.apiProjectId, iid: gitlab.iid, me };
       },
     };
-    super(host, deps.config);
+    super(host, deps.configFor ?? (() => deps.config));
   }
 }

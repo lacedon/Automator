@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { Clock } from '../domain/types';
@@ -12,6 +13,9 @@ export interface CleanupDeps {
   db: Database;
   clock: Clock;
   config: Config;
+  configFor?: ConfigFor;
+  // Global settings plus every Project's effective settings.
+  allConfigs?: () => Config[];
   dataDir: DataDir;
 }
 
@@ -19,8 +23,11 @@ export class CleanupService {
   constructor(private readonly deps: CleanupDeps) {}
 
   isDue(): boolean {
-    const { enabled, everyDays } = this.deps.config.cleanup;
-    if (!enabled) return false;
+    const scopes = (this.deps.allConfigs?.() ?? [this.deps.config])
+      .map((config) => config.cleanup)
+      .filter((c) => c.enabled);
+    if (scopes.length === 0) return false;
+    const everyDays = Math.min(...scopes.map((c) => c.everyDays));
     const row = this.deps.db.prepare('SELECT value FROM meta WHERE key = ?').get(LAST_CLEANUP_KEY) as
       { value: string } | undefined;
     return row === undefined || this.deps.clock.now() - Number(row.value) >= everyDays * DAY_MS;
@@ -30,12 +37,25 @@ export class CleanupService {
     const { db, clock, config, dataDir } = this.deps;
     const now = clock.now();
     const cutoff = now - config.cleanup.retainClosedDays * DAY_MS;
+    const cutoffFor = (repository: string): number | null => {
+      const { enabled, retainClosedDays } = (this.deps.configFor?.(repository) ?? config).cleanup;
+      return enabled ? now - retainClosedDays * DAY_MS : null;
+    };
 
     const { deletedWatches, runIds, eventIds } = db
       .transaction(() => {
         const watchIds = (
-          db.prepare("SELECT id FROM watches WHERE state = 'closed' AND closed_at <= ?").all(cutoff) as { id: number }[]
-        ).map((r) => r.id);
+          db.prepare("SELECT id, repository, closed_at FROM watches WHERE state = 'closed'").all() as {
+            id: number;
+            repository: string;
+            closed_at: number | null;
+          }[]
+        )
+          .filter((w) => {
+            const watchCutoff = cutoffFor(w.repository);
+            return watchCutoff !== null && w.closed_at !== null && w.closed_at <= watchCutoff;
+          })
+          .map((r) => r.id);
         const runIds: number[] = [];
         const eventIds: number[] = [];
         const selectRuns = db.prepare('SELECT id FROM runs WHERE watch_id = ?');
@@ -56,7 +76,7 @@ export class CleanupService {
     for (const id of runIds) dataDir.removeRunDir(id);
     for (const id of eventIds) dataDir.removeNotifyFiles(id);
 
-    return { deletedWatches, deletedAttempts: this.removeOldAttempts(cutoff) };
+    return { deletedWatches, deletedAttempts: config.cleanup.enabled ? this.removeOldAttempts(cutoff) : 0 };
   }
 
   private removeOldAttempts(cutoff: number): number {

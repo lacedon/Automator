@@ -1,16 +1,21 @@
 import { providerOptions } from '../config/providers';
 import type { AgentAssignment, InitialReview, ProjectScope, ProviderName, WorkflowType } from '../domain/types';
-import type { ReadDeps } from './deps';
+import { configOf, type ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 
-export type FormOptions = {
-  repositories: { name: string; folder: string; host: string | null; project: string | null }[];
+export type RepositorySettings = {
   provider: ProviderName;
   models: string[];
   defaultModel: string;
   intervals: { mr: number; default: number };
   initialReview: InitialReview;
   jiraEnabled: boolean;
+};
+
+export type FormOptions = RepositorySettings & {
+  repositories: { name: string; folder: string; host: string | null; project: string | null }[];
+  // Effective settings per Repository; the top-level values are the global ones.
+  byRepository: Record<string, RepositorySettings>;
   agents: { id: number; name: string }[];
   agentAssignments: AgentAssignment[];
 };
@@ -18,8 +23,17 @@ export type FormOptions = {
 export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOptions {
   const { config, db, repositories } = deps;
   const inScope = scopeFilter(deps, scope);
-  const { runs } = config;
-  const options = providerOptions(config, config.provider);
+  const settingsOf = (effective: typeof config): RepositorySettings => {
+    const options = providerOptions(effective, effective.provider);
+    return {
+      provider: effective.provider,
+      models: [...new Set([options.defaultModel, ...options.models])],
+      defaultModel: options.defaultModel,
+      intervals: { ...effective.schedule.intervals },
+      initialReview: effective.runs.initialReview,
+      jiraEnabled: effective.jira.enabled,
+    };
+  };
   const projectOf = new Map(
     (
       db
@@ -40,12 +54,10 @@ export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOpt
           (repo.github && config.github[repo.github]?.host) ||
           null,
       })),
-    provider: config.provider,
-    models: [...new Set([options.defaultModel, ...options.models])],
-    defaultModel: options.defaultModel,
-    intervals: { ...config.schedule.intervals },
-    initialReview: runs.initialReview,
-    jiraEnabled: config.jira.enabled,
+    ...settingsOf(config),
+    byRepository: Object.fromEntries(
+      repositories.list().map((repo) => [repo.name, settingsOf(configOf(deps, repo.name))]),
+    ),
     agents: (db.prepare('SELECT id, name FROM agents ORDER BY id').all() as { id: number; name: string }[]).map(
       ({ id, name }) => ({ id, name }),
     ),

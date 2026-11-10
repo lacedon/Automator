@@ -1,3 +1,4 @@
+import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import { parseTarget } from '../domain/targets';
 import type { Watch } from '../domain/types';
@@ -6,10 +7,11 @@ import type { GitHubClient } from './githubClient';
 import { MrPrecheck, type Me, type ReviewHost } from './mrPrecheck';
 
 export type GitHubPrecheckDeps = {
-  clientFor(conn: string): GitHubClient;
+  clientFor(conn: string, repository?: string): GitHubClient;
   config: Config;
+  configFor?: ConfigFor;
   repositories: RepositoryReader;
-  meCache: { get(conn: string): Promise<Me> };
+  meCache: { get(conn: string, repository?: string): Promise<Me> };
 };
 
 export class GitHubPrecheck extends MrPrecheck {
@@ -22,11 +24,11 @@ export class GitHubPrecheck extends MrPrecheck {
         if (!parsed.ok) throw new Error(`Invalid PR target ${w.targetUrl}`);
         const github = parsed.value.github;
         if (github === undefined) throw new Error(`Not a GitHub pull request: ${w.targetUrl}`);
-        const client = deps.clientFor(github.conn);
-        const me = await deps.meCache.get(github.conn);
+        const client = deps.clientFor(github.conn, w.repository);
+        const me = await deps.meCache.get(github.conn, w.repository);
         return { client, projectId: github.apiProjectId, iid: github.number, me };
       },
     };
-    super(host, deps.config);
+    super(host, deps.configFor ?? (() => deps.config));
   }
 }

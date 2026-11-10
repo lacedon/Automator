@@ -37,6 +37,9 @@ _Avoid_: Trigger
 
 **Project**:
 A named group of Repositories used to separate work visually. A Repository belongs to at most one Project; Repositories without one are "Unassigned". Selecting a Project in the top bar scopes Home, Automations, Queue, Runs and Ad-hoc to its Repositories and tints the UI with the Project's colour.
+
+**Project overrides**:
+Sparse per-Project settings (Schedule, Copilot bin, Provider, Runs, Cleanup, GitLab/GitHub/Jira/Teams) edited in Settings → Projects → Settings. Blank inherits the global config; effective config is computed at use from global plus the Repository's current Project, so a Repository without a Project uses global. Applies to newly started work only; Runs keep no snapshot. Precedence: per-Run/Automation values > Repository > Project overrides > global. Credentials are env-var names only (`tokenEnv`, `emailEnv`); secrets stay in `.env`.
 _Avoid_: Workspace
 
 **Prompt addition**:
