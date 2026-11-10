@@ -226,4 +226,11 @@ ALTER TABLE runs ADD COLUMN agent_id INTEGER REFERENCES agents(id) ON DELETE SET
 ALTER TABLE repositories ADD COLUMN prompt_addition TEXT NOT NULL DEFAULT '';
 `,
   },
+  {
+    version: 11,
+    sql: `ALTER TABLE agents ADD COLUMN allow_all_tools INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE agents ADD COLUMN allowed_tools TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE agents ADD COLUMN blocked_tools TEXT NOT NULL DEFAULT '[]';
+`,
+  },
 ];

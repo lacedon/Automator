@@ -16,10 +16,24 @@ afterEach(() => {
 });
 
 describe('AgentService', () => {
+  test('stores per-Agent tool permissions, defaulting to allow all', () => {
+    const { agents } = setup();
+    const agent = agents.createAgent({ name: 'Reviewer', instructions: 'Review carefully.' });
+    expect(agent).toMatchObject({ allowAllTools: true, allowedTools: [], blockedTools: [] });
+    expect(
+      agents.updateAgent(agent.id, {
+        name: 'Reviewer',
+        instructions: 'Review carefully.',
+        allowAllTools: false,
+        allowedTools: ['shell(git status)'],
+        blockedTools: ['shell(git push)'],
+      }),
+    ).toMatchObject({ allowAllTools: false, allowedTools: ['shell(git status)'], blockedTools: ['shell(git push)'] });
+  });
+
   test('creates, lists, reads, and updates Agent profiles', () => {
     const { agents } = setup();
     const agent = agents.createAgent({ name: 'Reviewer', instructions: 'Review carefully.' });
-
     expect(agents.getAgent(agent.id)).toEqual(agent);
     expect(agents.listAgents()).toContainEqual(agent);
     expect(agents.updateAgent(agent.id, { name: 'Strict reviewer', instructions: 'Review thoroughly.' })).toMatchObject(

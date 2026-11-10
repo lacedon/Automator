@@ -22,14 +22,26 @@ function unknownRepository(name: string): AppError | null {
   return repositories.get(name) !== null ? null : { code: 'UNKNOWN_REPOSITORY', name, known, attemptFile: null };
 }
 
-const AGENT_FIELDS = ['id', 'name', 'instructions'] as const;
+const AGENT_FIELDS = ['id', 'name', 'instructions', 'allowAllTools', 'allowedTools', 'blockedTools'] as const;
 export type AgentFormValues = Partial<Record<(typeof AGENT_FIELDS)[number], string>>;
 
 const agentSchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   name: z.string().trim().min(1, 'Name is required'),
   instructions: z.string(),
+  allowAllTools: z.string().optional(),
+  allowedTools: z.string().default(''),
+  blockedTools: z.string().default(''),
 });
+
+const toolList = (text: string): string[] => [
+  ...new Set(
+    text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== ''),
+  ),
+];
 
 export async function saveAgent(
   _prev: FormResult<AgentFormValues>,
@@ -42,11 +54,18 @@ export async function saveAgent(
   }
   const input = parseInput(agentSchema, { ...values, id: values.id || undefined });
   if (!input.ok) return { ...input, values };
-  const { id, name, instructions } = input.value;
+  const { id, ...fields } = input.value;
+  const agent = {
+    name: fields.name,
+    instructions: fields.instructions,
+    allowAllTools: fields.allowAllTools !== undefined,
+    allowedTools: toolList(fields.allowedTools),
+    blockedTools: toolList(fields.blockedTools),
+  };
   const agents = getCore().agents;
   if (id === undefined) {
-    agents.createAgent({ name, instructions });
-  } else if (agents.updateAgent(id, { name, instructions }) === null) {
+    agents.createAgent(agent);
+  } else if (agents.updateAgent(id, agent) === null) {
     return { ok: false, error: { code: 'NOT_FOUND' }, values };
   }
   refresh();

@@ -85,6 +85,9 @@ export interface Agent {
   id: number;
   name: string;
   instructions: string;
+  allowAllTools: boolean;
+  allowedTools: string[];
+  blockedTools: string[];
   createdAt: number;
   updatedAt: number;
 }

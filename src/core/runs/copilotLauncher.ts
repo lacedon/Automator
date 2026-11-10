@@ -27,7 +27,7 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         opts.prompt,
         '--model',
         opts.model,
-        '--allow-all-tools',
+        ...(opts.tools?.allowAll === false ? [] : ['--allow-all-tools']),
         // Path checks are separate from tool approval; without this Copilot cannot write copilot-result.json.
         '--add-dir',
         path.dirname(opts.transcriptPath),
@@ -37,7 +37,8 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         '--no-ask-user',
         '--log-level',
         'error',
-        ...config.runs.denyTools.flatMap((pattern) => ['--deny-tool', pattern]),
+        ...(opts.tools?.allowed ?? []).flatMap((pattern) => ['--allow-tool', pattern]),
+        ...[...config.runs.denyTools, ...(opts.tools?.blocked ?? [])].flatMap((pattern) => ['--deny-tool', pattern]),
         ...(secretEnvNames.size > 0 ? ['--secret-env-vars', [...secretEnvNames].join(',')] : []),
         ...(opts.sessionId !== undefined ? ['--session-id', opts.sessionId] : []),
         ...(opts.extraArgs ?? []),

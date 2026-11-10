@@ -3,12 +3,23 @@ import type { Agent, AgentAssignment, OperationTemplate, WorkflowType } from '..
 
 type Row = Record<string, unknown>;
 
+export type AgentInput = {
+  name: string;
+  instructions: string;
+  allowAllTools?: boolean;
+  allowedTools?: string[];
+  blockedTools?: string[];
+};
+
 function toAgent(row: unknown): Agent {
   const r = row as Row;
   return {
     id: r.id as number,
     name: r.name as string,
     instructions: r.instructions as string,
+    allowAllTools: r.allow_all_tools === 1,
+    allowedTools: JSON.parse(r.allowed_tools as string) as string[],
+    blockedTools: JSON.parse(r.blocked_tools as string) as string[],
     createdAt: r.created_at as number,
     updatedAt: r.updated_at as number,
   };
@@ -26,6 +37,14 @@ function toAssignment(row: unknown): AgentAssignment {
 function toTemplate(row: unknown): OperationTemplate {
   const r = row as Row;
   return { workflowType: r.workflow_type as WorkflowType, instructions: r.instructions as string };
+}
+
+function toolColumns(input: AgentInput): [number, string, string] {
+  return [
+    input.allowAllTools === false ? 0 : 1,
+    JSON.stringify(input.allowedTools ?? []),
+    JSON.stringify(input.blockedTools ?? []),
+  ];
 }
 
 const legacyNames: Record<'mr-watch' | 'jira-watch' | 'ticket-adhoc', string> = {
@@ -50,19 +69,25 @@ export class AgentService {
     return row === undefined ? null : toAgent(row);
   }
 
-  createAgent(input: { name: string; instructions: string }): Agent {
+  createAgent(input: AgentInput): Agent {
     const now = Date.now();
     return toAgent(
       this.db
-        .prepare('INSERT INTO agents (name, instructions, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING *')
-        .get(input.name, input.instructions, now, now),
+        .prepare(
+          `INSERT INTO agents (name, instructions, allow_all_tools, allowed_tools, blocked_tools, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        )
+        .get(input.name, input.instructions, ...toolColumns(input), now, now),
     );
   }
 
-  updateAgent(id: number, input: { name: string; instructions: string }): Agent | null {
+  updateAgent(id: number, input: AgentInput): Agent | null {
     const row = this.db
-      .prepare('UPDATE agents SET name = ?, instructions = ?, updated_at = ? WHERE id = ? RETURNING *')
-      .get(input.name, input.instructions, Date.now(), id);
+      .prepare(
+        `UPDATE agents SET name = ?, instructions = ?, allow_all_tools = ?, allowed_tools = ?, blocked_tools = ?,
+         updated_at = ? WHERE id = ? RETURNING *`,
+      )
+      .get(input.name, input.instructions, ...toolColumns(input), Date.now(), id);
     return row === undefined ? null : toAgent(row);
   }
 

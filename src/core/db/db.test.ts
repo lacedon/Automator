@@ -106,7 +106,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(10);
+    expect(db.pragma('user_version', { simple: true })).toBe(11);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -118,12 +118,12 @@ describe('db', () => {
     );
   });
 
-  test('migrate is idempotent and sets user_version 10', () => {
+  test('migrate is idempotent and sets user_version 11', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(10);
+    expect(db.pragma('user_version', { simple: true })).toBe(11);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(10);
+    expect(db.pragma('user_version', { simple: true })).toBe(11);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -142,6 +142,9 @@ describe('db', () => {
       expect.objectContaining({ name: 'instructions' }),
       expect.objectContaining({ name: 'created_at' }),
       expect.objectContaining({ name: 'updated_at' }),
+      expect.objectContaining({ name: 'allow_all_tools' }),
+      expect.objectContaining({ name: 'allowed_tools' }),
+      expect.objectContaining({ name: 'blocked_tools' }),
     ]);
     const tables = db
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
@@ -237,7 +240,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(10);
+    expect(db.pragma('user_version', { simple: true })).toBe(11);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

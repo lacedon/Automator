@@ -77,6 +77,27 @@ describe('createCopilotLauncher', () => {
     expect(JSON.parse(fs.readFileSync(s.resultPath, 'utf8'))).toEqual({ outcome: 'nothing', summary: 'fake nothing' });
   });
 
+  test('passes agent tool permissions without weakening global deny tools', async () => {
+    const s = setup({ runs: { denyTools: ['global(deny)'] } });
+    const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
+    const proc = launcher.start({
+      cwd: s.repo,
+      prompt: 'hi',
+      model: 'm1',
+      transcriptPath: s.transcriptPath,
+      logPath: s.logPath,
+      env: { ...process.env, FAKE_COPILOT_MODE: 'no-result', FAKE_COPILOT_RECORD: s.record },
+      tools: { allowAll: false, allowed: ['shell(git status)'], blocked: ['shell(git push)'] },
+    });
+    await proc.exited;
+
+    const { argv } = JSON.parse(fs.readFileSync(s.record, 'utf8')) as Recorded;
+    const values = (flag: string) => argv.flatMap((arg, i) => (arg === flag ? [argv[i + 1]] : []));
+    expect(argv).not.toContain('--allow-all-tools');
+    expect(values('--allow-tool')).toEqual(['shell(git status)']);
+    expect(values('--deny-tool')).toEqual(['global(deny)', 'shell(git push)']);
+  });
+
   test('strips secret env vars', async () => {
     const s = setup({
       jira: { connections: { corp: { emailEnv: 'JIRA_EMAIL', tokenEnv: 'JIRA_TOKEN' } } },
