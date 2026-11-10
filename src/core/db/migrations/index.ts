@@ -316,4 +316,15 @@ END;
 CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
 `,
   },
+  {
+    version: 17,
+    sql: `CREATE TABLE user_credentials (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  value_enc TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, name)
+);
+`,
+  },
 ];

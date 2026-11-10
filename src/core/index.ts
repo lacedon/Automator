@@ -19,6 +19,7 @@ import { ProjectService } from './projects/projectService';
 import { importLegacyRepositories } from './repositories/legacyImport';
 import { RepositoryService } from './repositories/repositoryService';
 import { AccessService } from './access/accessService';
+import { CredentialService } from './users/credentialService';
 import { UserService } from './users/userService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
@@ -55,6 +56,8 @@ export {
   type Role,
   type RoleAssignment,
 } from './access/accessService';
+export { copilotAuthEnvNames } from './runs/childProcess';
+export { CredentialService } from './users/credentialService';
 export { SESSION_TTL_MS, UserService, type ApiToken, type User } from './users/userService';
 export { RepositoryService, type Repository, type RepositoryInput } from './repositories/repositoryService';
 export type { Notifier } from './notify/teamsNotifier';
@@ -112,6 +115,7 @@ export interface Core {
   agents: AgentService;
   projects: ProjectService;
   users: UserService;
+  credentials: CredentialService;
   access: AccessService;
   configs: ConfigResolver;
   repositories: RepositoryService;
@@ -175,6 +179,9 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
   const access = new AccessService(db);
   access.ensureBootstrap();
   access.ensureOwnership();
+  const credentials = new CredentialService(db, path.join(dataDir.root, 'credentials.key'), () =>
+    (overrides.clock ?? systemClock).now(),
+  );
   const repositories = new RepositoryService(db, config);
   const configs = new ConfigResolver(db, config);
   const configFor = (repository: string | null) => configs.forRepository(repository);
@@ -241,6 +248,15 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     config,
     configFor,
     secretsFor: (effective) => configs.secretsFor(effective),
+    // Background Runs act with their owner's current permissions and credentials.
+    authorize: (run) => {
+      const owner = access.ownerOf('runs', run.id);
+      if (owner === null) return 'The Run owner no longer exists';
+      return access.canOnRepository(owner, 'write', run.repository)
+        ? null
+        : 'The Run owner no longer has write access to this Repository';
+    },
+    credentialEnv: (run) => credentials.env(access.ownerOf('runs', run.id)),
     repositories,
     dataDir,
     launchers,
@@ -263,6 +279,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     agents,
     projects: new ProjectService(db, repositories, () => clock.now()),
     users,
+    credentials,
     access,
     configs,
     repositories,

@@ -41,6 +41,8 @@ type SetupOpts = {
   launcher?: CopilotLauncher;
   codexLauncher?: CopilotLauncher;
   jiraHasToken?: boolean;
+  authorize?: (run: Run) => string | null;
+  credentialEnv?: (run: Run) => Record<string, string>;
 };
 
 function setup(opts: SetupOpts = {}) {
@@ -97,6 +99,8 @@ function setup(opts: SetupOpts = {}) {
     prechecks,
     currentBranch,
     onNeedsYou,
+    ...(opts.authorize === undefined ? {} : { authorize: opts.authorize }),
+    ...(opts.credentialEnv === undefined ? {} : { credentialEnv: opts.credentialEnv }),
   });
   return {
     db: t.db,
@@ -467,6 +471,42 @@ describe('RunExecutor', () => {
     const final = await pending;
     expect(final).toMatchObject({ interrupted: 'cancelled', error: { code: 'INTERRUPTED', message: 'Run cancelled' } });
     expect(readResult(final.resultPath).error).toEqual({ code: 'INTERRUPTED', message: 'Run cancelled' });
+  });
+
+  test('a Run whose owner lost access fails before starting and is not spawned', async () => {
+    const s = setup({ authorize: () => 'The Run owner no longer has write access to this Repository' });
+    const watchId = addWatch(s.db);
+    const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
+
+    expect(final.error).toMatchObject({ code: 'FORBIDDEN' });
+    expect(s.starts).toHaveLength(0);
+  });
+
+  test('revoking the owner mid-Run stops the process', async () => {
+    let allowed = true;
+    const s = setup({ mode: 'hang', authorize: () => (allowed ? null : 'access revoked') });
+    const watchId = addWatch(s.db);
+    const run = claim(s.db, s.clock.now(), watchId);
+    const pending = s.executor.execute(run);
+    await waitFor(() => runOf(s.db, run.id).pid !== null);
+
+    allowed = false;
+    s.executor.watchdog();
+    s.clock.advance(5000);
+    s.executor.watchdog();
+
+    expect(await pending).toMatchObject({
+      interrupted: 'cancelled',
+      error: { code: 'FORBIDDEN', message: 'access revoked' },
+    });
+  });
+
+  test("the owner's credentials reach the provider environment", async () => {
+    const s = setup({ credentialEnv: () => ({ GH_TOKEN: 'owner-token' }) });
+    const watchId = addWatch(s.db);
+    await s.executor.execute(claim(s.db, s.clock.now(), watchId));
+
+    expect(s.starts[0]!.env.GH_TOKEN).toBe('owner-token');
   });
 
   test('cancel requested before copilot starts never spawns it and finishes as cancelled', async () => {
