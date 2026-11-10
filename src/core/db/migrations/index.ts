@@ -238,4 +238,24 @@ ALTER TABLE agents ADD COLUMN blocked_tools TEXT NOT NULL DEFAULT '[]';
     sql: `ALTER TABLE projects ADD COLUMN config_overrides TEXT NOT NULL DEFAULT '{}';
 `,
   },
+  {
+    version: 13,
+    sql: `CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+  password_hash TEXT NOT NULL,
+  disabled INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX ix_sessions_user ON sessions(user_id);
+`,
+  },
 ];

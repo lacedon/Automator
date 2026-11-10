@@ -11,6 +11,8 @@ import { createProcessSupervisor } from './processSupervisor.mjs';
 
 const dev = process.argv[2] === 'dev';
 const port = process.env.PORT ?? (dev ? '3000' : '4317');
+// Loopback by default; set HOST (for example 0.0.0.0) to serve a shared installation.
+const host = process.env.HOST ?? '127.0.0.1';
 // Next dev forks its server under the CLI, so use an inherited private IPC socket to reach this supervisor.
 const restartSocketPath = dev
   ? process.platform === 'win32'
@@ -18,7 +20,7 @@ const restartSocketPath = dev
     : `.automator-supervisor-${process.pid}-${randomUUID().replaceAll('-', '')}.sock`
   : undefined;
 const commands = {
-  web: ['next', dev ? 'dev' : 'start', '-H', '127.0.0.1', '-p', port],
+  web: ['next', dev ? 'dev' : 'start', '-H', host, '-p', port],
   // Plain node with the tsx loader: the tsx CLI relays signals and SIGKILLs a child when several arrive at once.
   worker: ['node', ...(dev ? ['--watch'] : []), '--import', 'tsx', 'src/worker/main.ts'],
 };

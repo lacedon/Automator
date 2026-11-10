@@ -18,6 +18,7 @@ import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
 import { ProjectService } from './projects/projectService';
 import { importLegacyRepositories } from './repositories/legacyImport';
 import { RepositoryService } from './repositories/repositoryService';
+import { UserService } from './users/userService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
 import { createClaudeCodeLauncher } from './runs/claudeCodeLauncher';
@@ -45,6 +46,7 @@ export { DataDir } from './files/dataDir';
 export { CleanupService } from './cleanup/cleanupService';
 export { AgentService } from './agents/agentService';
 export { ProjectService } from './projects/projectService';
+export { SESSION_TTL_MS, UserService, type User } from './users/userService';
 export { RepositoryService, type Repository, type RepositoryInput } from './repositories/repositoryService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';
@@ -100,6 +102,7 @@ export interface Core {
   cleanup: CleanupService;
   agents: AgentService;
   projects: ProjectService;
+  users: UserService;
   configs: ConfigResolver;
   repositories: RepositoryService;
   notifier: Notifier;
@@ -157,6 +160,8 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
   const db = openDb(dataDir.db);
   migrate(db);
   if (legacyConfig !== undefined) importLegacyRepositories(db, legacyConfig, config.configDir);
+  const users = new UserService(db, () => (overrides.clock ?? systemClock).now());
+  users.ensureBootstrapAdmin();
   const repositories = new RepositoryService(db, config);
   const configs = new ConfigResolver(db, config);
   const configFor = (repository: string | null) => configs.forRepository(repository);
@@ -244,6 +249,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     cleanup: new CleanupService({ db, clock, config, configFor, allConfigs: () => configs.all(), dataDir }),
     agents,
     projects: new ProjectService(db, repositories, () => clock.now()),
+    users,
     configs,
     repositories,
     notifier,
