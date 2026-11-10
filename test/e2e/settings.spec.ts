@@ -234,3 +234,32 @@ test('Settings entity lists are zebra tables with a lighter first row and non-he
   await expect(page.getByRole('heading', { level: 2, name: 'Agents', exact: true })).toBeVisible();
   await expect(rows.first().getByRole('heading')).toHaveCount(0);
 });
+
+test('Days field keeps a new blank line so the next number can be typed, saved and reloaded', async ({ page }) => {
+  await page.goto('/settings/config');
+  await page.getByRole('button', { name: 'Open configuration', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const days = dialog.locator('#config-schedule-workingHours-days');
+  const original = await days.inputValue();
+  const lines = original.split('\n');
+  const next = String(Math.max(...lines.map(Number)) + 1 > 7 ? 0 : Math.max(...lines.map(Number)) + 1);
+  const expected = `${original}\n${next}`;
+  try {
+    await days.focus();
+    await days.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+    await page.keyboard.press('Enter');
+    await expect(days).toHaveValue(`${original}\n`);
+    await page.keyboard.type(next);
+    await expect(days).toHaveValue(expected);
+    await dialog.getByRole('button', { name: 'Save Configuration', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: 'Open configuration', exact: true }).click();
+    await expect(page.getByRole('dialog').locator('#config-schedule-workingHours-days')).toHaveValue(expected);
+  } finally {
+    await page.goto('/settings/config');
+    await page.getByRole('button', { name: 'Open configuration', exact: true }).click();
+    await page.getByRole('dialog').locator('#config-schedule-workingHours-days').fill(original);
+    await page.getByRole('dialog').getByRole('button', { name: 'Save Configuration', exact: true }).click();
+  }
+});

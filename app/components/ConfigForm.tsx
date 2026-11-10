@@ -30,6 +30,46 @@ function inputId(path: string[]): string {
   return `config-${path.join('-').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 }
 
+function parseLines(text: string, numeric: boolean): unknown[] {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== '')
+    .map((line) => (numeric && Number.isFinite(Number(line)) ? Number(line) : line));
+}
+
+// Keeps the raw text locally so temporary blank lines survive while editing.
+function LinesField({
+  id,
+  field,
+  value,
+  path,
+  onChange,
+}: {
+  id: string;
+  field: string;
+  value: unknown[];
+  path: string[];
+  onChange: (path: string[], value: unknown) => void;
+}) {
+  const numeric = field === 'days';
+  const [text, setText] = useState(value.join('\n'));
+  if (JSON.stringify(parseLines(text, numeric)) !== JSON.stringify(value)) setText(value.join('\n'));
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label(field)} (one per line)</label>
+      <textarea
+        id={id}
+        rows={Math.min(Math.max(value.length, 2), 8)}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value);
+          onChange(path, parseLines(event.target.value, numeric));
+        }}
+      />
+    </div>
+  );
+}
+
 function ConfigValue({
   value,
   path,
@@ -58,24 +98,7 @@ function ConfigValue({
   }
 
   if (Array.isArray(value)) {
-    const numeric = field === 'days';
-    return (
-      <div className="field">
-        <label htmlFor={id}>{label(field)} (one per line)</label>
-        <textarea
-          id={id}
-          rows={Math.min(Math.max(value.length, 2), 8)}
-          value={value.join('\n')}
-          onChange={(event) => {
-            const lines = event.target.value.split(/\r?\n/).filter((line) => line.trim() !== '');
-            onChange(
-              path,
-              lines.map((line) => (numeric && Number.isFinite(Number(line)) ? Number(line) : line)),
-            );
-          }}
-        />
-      </div>
-    );
+    return <LinesField id={id} field={field} value={value} path={path} onChange={onChange} />;
   }
 
   if (typeof value === 'object' && value !== null) {
