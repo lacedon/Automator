@@ -94,7 +94,7 @@ describe('createCopilotLauncher', () => {
     const { argv } = JSON.parse(fs.readFileSync(s.record, 'utf8')) as Recorded;
     const values = (flag: string) => argv.flatMap((arg, i) => (arg === flag ? [argv[i + 1]] : []));
     expect(argv).not.toContain('--allow-all-tools');
-    expect(values('--allow-tool')).toEqual(['shell(git status)']);
+    expect(values('--allow-tool')).toEqual(['write', 'shell(git status)']);
     expect(values('--deny-tool')).toEqual(['global(deny)', 'shell(git push)']);
   });
 

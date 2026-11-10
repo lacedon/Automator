@@ -37,6 +37,8 @@ export function createCopilotLauncher(config: Config, secrets: Secrets): Copilot
         '--no-ask-user',
         '--log-level',
         'error',
+        // Without allow-all, --no-ask-user denies unapproved tools, so the result file write must be allowed explicitly.
+        ...(opts.tools?.allowAll === false ? ['--allow-tool', 'write'] : []),
         ...(opts.tools?.allowed ?? []).flatMap((pattern) => ['--allow-tool', pattern]),
         ...[...config.runs.denyTools, ...(opts.tools?.blocked ?? [])].flatMap((pattern) => ['--deny-tool', pattern]),
         ...(secretEnvNames.size > 0 ? ['--secret-env-vars', [...secretEnvNames].join(',')] : []),
