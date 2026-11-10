@@ -18,6 +18,7 @@ export type ProviderStartOptions = {
   logPath: string;
   env: Env;
   sessionId?: string;
+  tools?: { allowAll: boolean; allowed: string[]; blocked: string[] };
 };
 
 export interface ProviderLauncher {

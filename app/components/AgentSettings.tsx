@@ -96,6 +96,44 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
           <div className="field-hint muted">Empty: Runs that resolve to this Agent are blocked.</div>
         )}
       </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-allow-all`}>
+          <input
+            id={`${idPrefix}-allow-all`}
+            type="checkbox"
+            name="allowAllTools"
+            defaultChecked={state === null ? (agent?.allowAllTools ?? true) : state.values.allowAllTools !== undefined}
+          />{' '}
+          Allow all tools
+        </label>
+        <div className="field-hint muted">
+          Copilot only. When unchecked, only the allowed tools below are permitted.
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-allowed-tools`}>Allowed tools</label>
+        <textarea
+          id={`${idPrefix}-allowed-tools`}
+          name="allowedTools"
+          rows={3}
+          placeholder="shell(git status)"
+          defaultValue={echoed('allowedTools', agent?.allowedTools.join('\n') ?? '')}
+        />
+        <div className="field-hint muted">One Copilot tool pattern per line.</div>
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-blocked-tools`}>Blocked tools</label>
+        <textarea
+          id={`${idPrefix}-blocked-tools`}
+          name="blockedTools"
+          rows={3}
+          placeholder="shell(git push)"
+          defaultValue={echoed('blockedTools', agent?.blockedTools.join('\n') ?? '')}
+        />
+        <div className="field-hint muted">
+          One Copilot tool pattern per line, added to the global runs.denyTools, which always applies.
+        </div>
+      </div>
       {agent && close && (
         <p>
           <Link href={`/settings/agents/${agent.id}`}>Open full page</Link>

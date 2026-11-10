@@ -22,7 +22,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           ? 'Not assigned anywhere.'
           : `Serves ${serves.map((a) => `${a.repository ?? 'Default'} · ${a.workflowType}`).join('; ')}.`}
       </p>
-      <AgentForm key={`${agent.name}:${agent.instructions}`} agent={agent} rows={24} />
+      <AgentForm key={`${agent.updatedAt}`} agent={agent} rows={24} />
     </div>
   );
 }

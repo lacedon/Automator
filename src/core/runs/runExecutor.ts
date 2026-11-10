@@ -296,6 +296,14 @@ export class RunExecutor {
       );
     }
     const operationTemplate = template?.instructions ?? null;
+    const customTools =
+      agent !== null && (!agent.allowAllTools || agent.allowedTools.length > 0 || agent.blockedTools.length > 0);
+    if (customTools && run.provider !== 'copilot') {
+      return failure(
+        'PROVIDER_CAPABILITY_UNSUPPORTED',
+        `Agent "${agent.name}" configures tool permissions, which only the Copilot provider enforces.`,
+      );
+    }
 
     const resultPath = dataDir.copilotResultPath(run.id);
     const projectPromptAddition =
@@ -393,6 +401,11 @@ export class RunExecutor {
           logPath: dataDir.cliLogPath(run.id),
           sessionId,
           env: process.env,
+          ...(agent === null
+            ? {}
+            : {
+                tools: { allowAll: agent.allowAllTools, allowed: agent.allowedTools, blocked: agent.blockedTools },
+              }),
         }),
       };
     } catch (e) {
