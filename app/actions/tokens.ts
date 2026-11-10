@@ -3,16 +3,16 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getCore } from '../lib/core';
-import { currentUser } from '../lib/session';
+import { sessionUser } from '../lib/session';
 import { parseInput } from './parse';
 import type { ActionResult } from './types';
 
 const FORBIDDEN = { ok: false, error: { code: 'FORBIDDEN' } } as const;
 const idSchema = z.number().int().positive();
 
-// Every signed-in user manages only their own tokens. The secret is returned once and never stored.
+// Session-cookie only, so an access token can never mint or alter tokens. Users manage only their own tokens. The secret is returned once and never stored.
 export async function createToken(name: string, expiresAt: number | null): Promise<ActionResult<string>> {
-  const user = await currentUser();
+  const user = await sessionUser();
   if (user === null) return FORBIDDEN;
   const input = parseInput(z.object({ name: z.string(), expiresAt: z.number().int().nullable() }), {
     name,
@@ -26,7 +26,7 @@ export async function createToken(name: string, expiresAt: number | null): Promi
 }
 
 export async function regenerateToken(id: number): Promise<ActionResult<string>> {
-  const user = await currentUser();
+  const user = await sessionUser();
   if (user === null) return FORBIDDEN;
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;
@@ -37,7 +37,7 @@ export async function regenerateToken(id: number): Promise<ActionResult<string>>
 }
 
 export async function revokeToken(id: number): Promise<ActionResult<string>> {
-  const user = await currentUser();
+  const user = await sessionUser();
   if (user === null) return FORBIDDEN;
   const input = parseInput(idSchema, id);
   if (!input.ok) return input;

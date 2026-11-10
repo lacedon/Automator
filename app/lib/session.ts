@@ -10,10 +10,14 @@ export function bearerToken(header: string | null | undefined): string | undefin
   return match?.[1];
 }
 
-export async function currentUser(): Promise<User | null> {
-  const { users } = getCore();
-  const token = bearerToken((await headers()).get('authorization'));
-  if (token !== undefined) return users.userForToken(token);
+// Browser session cookie only; ignores any Authorization header.
+export async function sessionUser(): Promise<User | null> {
   const jar = await cookies();
-  return users.userForSession(jar.get(SESSION_COOKIE)?.value);
+  return getCore().users.userForSession(jar.get(SESSION_COOKIE)?.value);
+}
+
+export async function currentUser(): Promise<User | null> {
+  const token = bearerToken((await headers()).get('authorization'));
+  if (token !== undefined) return getCore().users.userForToken(token);
+  return sessionUser();
 }
