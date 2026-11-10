@@ -258,4 +258,27 @@ CREATE TABLE sessions (
 CREATE INDEX ix_sessions_user ON sessions(user_id);
 `,
   },
+  {
+    version: 14,
+    sql: `CREATE TABLE roles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE
+);
+
+CREATE TABLE role_permissions (
+  role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  permission TEXT NOT NULL CHECK (permission IN ('read', 'write')),
+  PRIMARY KEY (role_id, permission)
+);
+
+CREATE TABLE role_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX ux_role_assignments ON role_assignments(user_id, role_id, COALESCE(project_id, 0));
+`,
+  },
 ];

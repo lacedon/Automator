@@ -21,6 +21,8 @@ function describe(error: SimpleError): string {
       return `Run #${error.runId} is in progress.`;
     case 'JIRA_DISABLED':
       return 'Jira is disabled in the config.';
+    case 'FORBIDDEN':
+      return 'You do not have permission to do that.';
     case 'NOT_FOUND':
       return 'It no longer exists.';
   }

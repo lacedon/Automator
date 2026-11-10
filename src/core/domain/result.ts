@@ -10,6 +10,7 @@ export type AppError =
   | { code: 'INVALID_STATE'; state: WatchState | RunStatus; action: string }
   | { code: 'RUN_IN_PROGRESS'; runId: number }
   | { code: 'JIRA_DISABLED' }
+  | { code: 'FORBIDDEN' }
   | { code: 'NOT_FOUND' };
 
 export type Result<T, E = AppError> = { ok: true; value: T } | { ok: false; error: E };

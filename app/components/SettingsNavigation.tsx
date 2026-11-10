@@ -12,6 +12,7 @@ export function SettingsNavigation() {
           ['/settings/projects', 'Projects'],
           ['/settings/repositories', 'Repositories'],
           ['/settings/agents', 'Agents'],
+          ['/settings/access', 'Users & roles'],
           ['/settings/config', 'Configuration'],
         ] as const
       ).map(([href, label]) => (
