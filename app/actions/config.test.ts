@@ -5,10 +5,8 @@ import { readEditableConfig } from '@core/index';
 
 const holder = vi.hoisted(() => ({ core: null as unknown }));
 const revalidatePath = vi.hoisted(() => vi.fn());
-const requestHeaders = vi.hoisted(() => vi.fn());
 vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
 vi.mock('next/cache', () => ({ revalidatePath }));
-vi.mock('next/headers', () => ({ headers: requestHeaders }));
 
 const { saveConfig } = await import('./config');
 
@@ -68,7 +66,6 @@ beforeEach(() => {
   vi.stubEnv('AUTOMATOR_CONFIG', configPath);
   holder.core = { config: { configDir } };
   revalidatePath.mockClear();
-  requestHeaders.mockResolvedValue(new Headers({ host: 'localhost:4317' }));
 });
 
 afterEach(() => {
@@ -151,18 +148,4 @@ test('saveConfig preserves hidden credential bindings without accepting them', a
     error: { code: 'INVALID_INPUT', field: 'config' },
   });
   expect(JSON.stringify(rejected)).not.toMatch(/tokenEnv|ATTACKER_TOKEN/);
-});
-
-test.each([
-  ['Host', { host: 'evil.example' }],
-  ['X-Forwarded-Host', { host: 'localhost:4317', 'x-forwarded-host': 'evil.example' }],
-])('saveConfig rejects a non-loopback %s header', async (_name, headerValues) => {
-  requestHeaders.mockResolvedValue(new Headers(headerValues));
-  const before = fs.readFileSync(configPath, 'utf8');
-
-  const result = await saveConfig(null, form(JSON.parse(before)));
-
-  expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'request' } });
-  expect(fs.readFileSync(configPath, 'utf8')).toBe(before);
-  expect(revalidatePath).not.toHaveBeenCalled();
 });

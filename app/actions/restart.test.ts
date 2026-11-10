@@ -3,9 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-const requestHeaders = vi.hoisted(() => vi.fn());
-vi.mock('next/headers', () => ({ headers: requestHeaders }));
-
 const { requestApplicationRestart } = await import('./restart');
 
 type RestartMessage = { type: 'restart'; requestId: string };
@@ -20,7 +17,6 @@ let supervisor: Supervisor;
 beforeEach(() => {
   supervisor = Object.assign(new EventEmitter(), { env: {} });
   vi.stubGlobal('process', supervisor);
-  requestHeaders.mockResolvedValue(new Headers({ host: 'localhost:4317' }));
 });
 
 afterEach(() => {
@@ -115,19 +111,4 @@ test('reports when the supervisor does not acknowledge the restart request', asy
     ok: false,
     error: { code: 'RESTART_FAILED', message: expect.stringContaining('acknowledge') },
   });
-});
-
-test.each([
-  ['Host', { host: 'example.com' }],
-  ['X-Forwarded-Host', { host: 'localhost:4317', 'x-forwarded-host': 'example.com' }],
-])('rejects a non-loopback %s header', async (_header, values) => {
-  requestHeaders.mockResolvedValue(new Headers(values));
-  const send = vi.fn(() => true);
-  supervisor.send = send;
-
-  expect(await requestApplicationRestart()).toMatchObject({
-    ok: false,
-    error: { code: 'INVALID_INPUT', field: 'request' },
-  });
-  expect(send).not.toHaveBeenCalled();
 });

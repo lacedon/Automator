@@ -2,9 +2,7 @@
 
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
-import { headers } from 'next/headers';
 import { readEditableConfig, writeEditableConfig, type EditableConfig } from '@core/index';
-import { isAllowedRequest } from '../lib/hostCheck';
 import type { FormResult } from './types';
 
 export type ConfigFormState = FormResult<EditableConfig>;
@@ -54,10 +52,6 @@ function validateEditableShape(input: unknown, current: unknown, field: string):
 }
 
 export async function saveConfig(_prev: ConfigFormState, formData: FormData): Promise<ConfigFormState> {
-  const requestHeaders = await headers();
-  if (!isAllowedRequest(requestHeaders))
-    return failure('request', 'Configuration changes are only allowed from a loopback request.', {} as EditableConfig);
-
   const file = configPath();
   let current: EditableConfig;
   try {

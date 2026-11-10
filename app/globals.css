@@ -1773,3 +1773,14 @@ body:has(.settings-dialog[open]) {
     font-size: 12px;
   }
 }
+
+.login {
+  max-width: 22rem;
+  margin: 12vh auto 0;
+  padding: 0 1rem;
+}
+
+.login-form {
+  display: grid;
+  gap: 1rem;
+}
