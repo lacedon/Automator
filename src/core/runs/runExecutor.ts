@@ -69,6 +69,10 @@ export interface RunExecutorDeps {
   config: Config;
   configFor?: ConfigFor;
   secretsFor?: (config: Config) => Secrets;
+  // Why the Run's owner may no longer run it (null: allowed); checked before the start and while it runs.
+  authorize?: (run: Run) => string | null;
+  // The owner's own credentials, added to the environment of the provider process.
+  credentialEnv?: (run: Run) => Record<string, string>;
   repositories: RepositoryService;
   dataDir: DataDir;
   launchers: ProviderLaunchers;
@@ -194,6 +198,7 @@ type Active = {
   interrupted: Exclude<Interrupted, 'worker-restart'> | null;
   termSentAt: number | null;
   killSent: boolean;
+  accessDenied: string | null;
 };
 
 export class RunExecutor {
@@ -218,6 +223,7 @@ export class RunExecutor {
       interrupted: null,
       termSentAt: null,
       killSent: false,
+      accessDenied: null,
     };
     this.active = active;
     try {
@@ -252,6 +258,8 @@ export class RunExecutor {
     if (a === null || a.proc === null || a.exited) return;
     const now = this.deps.clock.now();
     if (this.cancelRequested(a.run.id)) a.interrupted = 'cancelled';
+    else if (a.interrupted === null && (a.accessDenied = this.deps.authorize?.(a.run) ?? null) !== null)
+      a.interrupted = 'cancelled';
     else if (a.interrupted === null && now - a.startedAt > effectiveConfig(this.deps, a.run.repository).runs.timeoutMs)
       a.interrupted = 'timeout';
     if (a.interrupted === null) return;
@@ -276,6 +284,9 @@ export class RunExecutor {
     const { run } = active;
     const config = effectiveConfig(this.deps, run.repository);
     dataDir.ensureRunDir(run.id);
+
+    const denied = this.deps.authorize?.(run) ?? null;
+    if (denied !== null) return failure('FORBIDDEN', denied);
 
     const repo = this.deps.repositories.get(run.repository);
     if (repo === null) return failure('REPOSITORY_UNAVAILABLE', `Unknown Repository "${run.repository}"`);
@@ -410,7 +421,7 @@ export class RunExecutor {
           transcriptPath: dataDir.transcriptPath(run.id),
           logPath: dataDir.cliLogPath(run.id),
           sessionId,
-          env: process.env,
+          env: { ...process.env, ...this.deps.credentialEnv?.(run) },
           ...(this.deps.secretsFor === undefined ? {} : { scope: { config, secrets: this.deps.secretsFor(config) } }),
           ...(agent === null
             ? {}
@@ -448,6 +459,8 @@ export class RunExecutor {
   private evaluate(active: Active, exit: ProviderExit, resultPath: string): RunConclusion {
     const run = active.run;
     const exitCode = exit.code;
+    if (active.accessDenied !== null)
+      return failure('FORBIDDEN', active.accessDenied, { exitCode, interrupted: 'cancelled' });
     if (active.interrupted !== null) {
       const message =
         active.interrupted === 'cancelled'

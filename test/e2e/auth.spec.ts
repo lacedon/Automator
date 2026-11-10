@@ -79,3 +79,22 @@ test('an access token authenticates API requests until it is revoked', async ({ 
   await expect(page.getByText('Expires:')).toHaveCount(0);
   expect((await request.get('/queue', { headers })).status()).toBe(401);
 });
+
+test('a user stores a credential and it is never shown again', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Username').fill('admin');
+  await page.getByLabel('Password').fill('admin');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  await page.goto('/account');
+  await page.getByLabel('Credential name').selectOption('GH_TOKEN');
+  await page.getByLabel('Credential value').fill('ghp_e2e_secret');
+  await page.getByRole('button', { name: 'Save credential' }).click();
+  await expect(page.getByRole('row', { name: /GH_TOKEN/ })).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('ghp_e2e_secret');
+  await page
+    .getByRole('row', { name: /GH_TOKEN/ })
+    .getByRole('button', { name: 'Remove' })
+    .click();
+  await expect(page.getByRole('row', { name: /GH_TOKEN/ })).toHaveCount(0);
+});
