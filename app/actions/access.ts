@@ -3,13 +3,21 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { PERMISSIONS, type Result } from '@core/index';
+import { audit } from '../lib/audit';
 import { getCore } from '../lib/core';
-import { requireAdmin as admin } from '../lib/guard';
+import { requireAdmin } from '../lib/guard';
 import { parseInput } from './parse';
 import type { ActionResult } from './types';
 
 const idSchema = z.number().int().positive();
 const permissionsSchema = z.array(z.enum(PERMISSIONS));
+
+// Logged when authorised, before the change runs, so attempts are recorded even if validation then rejects them.
+async function admin() {
+  const guard = await requireAdmin();
+  if (guard.ok) audit('access change', { actor: guard.userId });
+  return guard;
+}
 
 function done<T>(result: Result<T>): ActionResult {
   if (!result.ok) return result;
