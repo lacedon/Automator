@@ -331,6 +331,21 @@ Failures:
 - Settings shows compact summaries for Projects, Repositories, Agents, Workflow assignments/templates and Configuration. **New**, **Add** and **Open** buttons launch modal editors with save/create actions beside Cancel in a fixed footer. Cancel or Escape discards unsaved edits; failed saves keep the editor and entered values. Workflow assignment changes save immediately, while operation templates have a separate Save button.
 - Restart is a separate, confirmed Settings action. The supervisor drains active work before restarting the web process and worker.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on pull requests into `master`, pushes to `master` and manual dispatch. It uses one Linux runner with Node.js 24, read-only permissions, SHA-pinned actions, a 20-minute timeout, and cancels superseded runs. It is validation-only: no publishing or deployment. Tests use seeded temporary data and need no secrets or live integrations.
+
+Steps and their local equivalents:
+
+1. `npm ci`
+2. `npm run check` (types, lint, format, dependency rules, Vitest)
+3. `npm run build`
+4. `npx playwright install --with-deps chromium`, then `npm run e2e`
+
+On failure, Playwright traces and results are uploaded as the `playwright-diagnostics` artifact (7 days). To reproduce locally, run the steps above with `CI=true` from a clean checkout.
+
+Require the **CI / validate** status check in the `master` branch protection rules.
+
 ## Cleanup
 
 A cleanup job is **on by default** and runs **weekly**. It deletes Automations that have been Closed for at least **30 days**, together with their Run history, result files and transcripts.
