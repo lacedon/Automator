@@ -302,4 +302,18 @@ BEGIN
 END;
 `,
   },
+  {
+    version: 16,
+    sql: `CREATE TABLE api_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER,
+  last_used_at INTEGER
+);
+CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
+`,
+  },
 ];

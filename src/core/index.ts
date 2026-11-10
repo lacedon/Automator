@@ -55,7 +55,7 @@ export {
   type Role,
   type RoleAssignment,
 } from './access/accessService';
-export { SESSION_TTL_MS, UserService, type User } from './users/userService';
+export { SESSION_TTL_MS, UserService, type ApiToken, type User } from './users/userService';
 export { RepositoryService, type Repository, type RepositoryInput } from './repositories/repositoryService';
 export type { Notifier } from './notify/teamsNotifier';
 export type { GitLabClient, GitLabDiscussion, GitLabMr, GitLabNote } from './prechecks/gitlabClient';

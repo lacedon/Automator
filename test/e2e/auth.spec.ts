@@ -59,3 +59,23 @@ test('the Users & roles page manages users, roles and assignments', async ({ pag
     .click();
   await expect(page.locator('.error-box')).toContainText('nobody able to manage');
 });
+
+test('an access token authenticates API requests until it is revoked', async ({ page, request }) => {
+  await page.goto('/login');
+  await page.getByLabel('Username').fill('admin');
+  await page.getByLabel('Password').fill('admin');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  await page.goto('/account');
+  await page.getByLabel('Token name').fill('e2e');
+  await page.getByRole('button', { name: 'Create token' }).click();
+  const token = (await page.locator('.token-secret code').innerText()).trim();
+
+  const headers = { Authorization: `Bearer ${token}` };
+  expect((await request.get('/queue', { headers })).status()).toBe(200);
+  expect((await request.get('/queue', { headers: { Authorization: 'Bearer atk_wrong' } })).status()).toBe(401);
+
+  await page.getByRole('button', { name: 'Revoke' }).click();
+  await expect(page.getByText('Expires:')).toHaveCount(0);
+  expect((await request.get('/queue', { headers })).status()).toBe(401);
+});
