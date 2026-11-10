@@ -93,3 +93,62 @@ describe('sessions', () => {
     expect(users.signIn('alice', 'secret')).toBeNull();
   });
 });
+
+describe('access tokens', () => {
+  function alice() {
+    const created = users.create('alice', 'secret');
+    if (!created.ok) throw new Error('create failed');
+    return created.value.id;
+  }
+  function issue(userId: number, expiresAt: number | null = null) {
+    const r = users.createToken(userId, 'cli', expiresAt);
+    if (!r.ok) throw new Error('token failed');
+    return r.value;
+  }
+
+  test('authenticates the owner, stores only a hash and records use', () => {
+    const id = alice();
+    const { token } = issue(id);
+
+    expect(users.userForToken(token)).toEqual({ id, username: 'alice' });
+    expect(users.userForToken('atk_wrong')).toBeNull();
+    expect(users.userForToken(undefined)).toBeNull();
+    expect(handle.db.prepare('SELECT token_hash FROM api_tokens').pluck().get()).not.toContain(token);
+    expect(users.listTokens(id)).toMatchObject([{ name: 'cli', expiresAt: null, lastUsedAt: now }]);
+  });
+
+  test('stops working when expired, revoked or the user is disabled', () => {
+    const id = alice();
+    const expiring = issue(id, now + 1000);
+    const revoked = issue(id);
+    const kept = issue(id);
+
+    now += 1000;
+    expect(users.userForToken(expiring.token)).toBeNull();
+    users.revokeToken(id, revoked.id);
+    expect(users.userForToken(revoked.token)).toBeNull();
+    users.setDisabled(id, true);
+    expect(users.userForToken(kept.token)).toBeNull();
+  });
+
+  test('regenerating replaces the secret; others cannot touch the token', () => {
+    const id = alice();
+    const other = users.create('bob', 'pw');
+    if (!other.ok) throw new Error('create failed');
+    const { token, id: tokenId } = issue(id);
+
+    expect(users.regenerateToken(other.value.id, tokenId)).toMatchObject({ ok: false });
+    users.revokeToken(other.value.id, tokenId);
+    const next = users.regenerateToken(id, tokenId);
+    if (!next.ok) throw new Error('regenerate failed');
+
+    expect(users.userForToken(token)).toBeNull();
+    expect(users.userForToken(next.value.token)?.id).toBe(id);
+  });
+
+  test('rejects a blank name and a past expiry', () => {
+    const id = alice();
+    expect(users.createToken(id, ' ', null)).toMatchObject({ ok: false });
+    expect(users.createToken(id, 'x', now)).toMatchObject({ ok: false });
+  });
+});

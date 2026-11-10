@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getCore } from './app/lib/core';
-import { SESSION_COOKIE } from './app/lib/session';
+import { SESSION_COOKIE, bearerToken } from './app/lib/session';
 
 const PUBLIC_PATHS = ['/login', '/favicon.ico', '/icon.svg', '/apple-icon.png'];
 
@@ -8,7 +8,11 @@ const PUBLIC_PATHS = ['/login', '/favicon.ico', '/icon.svg', '/apple-icon.png'];
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/_next/static/');
-  if (!isPublic && getCore().users.userForSession(request.cookies.get(SESSION_COOKIE)?.value) === null) {
+  const { users } = getCore();
+  const token = bearerToken(request.headers.get('authorization'));
+  const user =
+    token !== undefined ? users.userForToken(token) : users.userForSession(request.cookies.get(SESSION_COOKIE)?.value);
+  if (!isPublic && user === null) {
     const navigation =
       request.method === 'GET' &&
       request.headers.get('next-action') === null &&

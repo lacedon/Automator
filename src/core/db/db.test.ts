@@ -106,7 +106,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(15);
+    expect(db.pragma('user_version', { simple: true })).toBe(16);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -118,12 +118,12 @@ describe('db', () => {
     );
   });
 
-  test('migrate is idempotent and sets user_version 15', () => {
+  test('migrate is idempotent and sets user_version 16', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(15);
+    expect(db.pragma('user_version', { simple: true })).toBe(16);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(15);
+    expect(db.pragma('user_version', { simple: true })).toBe(16);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -153,6 +153,7 @@ describe('db', () => {
     expect(tables).toEqual([
       'agent_assignments',
       'agents',
+      'api_tokens',
       'meta',
       'needs_you_events',
       'operation_templates',
@@ -245,7 +246,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(15);
+    expect(db.pragma('user_version', { simple: true })).toBe(16);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

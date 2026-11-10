@@ -7,6 +7,15 @@ export interface User {
   username: string;
 }
 
+export interface ApiToken {
+  id: number;
+  name: string;
+  createdAt: number;
+  expiresAt: number | null;
+  lastUsedAt: number | null;
+}
+
+export const TOKEN_PREFIX = 'atk_';
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const BOOTSTRAP_USERNAME = 'admin';
 const BOOTSTRAP_PASSWORD = 'admin';
@@ -103,5 +112,65 @@ export class UserService {
 
   signOut(token: string): void {
     this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+  }
+
+  // Access tokens for the CLI and API clients. The secret is returned once; only its hash is stored.
+  createToken(userId: number, name: string, expiresAt: number | null): Result<{ token: string; id: number }> {
+    const label = name.trim();
+    if (label === '') return err({ code: 'INVALID_INPUT', field: 'name', message: 'Token name is required' });
+    if (expiresAt !== null && expiresAt <= this.now())
+      return err({ code: 'INVALID_INPUT', field: 'expiresAt', message: 'Expiry must be in the future' });
+    const token = TOKEN_PREFIX + randomBytes(32).toString('base64url');
+    const info = this.db
+      .prepare('INSERT INTO api_tokens (user_id, name, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, label, hashToken(token), this.now(), expiresAt);
+    return ok({ token, id: Number(info.lastInsertRowid) });
+  }
+
+  listTokens(userId: number): ApiToken[] {
+    return (
+      this.db
+        .prepare('SELECT id, name, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY id')
+        .all(userId) as Row[]
+    ).map((r) => ({
+      id: r.id as number,
+      name: r.name as string,
+      createdAt: r.created_at as number,
+      expiresAt: r.expires_at as number | null,
+      lastUsedAt: r.last_used_at as number | null,
+    }));
+  }
+
+  // Replaces the secret, keeping name and expiry; the old secret stops working immediately.
+  regenerateToken(userId: number, tokenId: number): Result<{ token: string }> {
+    const token = TOKEN_PREFIX + randomBytes(32).toString('base64url');
+    const info = this.db
+      .prepare('UPDATE api_tokens SET token_hash = ?, last_used_at = NULL WHERE id = ? AND user_id = ?')
+      .run(hashToken(token), tokenId, userId);
+    return info.changes === 0 ? err({ code: 'NOT_FOUND' }) : ok({ token });
+  }
+
+  revokeToken(userId: number, tokenId: number): void {
+    this.db.prepare('DELETE FROM api_tokens WHERE id = ? AND user_id = ?').run(tokenId, userId);
+  }
+
+  // Expired tokens are deleted when met; tokens of disabled users never validate.
+  userForToken(token: string | undefined): User | null {
+    if (token === undefined || !token.startsWith(TOKEN_PREFIX)) return null;
+    const row = this.db
+      .prepare(
+        `SELECT t.id, t.expires_at, u.id AS user_id, u.username, u.disabled FROM api_tokens t
+         JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?`,
+      )
+      .get(hashToken(token)) as Row | undefined;
+    if (row === undefined) return null;
+    const now = this.now();
+    if (row.expires_at !== null && (row.expires_at as number) <= now) {
+      this.db.prepare('DELETE FROM api_tokens WHERE id = ?').run(row.id);
+      return null;
+    }
+    if (row.disabled === 1) return null;
+    this.db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?').run(now, row.id);
+    return { id: row.user_id as number, username: row.username as string };
   }
 }

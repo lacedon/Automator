@@ -26,6 +26,9 @@ export function TopBar({ counts, projects, scope, username }: Props) {
       <Link href="/adhoc" className="btn btn-primary">
         Ad-hoc run
       </Link>
+      <Link href="/account" className="btn btn-secondary" title="Access tokens">
+        {username}
+      </Link>
       <form action={signOut}>
         <button type="submit" className="btn btn-secondary" title={`Signed in as ${username}`}>
           Sign out
