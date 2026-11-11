@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale } from 'next-intl/server';
 import type { CSSProperties, ReactNode } from 'react';
 import { AutoRefresh } from './components/AutoRefresh';
 import { Sidebar } from './components/Sidebar';
@@ -14,10 +16,13 @@ export const metadata: Metadata = { title: 'Automator' };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await currentUser();
+  const locale = await getLocale();
   if (user === null)
     return (
-      <html lang="en">
-        <body>{children}</body>
+      <html lang={locale}>
+        <body>
+          <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        </body>
       </html>
     );
   const core = getCore();
@@ -34,14 +39,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const accent = hue === undefined ? undefined : `hsl(${hue} 65% 55%)`;
   const header = hue === undefined ? undefined : `hsl(${hue} 55% 24%)`;
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body style={accent ? ({ '--project-accent': accent, '--project-header': header } as CSSProperties) : undefined}>
-        <TopBar counts={counts} chats={chats} projects={projects} scope={selection} username={user.username} />
-        <div className="shell">
-          <Sidebar counts={counts} chats={chats} />
-          <main className="main">{children}</main>
-        </div>
-        <AutoRefresh intervalMs={3000} />
+        <NextIntlClientProvider>
+          <TopBar counts={counts} chats={chats} projects={projects} scope={selection} username={user.username} />
+          <div className="shell">
+            <Sidebar counts={counts} chats={chats} />
+            <main className="main">{children}</main>
+          </div>
+          <AutoRefresh intervalMs={3000} />
+        </NextIntlClientProvider>
       </body>
     </html>
   );
