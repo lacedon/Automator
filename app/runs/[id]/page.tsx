@@ -8,6 +8,7 @@ import { NoAutoRefresh } from '../../components/NoAutoRefresh';
 import { keepsRefreshing } from '../../lib/autoRefresh';
 import { getCore } from '../../lib/core';
 import { canReadRun } from '../../lib/guard';
+import { initialRunTab } from '../../lib/runTab';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +17,15 @@ function noTranscriptText(run: Run): string {
   return run.pid === null ? 'No transcript — the Run failed before Copilot started' : 'No transcript was written.';
 }
 
-export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RunDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
   const { id } = await params;
+  const { tab } = await searchParams;
   if (!/^\d+$/.test(id) || !(await canReadRun(Number(id)))) notFound();
   const view = await getCore().read.runDetail(Number(id));
   if (view === null) notFound();
@@ -54,6 +62,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         noTranscript={noTranscriptText(run)}
         thread={view.thread}
         currentRunId={run.id}
+        initialTab={initialRunTab(tab, view.thread !== null)}
       />
     </>
   );

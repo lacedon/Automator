@@ -131,6 +131,18 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
   expect(refreshes).toEqual([]);
 });
 
+test('ad-hoc run opens on the chat tab with ?tab=chat', async ({ page }) => {
+  await page.goto('/runs');
+  await page
+    .locator('.run-history')
+    .getByRole('link', { name: /Check <b>the<\/b> export job/ })
+    .click();
+  await expect(page).toHaveURL(/\/runs\/(\d+)$/);
+  await page.goto(`${page.url()}?tab=chat`);
+  await expect(page.getByRole('tab', { name: 'Chat' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel').locator('.chat-request')).toHaveText('Check <b>the</b> export job');
+});
+
 // Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
 test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
   await page.goto('/runs');

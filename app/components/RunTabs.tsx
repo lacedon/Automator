@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import type { FileView, ThreadView } from '@core/index';
+import type { RunTab as Tab } from '../lib/runTab';
 import { ChatPane } from './ChatPane';
-
-type Tab = 'transcript' | 'result' | 'prompt' | 'chat';
 
 const TAB_LABEL: Record<Tab, string> = {
   transcript: 'Transcript',
@@ -20,6 +19,7 @@ type Props = {
   noTranscript: string;
   thread: ThreadView | null;
   currentRunId: number;
+  initialTab: Tab;
 };
 
 function prettyJson(text: string): string {
@@ -41,8 +41,8 @@ function FilePane({ file, empty, format }: { file: FileView; empty: string; form
   );
 }
 
-export function RunTabs({ transcript, result, prompt, noTranscript, thread, currentRunId }: Props) {
-  const [tab, setTab] = useState<Tab>('transcript');
+export function RunTabs({ transcript, result, prompt, noTranscript, thread, currentRunId, initialTab }: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   return (
     <div>
       <div className="tabs" role="tablist">

@@ -1,16 +1,15 @@
 'use client';
 
-import Link from 'next/link';
-import { startTransition, useActionState, useRef, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { FormOptions } from '@core/index';
-import { queueAdhoc, type AdhocFormState } from '../actions/adhoc';
+import { queueAdhoc } from '../actions/adhoc';
 import { defaultAgentId } from '../lib/defaultAgent';
+import { chatHref } from '../lib/runTab';
 import { AgentSelect, type AgentPick } from './AgentSelect';
 import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
 import { PromptInput, type Suggestion } from './PromptInput';
-
-type Sent = { runId: number; text: string; position: number | null; warning?: string };
 
 export function AdhocForm({
   options,
@@ -26,30 +25,19 @@ export function AdhocForm({
   const [model, setModel] = useState('');
   const [ticket, setTicket] = useState('');
   const [agentPick, setAgentPick] = useState<AgentPick | null>(null);
-  const [sent, setSent] = useState<Sent[]>([]);
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const ticketRef = useRef<HTMLInputElement>(null);
-  const submitted = useRef('');
 
-  // A successful submit clears the prompt and Ticket for the next Run; failures keep everything as entered.
-  const [seen, setSeen] = useState<AdhocFormState>(null);
-  if (state !== seen) {
-    setSeen(state);
-    if (state?.ok) {
-      const { runId, position, warning } = state.value;
-      setSent((all) => [...all, { runId, text: submitted.current, position, warning }]);
-      setPrompt('');
-      setTicket('');
-    }
-  }
+  // A successful submit opens the created Run's chat; failures keep everything as entered.
+  useEffect(() => {
+    if (state?.ok) router.push(chatHref(state.value.runId));
+  }, [state, router]);
 
   // Submitting manually avoids React's automatic form reset, which would revert the controlled selects.
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    submitted.current = [data.get('ticket'), data.get('prompt')]
-      .filter((v) => typeof v === 'string' && v !== '')
-      .join(' · ');
     startTransition(() => formAction(data));
   };
 
@@ -84,17 +72,7 @@ export function AdhocForm({
   return (
     <form ref={formRef} action={formAction} onSubmit={submit} className="chat-window">
       <div className="chat-history" aria-live="polite">
-        {sent.length === 0 && <p className="muted chat-empty">Start a new chat: ask for something below.</p>}
-        {sent.map((m) => (
-          <div key={m.runId} className="chat-run">
-            <div className="chat-bubble chat-request">{m.text}</div>
-            <div className="chat-bubble chat-agent muted" role="status">
-              <Link href={`/runs/${m.runId}`}>Run #{m.runId}</Link> queued
-              {m.position !== null && ` (position ${m.position})`}
-              {m.warning !== undefined && <div>{m.warning}</div>}
-            </div>
-          </div>
-        ))}
+        <p className="muted chat-empty">Start a new chat: ask for something below.</p>
       </div>
       <div className="chat-composer">
         {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome="No Run was queued." />}
@@ -110,7 +88,7 @@ export function AdhocForm({
             mentions={mentions}
             onSubmit={() => formRef.current?.requestSubmit()}
           />
-          <button type="submit" className="btn btn-primary" disabled={pending}>
+          <button type="submit" className="btn btn-primary" disabled={pending || state?.ok === true}>
             Send
           </button>
         </div>
