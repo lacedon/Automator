@@ -263,3 +263,13 @@ test('Days field keeps a new blank line so the next number can be typed, saved a
     await page.getByRole('dialog').getByRole('button', { name: 'Save Configuration', exact: true }).click();
   }
 });
+
+test('Upgrade and restart asks for confirmation and Back leaves the application running', async ({ page }) => {
+  await page.goto('/settings/config');
+  await page.getByRole('button', { name: 'Upgrade and restart', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('rejected while Runs are active or queued');
+  await dialog.getByRole('button', { name: 'Back' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upgrade and restart', exact: true })).toBeVisible();
+});

@@ -4,6 +4,7 @@ import { readEditableConfig } from '@core/index';
 import { ConfigForm } from '../../components/ConfigForm';
 import { ErrorBox } from '../../components/ErrorBox';
 import { RestartApplicationButton } from '../../components/RestartApplicationButton';
+import { UpgradeAndRestartButton } from '../../components/UpgradeAndRestartButton';
 import { SettingsDialog } from '../../components/SettingsDialog';
 import { SettingsTable, SettingsTableRow } from '../../components/SettingsTable';
 import { providerLabel } from '../../lib/providerLabel';
@@ -72,6 +73,16 @@ export default function ConfigurationSettingsPage() {
         </h2>
         <p className="muted">Saved settings take effect after a restart. Active work will drain first.</p>
         <RestartApplicationButton />
+      </section>
+      <section aria-labelledby="upgrade-application-heading">
+        <h2 id="upgrade-application-heading" className="section-h">
+          Upgrade application
+        </h2>
+        <p className="muted">
+          Runs <code>npm run upgrade-and-restart</code> in the Automator checkout. Not available while Runs are active
+          or queued.
+        </p>
+        <UpgradeAndRestartButton />
       </section>
     </>
   );

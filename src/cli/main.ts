@@ -62,6 +62,7 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
     case 'INVALID_TARGET':
     case 'INVALID_INPUT':
     case 'RESTART_FAILED':
+    case 'UPGRADE_FAILED':
       return error.message;
     case 'MISSING_INSTRUCTIONS':
       return 'Free-form Automations need --instructions';
