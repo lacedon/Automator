@@ -154,5 +154,5 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
       continue;
     rows.push(toRunRow({ ...tip, adhocPrompt: root.adhocPrompt ?? tip.adhocPrompt }, config, deps.repositories));
   }
-  return rows.reverse().slice(0, f.limit);
+  return rows.sort((a, b) => b.id - a.id).slice(0, f.limit);
 }

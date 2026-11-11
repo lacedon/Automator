@@ -287,6 +287,16 @@ describe('read models', () => {
     expect(read.runList({ limit: 1 }).map((r) => r.id)).toEqual([other]);
   });
 
+  test('run list orders chats by their latest Run so an updated old chat stays on top', () => {
+    const { db, read } = setup();
+    const a = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat A' });
+    const b = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat B' });
+    const reply = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'more A', parent_run_id: a });
+
+    expect(read.runList({}).map((r) => r.id)).toEqual([reply, b]);
+    expect(read.runList({ limit: 1 }).map((r) => r.id)).toEqual([reply]);
+  });
+
   test('run history searches task, prompt, ticket, result, error and ID without treating wildcards specially', () => {
     const { db, read } = setup();
     const watch = insertWatch(db, { title: 'Review café navigation' });
