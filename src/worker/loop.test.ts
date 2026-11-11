@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../test/helpers/clock';
+import { insertWatch } from '../../test/helpers/db';
 import { testConfig } from '../../test/helpers/config';
 import {
   acquireWorkerLock,
@@ -128,6 +129,16 @@ describe('WorkerLoop', () => {
     clock.advance(1_000);
     await loop.iterate();
     expect(tick).toHaveBeenCalledTimes(2);
+  });
+
+  test('a due Automation is enqueued by the worker alone, with no UI involved', async () => {
+    const { core, clock, loop } = setup();
+    const id = insertWatch(core.db, { kind: 'free' });
+    core.db.prepare('UPDATE watches SET next_check_at = ? WHERE id = ?').run(clock.now() - 1, id);
+
+    await loop.iterate();
+    await waitFor(() => core.db.prepare('SELECT 1 FROM runs WHERE watch_id = ?').get(id) !== undefined);
+    await loop.stop();
   });
 
   test('cleanup runs when due', async () => {

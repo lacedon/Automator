@@ -243,6 +243,7 @@ Free-form Automations always run the selected provider on their interval.
 - Manual and ad-hoc Runs ignore working hours and go ahead of queued scheduled work, but they never interrupt a Run that's already in progress.
 - Scheduled work runs first-in, first-out (FIFO), with at most one queued request per Automation. Repeated triggers are combined into one.
 - After sleep or a restart, each Automation that is due gets checked once. Missed intervals aren't replayed.
+- Scheduling runs only in the worker, never in the browser, so it doesn't depend on the dashboard being open. Due pre-checks run up to 5 at a time and each is cut off after 90 s, so one slow or hung check (for example a stalled GitHub request) can't delay the others. A timed-out check counts as a failed check and is retried on the next interval.
 
 ## What the selected provider may do
 
