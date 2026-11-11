@@ -139,10 +139,10 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
     const chain = [root];
     for (let next = followUp.get(root.id); next !== undefined && !chain.includes(next); next = followUp.get(next.id))
       chain.push(next);
-    const tip = chain[chain.length - 1]!;
+    const tip = chain.findLast((run) => run.status !== 'queued');
+    if (tip === undefined) continue;
     const started = tip.startedAt ?? tip.queuedAt;
     if (
-      tip.status === 'queued' ||
       !inScope(tip.repository) ||
       (f.trigger !== undefined && tip.trigger !== f.trigger) ||
       (f.repository !== undefined && tip.repository !== f.repository) ||

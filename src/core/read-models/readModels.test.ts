@@ -297,6 +297,15 @@ describe('read models', () => {
     expect(read.runList({ limit: 1 }).map((r) => r.id)).toEqual([reply]);
   });
 
+  test('run list keeps a chat visible while its follow-up is queued', () => {
+    const { db, read } = setup();
+    const a = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat A' });
+    insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'more A', parent_run_id: a, status: 'queued' });
+    insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'only queued', status: 'queued' });
+
+    expect(read.runList({}).map((r) => r.id)).toEqual([a]);
+  });
+
   test('run history searches task, prompt, ticket, result, error and ID without treating wildcards specially', () => {
     const { db, read } = setup();
     const watch = insertWatch(db, { title: 'Review café navigation' });
