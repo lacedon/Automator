@@ -5,7 +5,6 @@ import { startTransition, useActionState, useEffect, useRef, useState, type Form
 import type { FormOptions } from '@core/index';
 import { queueAdhoc } from '../actions/adhoc';
 import { defaultAgentId } from '../lib/defaultAgent';
-import { chatHref } from '../lib/runTab';
 import { AgentSelect, type AgentPick } from './AgentSelect';
 import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
@@ -31,7 +30,7 @@ export function AdhocForm({
 
   // A successful submit opens the created Run's chat; failures keep everything as entered.
   useEffect(() => {
-    if (state?.ok) router.push(chatHref(state.value.runId));
+    if (state?.ok) router.push(`/runs/${state.value.runId}`);
   }, [state, router]);
 
   // Submitting manually avoids React's automatic form reset, which would revert the controlled selects.

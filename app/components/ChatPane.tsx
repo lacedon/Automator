@@ -6,6 +6,7 @@ import type { ThreadRun, ThreadView } from '@core/index';
 import { sendRunMessage, type ChatFormState } from '../actions/chat';
 import { ErrorBox } from './ErrorBox';
 import { RunPill } from './Pill';
+import { RunFileLinks } from './RunFileLinks';
 
 // All text is rendered as React text nodes: no HTML, no Markdown.
 function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
@@ -32,6 +33,9 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
       ) : (
         <div className="chat-bubble chat-agent muted">{run.status}</div>
       )}
+      <div className="chat-run-files muted">
+        <RunFileLinks runId={run.id} />
+      </div>
     </div>
   );
 }
@@ -63,7 +67,7 @@ export function ChatPane({ thread, currentRunId }: { thread: ThreadView; current
         <RunExchange key={run.id} run={run} current={run.id === currentRunId} />
       ))}
       {thread.replyToRunId === null ? (
-        <p className="muted">{thread.replyBlockedReason}</p>
+        thread.replyBlockedReason !== null && <p className="muted">{thread.replyBlockedReason}</p>
       ) : (
         <form action={formAction} onSubmit={submit} className="watch-form chat-form">
           {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome="No Run was queued." />}

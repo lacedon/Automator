@@ -1,31 +1,38 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { Run } from '@core/index';
+import type { Run, ThreadView } from '@core/index';
 import { RunPill } from '../../components/Pill';
 import { RunErrorCard, RunMeta } from '../../components/RunMeta';
-import { RunTabs } from '../../components/RunTabs';
+import { ChatPane } from '../../components/ChatPane';
 import { NoAutoRefresh } from '../../components/NoAutoRefresh';
 import { keepsRefreshing } from '../../lib/autoRefresh';
 import { getCore } from '../../lib/core';
 import { canReadRun } from '../../lib/guard';
-import { initialRunTab } from '../../lib/runTab';
 
 export const dynamic = 'force-dynamic';
 
-function noTranscriptText(run: Run): string {
-  if (run.status !== 'finished') return "Live transcript isn't available in v1. It appears when the Run finishes.";
-  return run.pid === null ? 'No transcript — the Run failed before Copilot started' : 'No transcript was written.';
+function singleRunThread(run: Run): ThreadView {
+  return {
+    runs: [
+      {
+        id: run.id,
+        status: run.status,
+        outcome: run.outcome,
+        request: run.adhocPrompt,
+        ticketKey: run.ticketKey,
+        summary: run.summary,
+        error: run.error,
+        queuedAt: run.queuedAt,
+        endedAt: run.endedAt,
+      },
+    ],
+    replyToRunId: null,
+    replyBlockedReason: null,
+  };
 }
 
-export default async function RunDetailPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string | string[] }>;
-}) {
+export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { tab } = await searchParams;
   if (!/^\d+$/.test(id) || !(await canReadRun(Number(id)))) notFound();
   const view = await getCore().read.runDetail(Number(id));
   if (view === null) notFound();
@@ -52,18 +59,13 @@ export default async function RunDetailPage({
         </h1>
         <RunPill run={run} />
       </div>
-      <RunMeta view={view} />
-      {run.error !== null && <RunErrorCard error={run.error} />}
       {!keepsRefreshing(run.status, view.thread) && <NoAutoRefresh />}
-      <RunTabs
-        transcript={view.transcript}
-        result={view.result}
-        prompt={view.prompt}
-        noTranscript={noTranscriptText(run)}
-        thread={view.thread}
-        currentRunId={run.id}
-        initialTab={initialRunTab(tab, view.thread !== null)}
-      />
+      <ChatPane thread={view.thread ?? singleRunThread(run)} currentRunId={run.id} />
+      <details className="run-details">
+        <summary>Run details</summary>
+        {run.error !== null && <RunErrorCard error={run.error} />}
+        <RunMeta view={view} />
+      </details>
     </>
   );
 }

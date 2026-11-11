@@ -87,19 +87,37 @@ test('create form shows duplicate error with link to existing watch', async ({ p
   await expect(page.getByText('docs-sync — wiki.example.com/release').first()).toBeVisible();
 });
 
-test('run detail shows transcript, result json and prompt tabs', async ({ page }) => {
+test('run detail is chat-first with file modals and collapsed details', async ({ page }) => {
   await page.goto('/automations');
   await page.getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
   await page.getByRole('link', { name: 'Replied to 2 comments, pushed fix' }).click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
+  await expect(page.getByRole('tab')).toHaveCount(0);
+  const details = page.locator('details.run-details');
+  await expect(details).not.toHaveAttribute('open', '');
+  await expect(page.locator('.kv')).toBeHidden();
+  await details.getByText('Run details', { exact: true }).click();
   await expect(page.locator('.kv')).toContainText('GitHub Copilot CLI');
-  const panel = page.getByRole('tabpanel');
-  await expect(panel).toContainText('# Transcript of Run #');
-  await expect(panel).toContainText('Replied to 2 comments, pushed fix');
-  await page.getByRole('tab', { name: 'Result JSON' }).click();
-  await expect(panel).toContainText('"outcome": "acted"');
-  await page.getByRole('tab', { name: 'Prompt' }).click();
-  await expect(panel).toContainText('# Prompt for Run #');
+  const dialog = page.getByRole('dialog');
+  await page.getByRole('button', { name: 'Transcript' }).click();
+  await expect(dialog).toContainText('# Transcript of Run #');
+  await expect(dialog).toContainText('Replied to 2 comments, pushed fix');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Result JSON' }).click();
+  await expect(dialog).toContainText('"outcome": "acted"');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Prompt' }).click();
+  await expect(dialog).toContainText('# Prompt for Run #');
+});
+
+test('run detail chat-first layout fits a phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 700 });
+  await page.goto('/automations');
+  await page.getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
+  await page.getByRole('link', { name: 'Replied to 2 comments, pushed fix' }).click();
+  await expect(page.getByRole('button', { name: 'Transcript' })).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
 });
 
 test('run detail auto-refreshes only while the run is not finished', async ({ page }) => {
@@ -131,16 +149,14 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
   expect(refreshes).toEqual([]);
 });
 
-test('ad-hoc run opens on the chat tab with ?tab=chat', async ({ page }) => {
+test('ad-hoc run opens on the chat by default', async ({ page }) => {
   await page.goto('/runs');
   await page
     .locator('.run-history')
     .getByRole('link', { name: /Check <b>the<\/b> export job/ })
     .click();
   await expect(page).toHaveURL(/\/runs\/(\d+)$/);
-  await page.goto(`${page.url()}?tab=chat`);
-  await expect(page.getByRole('tab', { name: 'Chat' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel').locator('.chat-request')).toHaveText('Check <b>the</b> export job');
+  await expect(page.locator('.chat .chat-request')).toHaveText('Check <b>the</b> export job');
 });
 
 // Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
@@ -151,9 +167,7 @@ test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
     .getByRole('link', { name: /Check <b>the<\/b> export job/ })
     .click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
-  await page.getByRole('tab', { name: 'Chat' }).click();
-
-  const panel = page.getByRole('tabpanel');
+  const panel = page.locator('.chat');
   await expect(panel.locator('.chat-request')).toHaveText('Check <b>the</b> export job');
   await expect(panel.locator('b')).toHaveCount(0);
   await expect(panel.locator('.chat-agent')).toContainText('Which environment should the export job run against?');
