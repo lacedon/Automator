@@ -28,3 +28,11 @@ export function mergeMessages(base: Messages, override: Messages): Messages {
 export function loadMessages(locale: Locale): Messages {
   return mergeMessages(catalogs[defaultLocale], catalogs[locale]);
 }
+
+export function formatNumber(locale: Locale, value: number, options?: Intl.NumberFormatOptions): string {
+  return new Intl.NumberFormat(locale, options).format(value);
+}
+
+export function formatDate(locale: Locale, value: Date | number, options?: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', ...options }).format(value);
+}
