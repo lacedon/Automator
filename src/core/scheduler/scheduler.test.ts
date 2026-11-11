@@ -19,7 +19,11 @@ import { Scheduler } from './scheduler';
 
 const cleanups: (() => void)[] = [];
 
+const hung = new Set<number>();
+
 afterEach(() => {
+  hung.clear();
+  vi.useRealTimers();
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
@@ -32,6 +36,7 @@ function stubPrecheck(script: Script) {
   const precheck: Precheck = {
     check: async (w) => {
       calls.push(w.id);
+      if (hung.has(w.id)) await new Promise<never>(() => {});
       return script(w);
     },
     snapshot: () => Promise.reject(new Error('not used')),
@@ -364,6 +369,26 @@ describe('Scheduler.tick', () => {
     expect(errors).toHaveBeenCalledWith(
       expect.stringMatching(new RegExp(`^\\S+Z .*Automation #${ids.checkThrows}.*check exploded`)),
     );
+    errors.mockRestore();
+  });
+
+  test('a hung pre-check times out without blocking other watches', async () => {
+    vi.useFakeTimers();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { db, clock, config, scheduler } = setup({ script: () => ({ kind: 'changed', reason: 'new note' }) });
+    const stuck = dueWatch(db, clock.now() - 2 * MIN);
+    const ok = dueWatch(db, clock.now() - MIN);
+    hung.add(stuck);
+
+    const tick = scheduler.tick();
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(await tick).toEqual({ checked: 1, enqueued: 1 });
+    expect(runsOf(db, ok)).toHaveLength(1);
+    expect(watch(db, stuck)).toMatchObject({
+      state: 'active',
+      nextCheckAt: clock.now() + config.schedule.intervals.mr,
+    });
     errors.mockRestore();
   });
 });

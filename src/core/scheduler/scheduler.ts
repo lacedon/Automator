@@ -15,6 +15,16 @@ import { closeWatch, enterNeedsYou } from '../watches/needsYou';
 import type { RepositoryService } from '../repositories/repositoryService';
 
 const MAX_CHECK_FAILURES = 3;
+const CHECK_CONCURRENCY = 5;
+const CHECK_TIMEOUT_MS = 90_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
 
 export interface SchedulerDeps {
   db: Database;
@@ -35,26 +45,40 @@ export class Scheduler {
     return this.deps.configFor?.(repository) ?? this.deps.config;
   }
 
+  // Checks run concurrently with a deadline each, so one slow or hung pre-check cannot hold back the others.
   async tick(): Promise<{ checked: number; enqueued: number }> {
     const { clock } = this.deps;
     const totals = { checked: 0, enqueued: 0 };
-    for (const watch of this.dueWatches(clock.now())) {
-      const config = this.configFor(watch.repository);
-      if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) continue;
-      if (watch.kind === 'jira' && !config.jira.enabled) continue;
-      try {
-        const result = await this.check(watch);
-        const enqueued = this.apply(watch.id, result);
-        totals.checked += 1;
-        if (enqueued) totals.enqueued += 1;
-      } catch (e) {
-        console.error(
-          `${new Date().toISOString()} scheduler: Automation #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        this.postpone(watch);
+    const queue = this.dueWatches(clock.now());
+    const worker = async () => {
+      for (let watch = queue.shift(); watch !== undefined; watch = queue.shift()) {
+        await this.process(watch, totals);
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(CHECK_CONCURRENCY, queue.length) }, worker));
     return totals;
+  }
+
+  private async process(watch: Watch, totals: { checked: number; enqueued: number }): Promise<void> {
+    const { clock } = this.deps;
+    const config = this.configFor(watch.repository);
+    if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) return;
+    if (watch.kind === 'jira' && !config.jira.enabled) return;
+    try {
+      const result = await withTimeout(
+        this.check(watch),
+        CHECK_TIMEOUT_MS,
+        `Pre-check timed out after ${CHECK_TIMEOUT_MS / 1000}s`,
+      );
+      const enqueued = this.apply(watch.id, result);
+      totals.checked += 1;
+      if (enqueued) totals.enqueued += 1;
+    } catch (e) {
+      console.error(
+        `${new Date().toISOString()} scheduler: Automation #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      this.postpone(watch);
+    }
   }
 
   // A failing Automation still moves on by its interval so it cannot block the others.
