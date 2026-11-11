@@ -3,9 +3,10 @@
 import { Fragment, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Pill } from './Pill';
 
 type Counts = { watches: number; queued: number };
-export type NavChat = { id: number; title: string };
+export type NavChat = { id: number; title: string; needsYou: boolean };
 
 function NavigationItems({
   counts,
@@ -47,6 +48,7 @@ function NavigationItems({
               onClick={onNavigate}
             >
               <span>{chat.title}</span>
+              {chat.needsYou && <Pill variant="needs-you">Needs you</Pill>}
             </Link>
           ))}
       </Fragment>
