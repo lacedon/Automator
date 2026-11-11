@@ -23,9 +23,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const core = getCore();
   const selection = await currentSelection();
   const counts = core.read.navCounts(await currentScope());
-  const chats = core.read
-    .runList({ project: await currentScope(), limit: 10 })
-    .map((run) => ({ id: run.id, title: run.adhocPrompt || (run.ticket?.key ?? `Chat #${run.id}`) }));
+  const chats = core.read.runList({ project: await currentScope(), limit: 10 }).map((run) => ({
+    id: run.id,
+    title: run.adhocPrompt || (run.ticket?.key ?? `Chat #${run.id}`),
+    needsYou: run.outcome === 'needs-you',
+  }));
   const projects = await readableProjects();
   const active = typeof selection === 'number' ? projects.find((p) => p.id === selection) : undefined;
   const hue = active ? projectHue(active.name) : undefined;

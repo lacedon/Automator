@@ -178,9 +178,10 @@ code {
   min-height: 32px;
   padding: 4px 12px 4px 24px;
   font-size: 13px;
+  gap: 8px;
 }
 
-.nav-chat > span {
+.nav-chat > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
