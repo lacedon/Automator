@@ -295,6 +295,32 @@ export function overrideFields(base: Config): OverrideField[] {
       },
     },
     {
+      id: 'runs/isolation',
+      group: 'Runs',
+      label: 'Run isolation',
+      kind: 'select',
+      options: ['shared', 'copy'],
+      read: (c) => c.runs.isolation,
+      apply(draft, value) {
+        if (value !== 'shared' && value !== 'copy') return `Unknown isolation "${value}"`;
+        draft.runs.isolation = value;
+        return null;
+      },
+    },
+    {
+      id: 'runs/maxConcurrent',
+      group: 'Runs',
+      label: 'Max concurrent Runs per Repository (copy isolation)',
+      kind: 'number',
+      read: (c) => String(c.runs.maxConcurrent),
+      apply(draft, value) {
+        const max = positiveInt(value);
+        if (max === null) return 'Expected a positive whole number';
+        draft.runs.maxConcurrent = max;
+        return null;
+      },
+    },
+    {
       id: 'runs/denyTools',
       group: 'Runs',
       label: 'Denied tools',

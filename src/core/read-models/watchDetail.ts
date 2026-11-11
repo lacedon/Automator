@@ -59,7 +59,7 @@ export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null 
   const config = configOf(deps, watch.repository);
   const modelOptions = providerOptions(config, config.provider);
   const src = nextCheckSource(deps);
-  const running = src.running?.watchId === watch.id ? src.running : null;
+  const running = src.running.get(watch.id) ?? null;
   const event = db.prepare('SELECT * FROM needs_you_events WHERE watch_id = ? ORDER BY id DESC LIMIT 1').get(id);
   const runs = db
     .prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id = ? AND r.status <> 'queued' ORDER BY r.id DESC`)
@@ -68,8 +68,8 @@ export function watchDetail(deps: ReadDeps, id: number): WatchDetailView | null 
 
   return {
     watch,
-    actions: actionsFor(watch, src.running),
-    running: toRunningCard(running, deps),
+    actions: actionsFor(watch, running),
+    running: running === null ? null : toRunningCard(running, deps),
     nextCheck: nextCheckFor(watch, src, deps),
     settings: {
       repository: watch.repository,

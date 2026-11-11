@@ -2,7 +2,7 @@ import type { WatchKind } from '../domain/types';
 import type { ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 import type { ProjectScope } from '../domain/types';
-import { runningRun, toRunningCard, type RunningCard } from './queue';
+import { runningRuns, toRunningCard, type RunningCard } from './queue';
 import { RUNS_WITH_TITLE, toRunRow, toRunWithTitle, type RunRow } from './runs';
 
 export type NeedsYouCard = {
@@ -15,7 +15,7 @@ export type NeedsYouCard = {
   runId: number | null;
 };
 
-export type HomeView = { needsYou: NeedsYouCard[]; running: RunningCard | null; recent: RunRow[] };
+export type HomeView = { needsYou: NeedsYouCard[]; running: RunningCard[]; recent: RunRow[] };
 
 const RECENT_LIMIT = 10;
 
@@ -49,6 +49,8 @@ export function homeView(deps: ReadDeps, scope: ProjectScope = null): HomeView {
     .filter((run) => inScope(run.repository))
     .slice(0, RECENT_LIMIT)
     .map((run) => toRunRow(run, deps.config, deps.repositories));
-  const running = runningRun(deps);
-  return { needsYou, running: running && inScope(running.repository) ? toRunningCard(running, deps) : null, recent };
+  const running = runningRuns(deps)
+    .filter((run) => inScope(run.repository))
+    .map((run) => toRunningCard(run, deps));
+  return { needsYou, running, recent };
 }

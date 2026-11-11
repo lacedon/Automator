@@ -69,7 +69,7 @@ function main(): void {
     now: () => Date.now(),
     onStop: (signal) => {
       shuttingDown = true;
-      console.log(`${ts()} ${signal} received, waiting for the active run to finish (press Ctrl-C again to force)`);
+      console.log(`${ts()} ${signal} received, waiting for the active runs to finish (press Ctrl-C again to force)`);
       void startup
         .catch(() => {})
         .then(() => loop.stop())
@@ -82,8 +82,8 @@ function main(): void {
         });
     },
     onForce: (signal) => {
-      console.log(`${ts()} ${signal} again, killing the active run and exiting immediately`);
-      attempt('kill active run', () => core.executor.killActive());
+      console.log(`${ts()} ${signal} again, killing the active runs and exiting immediately`);
+      attempt('kill active runs', () => core.executor.killActive());
       process.exit(1);
     },
   });

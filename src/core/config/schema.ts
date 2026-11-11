@@ -100,6 +100,8 @@ export function createConfigSchema(configDir: string) {
           models: z.array(z.string()).default([]),
           initialReview: z.enum(['baseline-only', 'unresolved']).default('baseline-only'),
           denyTools: z.array(z.string()).default([]),
+          isolation: z.enum(['shared', 'copy']).default('shared'),
+          maxConcurrent: positiveInt.default(2),
         })
         .prefault({})
         .transform(({ timeoutMinutes, ...rest }) => ({ timeoutMs: timeoutMinutes * 60_000, ...rest })),

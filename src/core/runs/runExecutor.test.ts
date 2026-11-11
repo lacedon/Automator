@@ -253,7 +253,7 @@ describe('RunExecutor', () => {
     expect(row.pid).toBeGreaterThan(0);
     const w = watchOf(s.db, watchId);
     expect(w).toMatchObject({ cursor: candidate, title: 'New title', mrSourceBranch: 'feat/x', state: 'active' });
-    expect(s.executor.isBusy()).toBe(false);
+    expect(s.executor.activeCount()).toBe(0);
   });
 
   test('needs-you outcome moves watch to needs_you and calls onNeedsYou once', async () => {
@@ -332,7 +332,7 @@ describe('RunExecutor', () => {
     expect(readResult(final.resultPath).error).toEqual(final.error);
     expect(watchOf(s.db, watchId).state).toBe('needs_you');
     expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
-    expect(s.executor.isBusy()).toBe(false);
+    expect(s.executor.activeCount()).toBe(0);
   });
 
   describe('finalize failure never leaves the run running', () => {
@@ -356,7 +356,7 @@ describe('RunExecutor', () => {
       expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error', error: final.error });
       expect(watchOf(s.db, watchId)).toMatchObject({ state: 'needs_you', needsYouRunId: run.id, cursor: oldCursor });
       expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
-      expect(s.executor.isBusy()).toBe(false);
+      expect(s.executor.activeCount()).toBe(0);
       expect(logged).toHaveBeenCalledWith(expect.stringContaining(`Run #${run.id}: finalizing failed`));
     });
 
@@ -375,7 +375,7 @@ describe('RunExecutor', () => {
       expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error', error: final.error });
       expect(watchOf(s.db, watchId).state).toBe('needs_you');
       expect(s.onNeedsYou).toHaveBeenCalledTimes(1);
-      expect(s.executor.isBusy()).toBe(false);
+      expect(s.executor.activeCount()).toBe(0);
     });
 
     test('when applyOutcome keeps failing, a guarded UPDATE still finishes the run', async () => {
@@ -393,7 +393,7 @@ describe('RunExecutor', () => {
       expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error', error: final.error });
       expect(watchOf(s.db, watchId).state).toBe('active');
       expect(s.onNeedsYou).not.toHaveBeenCalled();
-      expect(s.executor.isBusy()).toBe(false);
+      expect(s.executor.activeCount()).toBe(0);
       expect(logged).toHaveBeenCalledWith(expect.stringContaining('applying the failure outcome failed: watch locked'));
     });
   });
@@ -421,7 +421,7 @@ describe('RunExecutor', () => {
     const run = claim(s.db, s.clock.now(), watchId);
     const pending = s.executor.execute(run);
     await waitFor(() => runOf(s.db, run.id).pid !== null);
-    expect(s.executor.isBusy()).toBe(true);
+    expect(s.executor.activeCount()).toBe(1);
 
     s.clock.advance(1500);
     s.executor.watchdog();
@@ -437,7 +437,45 @@ describe('RunExecutor', () => {
     });
     expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', interrupted: 'timeout' });
     expect(watchOf(s.db, watchId).state).toBe('needs_you');
-    expect(s.executor.isBusy()).toBe(false);
+    expect(s.executor.activeCount()).toBe(0);
+  });
+
+  test('copy isolation runs in a copy of the Repository folder and deletes it afterwards', async () => {
+    const s = setup({ mode: 'nothing' });
+    const folder = s.config.repositories.pages.folder;
+    fs.writeFileSync(path.join(folder, 'untracked.txt'), 'x');
+    const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'do it' });
+    s.db.prepare("UPDATE runs SET isolation = 'copy' WHERE id = ?").run(run.id);
+
+    const final = await s.executor.execute(run);
+
+    expect(final.resultStatus).toBe('success');
+    const cwd = s.starts[0]!.cwd;
+    expect(cwd).toBe(s.dataDir.workspacePath(run.id, folder));
+    expect(cwd).not.toBe(folder);
+    expect(fs.existsSync(cwd)).toBe(false);
+    expect(fs.existsSync(path.join(folder, 'untracked.txt'))).toBe(true);
+    expect(s.currentBranch).toHaveBeenCalledWith(cwd);
+  });
+
+  test('Runs in different Repositories execute at the same time and one cancel leaves the other running', async () => {
+    const s = setup({ mode: 'hang' });
+    const a = claim(s.db, s.clock.now(), null, { adhocPrompt: 'a', repository: 'pages' });
+    const b = claim(s.db, s.clock.now(), null, { adhocPrompt: 'b', repository: 'api' });
+    const pendingA = s.executor.execute(a);
+    const pendingB = s.executor.execute(b);
+    await waitFor(() => runOf(s.db, a.id).pid !== null && runOf(s.db, b.id).pid !== null);
+    expect(s.executor.activeCount()).toBe(2);
+
+    s.db.prepare('UPDATE runs SET cancel_requested_at = ? WHERE id = ?').run(s.clock.now(), a.id);
+    s.executor.watchdog();
+    expect(await pendingA).toMatchObject({ interrupted: 'cancelled' });
+    expect(runOf(s.db, b.id).status).toBe('running');
+    expect(s.executor.activeCount()).toBe(1);
+
+    s.executor.killActive();
+    await pendingB;
+    expect(s.executor.activeCount()).toBe(0);
   });
 
   test('killActive SIGKILLs the running copilot process group', async () => {

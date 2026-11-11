@@ -106,7 +106,7 @@ describe('WorkerLoop', () => {
     expect(procs).toHaveLength(1);
 
     procs[0]!.finish();
-    await waitFor(() => status(a) === 'finished' && !core.executor.isBusy());
+    await waitFor(() => status(a) === 'finished' && core.executor.activeCount() === 0);
     await loop.iterate();
     expect(status(b)).toBe('running');
     await waitFor(() => procs.length === 2);

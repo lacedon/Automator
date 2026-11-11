@@ -68,7 +68,7 @@ npm start
 
 Add your local codebases on **Settings → Repositories**. If your existing `automator.config.json` has a `repositories` section, Automator imports it into SQLite the first time it starts with that database. After import, the database is the source of truth; later edits to the legacy config section are ignored.
 
-Ctrl-C stops the dashboard at once, but the worker first waits for the active Run to finish (up to `runs.timeoutMinutes`) and records its result. Press Ctrl-C again (a second or more later) to force it to stop: the active provider process is killed, and on the next start the Run is marked interrupted and its Automation moves to Needs you.
+Ctrl-C stops the dashboard at once, but the worker first waits for every active Run to finish (up to `runs.timeoutMinutes`) and records their results. Press Ctrl-C again (a second or more later) to force it to stop: the active provider processes are killed, and on the next start those Runs are marked interrupted and its Automation moves to Needs you.
 
 CLI examples (the worker must be running for queued Runs to start):
 
@@ -146,7 +146,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 - **Roles and permissions.** Roles are configured in Settings → Users & roles as sets of two permissions: `read` (see everything in a Project) and `write` (do actions with everything; includes `read`). A user can hold several roles, each assigned globally or for one Project; a permission is held if any assignment grants it, so nothing conflicts and access is denied by default. Managing users, roles and global settings takes a global `write`; the last global writer cannot be removed. There are no direct User–Repository grants: Project access covers every Repository in the Project. Server Actions, pages and file routes enforce this on the server: global settings need a global `write`, acting on an Automation or Run needs `write` on its Repository's Project, and lists, the project switcher and detail pages only show what the user can `read` (others answer 404). Existing Automations and Runs belong to `admin`; new ones belong to their creator.
 - **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs the selected provider. Both use the same SQLite database.
 - **Repositories:** Repository records are managed in Settings and stored in SQLite. Each names a local folder, a GitLab and/or GitHub connection, an optional Jira connection, and validation commands. Connection hosts and credential environment-variable references remain in config. Every Automation and ad-hoc Run refers to a Repository by name; target URLs are matched against its named service connections. The selected CLI starts directly in the folder, so its supported local instructions, skills and MCP setup apply. The automator never clones repositories or creates worktrees.
-- **One global queue:** all provider Runs are serialized, even across different Repositories. Several protections stop the same work from running twice, including across processes.
+- **Per-Repository queue:** Runs for different Repositories execute at the same time, while queued Runs wait in order for their own Repository without blocking the others. With the default `runs.isolation: "shared"`, a Repository (or several Repository records pointing at the same folder) runs one Run at a time in its configured folder. With `runs.isolation: "copy"`, each Run works in a full recursive copy of the folder (including `.git` and untracked files) under the Data Dir `workspaces/` folder, up to `runs.maxConcurrent` (default 2) Runs per Repository at once; the copy is deleted when the Run ends, and copies orphaned by a crash are removed at the next worker start. Both settings can be overridden per Project. Several protections stop the same work from running twice, including across processes.
 - **Provider sessions:** each new Run starts a new provider session; a follow-up resumes its parent Run's session. Prompts include the Automation instructions, summaries of recent Runs and any resolution note you left.
 
 ## Domain
@@ -412,4 +412,4 @@ curl -u me:secret http://127.0.0.1:3000/api/runs/7
 - Live streaming of transcripts
 - Editing secrets from the dashboard
 - An MCP tool or skill that lets Copilot create Automations itself (easy to add later on top of the CLI)
-- Worktrees, automatic cloning, or running Runs in parallel (see [ADR 0001](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md))
+- Worktrees or automatic cloning (see [ADR 0001](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md))

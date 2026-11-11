@@ -26,7 +26,15 @@ const editableFields = [
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
-const runFields = ['timeoutMinutes', 'defaultModel', 'models', 'initialReview', 'denyTools'] as const;
+const runFields = [
+  'timeoutMinutes',
+  'defaultModel',
+  'models',
+  'initialReview',
+  'denyTools',
+  'isolation',
+  'maxConcurrent',
+] as const;
 const providerFields = ['bin', 'defaultModel', 'models'] as const;
 const providers = ['claude-code', 'codex', 'opencode'] as const;
 const cleanupFields = ['enabled', 'everyDays', 'retainClosedDays'] as const;

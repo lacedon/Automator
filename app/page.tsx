@@ -55,21 +55,18 @@ function NeedsYou({ cards }: { cards: NeedsYouCard[] }) {
   );
 }
 
-function NowRunning({ run }: { run: RunningCard | null }) {
+function NowRunning({ runs }: { runs: RunningCard[] }) {
   return (
     <section aria-labelledby="now-running" className="card operating-card">
       <div className="section-heading">
         <h2 id="now-running">Running now</h2>
-        {run !== null && (
+      </div>
+      {runs.length === 0 && <EmptyState>Nothing running.</EmptyState>}
+      {runs.map((run) => (
+        <div key={run.runId}>
           <Pill variant="running">
             <Elapsed since={run.startedAt} />
           </Pill>
-        )}
-      </div>
-      {run === null ? (
-        <EmptyState>Nothing running.</EmptyState>
-      ) : (
-        <>
           <Link href={`/runs/${run.runId}`} className="task-title">
             <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />{' '}
           </Link>
@@ -90,8 +87,8 @@ function NowRunning({ run }: { run: RunningCard | null }) {
               action={cancelRun.bind(null, run.runId)}
             />
           </div>
-        </>
-      )}
+        </div>
+      ))}
     </section>
   );
 }
@@ -140,7 +137,7 @@ export default async function HomePage() {
       </div>
       <NeedsYou cards={needsYou} />
       <div className="operating-grid">
-        <NowRunning run={running} />
+        <NowRunning runs={running} />
         <UpNext waiting={waiting} />
       </div>
     </div>

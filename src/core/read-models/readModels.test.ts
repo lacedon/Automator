@@ -83,7 +83,7 @@ describe('read models', () => {
       ['Newer', 'Copilot asked for help', 2_000],
       ['Older', 'pipeline failed', 1_000],
     ]);
-    expect(home.running).toBeNull();
+    expect(home.running).toEqual([]);
   });
 
   test('home shows the running Run and recent finished Runs newest first', () => {
@@ -95,7 +95,7 @@ describe('read models', () => {
 
     const home = read.homeView();
 
-    expect(home.running).toMatchObject({ runId: running, watchId: w, watchTitle: 'Fix login', startedAt: 5_000 });
+    expect(home.running[0]).toMatchObject({ runId: running, watchId: w, watchTitle: 'Fix login', startedAt: 5_000 });
     expect(home.recent.map((r) => r.outcome)).toEqual(['nothing', 'acted']);
   });
 
@@ -240,7 +240,7 @@ describe('read models', () => {
 
     const queue = read.queueView();
 
-    expect(queue.running).toBeNull();
+    expect(queue.running).toEqual([]);
     expect(queue.waiting.map((r) => [r.position, r.runId])).toEqual([
       [1, a],
       [2, m],
@@ -416,7 +416,7 @@ describe('read models', () => {
     const plain = insertRun(db, { trigger: 'adhoc', priority: 0, adhoc_prompt: 'x', status: 'queued' });
 
     const queue = read.queueView();
-    expect(queue.running).toMatchObject({ runId: running, ticket });
+    expect(queue.running[0]).toMatchObject({ runId: running, ticket });
     expect(queue.waiting.find((r) => r.runId === queued)).toMatchObject({
       ticket: { key: 'ABC-123', title: null, url: ticket.url },
     });

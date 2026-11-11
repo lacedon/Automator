@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import { z } from 'zod';
 import type { Secrets } from '../config/load';
 import type { ConfigFor } from '../config/resolver';
@@ -202,19 +203,19 @@ type Active = {
 };
 
 export class RunExecutor {
-  private active: Active | null = null;
+  private readonly active = new Map<number, Active>();
   private readonly currentBranch: (cwd: string) => Promise<string | null>;
 
   constructor(private readonly deps: RunExecutorDeps) {
     this.currentBranch = deps.currentBranch ?? gitCurrentBranch;
   }
 
-  isBusy(): boolean {
-    return this.active !== null;
+  activeCount(): number {
+    return this.active.size;
   }
 
   async execute(run: Run): Promise<RunFinal> {
-    if (this.active !== null) throw new Error(`Run #${this.active.run.id} is already executing`);
+    if (this.active.has(run.id)) throw new Error(`Run #${run.id} is already executing`);
     const active: Active = {
       run,
       startedAt: run.startedAt ?? this.deps.clock.now(),
@@ -225,7 +226,7 @@ export class RunExecutor {
       killSent: false,
       accessDenied: null,
     };
-    this.active = active;
+    this.active.set(run.id, active);
     try {
       let conclusion: RunConclusion;
       try {
@@ -241,21 +242,30 @@ export class RunExecutor {
         return await finalizeAfterFailure(this.deps, run, e);
       }
     } finally {
-      this.active = null;
+      this.active.delete(run.id);
+      this.deps.dataDir.removeWorkspace(run.id);
     }
   }
 
   // Last resort when the worker is forced to exit: never leave Copilot running in the checkout.
   // If the worker exits before finalizing, restart recovery finalizes the Run as INTERRUPTED.
   killActive(): void {
-    const a = this.active;
-    if (a === null || a.proc === null || a.exited) return;
-    a.proc.kill('SIGKILL');
+    for (const a of this.active.values()) if (a.proc !== null && !a.exited) a.proc.kill('SIGKILL');
   }
 
+  // One Run's failure must not stop the others from being supervised.
   watchdog(): void {
-    const a = this.active;
-    if (a === null || a.proc === null || a.exited) return;
+    for (const a of this.active.values()) {
+      try {
+        this.supervise(a);
+      } catch (e) {
+        console.error(`Run #${a.run.id}: watchdog failed: ${errorMessage(e)}`);
+      }
+    }
+  }
+
+  private supervise(a: Active): void {
+    if (a.proc === null || a.exited) return;
     const now = this.deps.clock.now();
     if (this.cancelRequested(a.run.id)) a.interrupted = 'cancelled';
     else if (a.interrupted === null && (a.accessDenied = this.deps.authorize?.(a.run) ?? null) !== null)
@@ -408,6 +418,20 @@ export class RunExecutor {
     // The watchdog only sees the process once it runs; a cancel during the pre-check must stop the Run here.
     if (this.cancelRequested(run.id)) return failure('INTERRUPTED', 'Run cancelled', { interrupted: 'cancelled' });
 
+    let cwd = repo.folder;
+    const isolation = (
+      db.prepare('SELECT isolation FROM runs WHERE id = ?').get(run.id) as { isolation: string } | undefined
+    )?.isolation;
+    if (isolation === 'copy') {
+      cwd = dataDir.workspacePath(run.id, repo.folder);
+      try {
+        await fsp.cp(repo.folder, cwd, { recursive: true, verbatimSymlinks: true });
+      } catch (e) {
+        return failure('WORKSPACE_COPY_FAILED', `Could not copy the Repository folder: ${errorMessage(e)}`);
+      }
+      if (this.cancelRequested(run.id)) return failure('INTERRUPTED', 'Run cancelled', { interrupted: 'cancelled' });
+    }
+
     const launcher = launchers[run.provider];
     let processStart: { ok: true; process: RunningProcess } | { ok: false; message: string };
     let exit: ProviderExit;
@@ -415,7 +439,7 @@ export class RunExecutor {
       processStart = {
         ok: true,
         process: launcher.start({
-          cwd: repo.folder,
+          cwd,
           prompt,
           model: run.model,
           transcriptPath: dataDir.transcriptPath(run.id),
@@ -452,7 +476,7 @@ export class RunExecutor {
       };
     }
 
-    const branch = await this.currentBranch(repo.folder);
+    const branch = await this.currentBranch(cwd);
     return { ...this.evaluate(active, exit, resultPath), branch };
   }
 

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import { providerOptions } from '../config/providers';
@@ -265,31 +267,56 @@ export class QueueService {
     return ok(warning === undefined ? { run } : { run, warning });
   }
 
+  // Checkout identity: Repository records pointing at the same folder share it; unknown Repositories stand alone.
+  private checkoutKey(repository: string): string {
+    const folder = this.repositories.get(repository)?.folder;
+    if (folder === undefined) return `repository:${repository.toLowerCase()}`;
+    try {
+      return fs.realpathSync(folder);
+    } catch {
+      return path.resolve(folder);
+    }
+  }
+
+  // Claims the oldest queued Run that may start now. A Run whose checkout is busy is skipped, never blocking others.
   claimNext(): Run | null {
     return this.db
       .transaction((): Run | null => {
-        if (this.db.prepare("SELECT 1 FROM runs WHERE status = 'running'").get()) return null;
-        const next = this.db.prepare(
-          `SELECT r.id, r.trigger, w.state AS watch_state FROM runs r
+        const running = (
+          this.db.prepare("SELECT repository, isolation FROM runs WHERE status = 'running'").all() as {
+            repository: string;
+            isolation: 'shared' | 'copy';
+          }[]
+        ).map((r) => ({ key: this.checkoutKey(r.repository), isolation: r.isolation }));
+        const queued = this.db
+          .prepare(
+            `SELECT r.id, r.repository, r.trigger, w.state AS watch_state FROM runs r
          LEFT JOIN watches w ON w.id = r.watch_id
          WHERE r.status = 'queued'
-         ORDER BY r.priority, r.queued_at, r.id
-         LIMIT 1`,
-        );
-        for (;;) {
-          const row = next.get() as { id: number; trigger: string; watch_state: WatchState | null } | undefined;
-          if (!row) return null;
+         ORDER BY r.priority, r.queued_at, r.id`,
+          )
+          .all() as { id: number; repository: string; trigger: string; watch_state: WatchState | null }[];
+        for (const row of queued) {
           const state = row.watch_state;
           if (state === 'closed' || state === 'needs_you' || (state === 'paused' && row.trigger === 'schedule')) {
             this.db.prepare('DELETE FROM runs WHERE id = ?').run(row.id);
             continue;
           }
+          const { isolation, maxConcurrent } = this.configFor(row.repository).runs;
+          const key = this.checkoutKey(row.repository);
+          const sameCheckout = running.filter((r) => r.key === key);
+          const blocked =
+            isolation === 'shared'
+              ? sameCheckout.length > 0
+              : sameCheckout.some((r) => r.isolation === 'shared') || sameCheckout.length >= maxConcurrent;
+          if (blocked) continue;
           return toRun(
             this.db
-              .prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ? RETURNING *")
-              .get(this.clock.now(), row.id),
+              .prepare("UPDATE runs SET status = 'running', started_at = ?, isolation = ? WHERE id = ? RETURNING *")
+              .get(this.clock.now(), isolation, row.id),
           );
         }
+        return null;
       })
       .immediate();
   }

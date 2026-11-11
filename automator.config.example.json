@@ -29,7 +29,9 @@
     "defaultModel": "claude-sonnet-4.5",
     "models": ["claude-sonnet-4.5", "gpt-5"],
     "initialReview": "baseline-only",
-    "denyTools": []
+    "denyTools": [],
+    "isolation": "shared",
+    "maxConcurrent": 2
   },
   "cleanup": { "enabled": true, "everyDays": 7, "retainClosedDays": 30 },
   "teams": {

@@ -174,6 +174,56 @@ describe('QueueService', () => {
     expect(statuses(db).map((r) => r.status)).toEqual(['running', 'queued']);
   });
 
+  test('claimNext runs different Repositories together without a busy one blocking the rest', () => {
+    const { db, queue } = setup();
+    const p1 = queue.enqueueAdhoc({ ...base, prompt: 'p1' });
+    const p2 = queue.enqueueAdhoc({ ...base, prompt: 'p2' });
+    const a1 = queue.enqueueAdhoc({ ...base, repository: 'api', prompt: 'a1' });
+    expect(queue.claimNext()?.id).toBe(p1.id);
+    expect(queue.claimNext()?.id).toBe(a1.id);
+    expect(queue.claimNext()).toBeNull();
+    expect(statuses(db).map((r) => r.status)).toEqual(['running', 'queued', 'running']);
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(p1.id);
+    expect(queue.claimNext()?.id).toBe(p2.id);
+  });
+
+  test('Repository records sharing a checkout share the lock', () => {
+    const { queue, config, db } = setup();
+    db.prepare("INSERT INTO repositories (name, folder, validate_json) VALUES ('pages-alias', ?, '[]')").run(
+      config.repositories.pages.folder,
+    );
+    const first = queue.enqueueAdhoc({ ...base, prompt: 'p1' });
+    queue.enqueueAdhoc({ ...base, repository: 'pages-alias', prompt: 'p2' });
+    expect(queue.claimNext()?.id).toBe(first.id);
+    expect(queue.claimNext()).toBeNull();
+    expect(statuses(db).map((r) => r.status)).toEqual(['running', 'queued']);
+  });
+
+  test('copy isolation runs the same Repository up to maxConcurrent, then queues', () => {
+    const { db, queue } = setup({ configOverrides: { runs: { isolation: 'copy', maxConcurrent: 2 } } });
+    const ids = [1, 2, 3].map((n) => queue.enqueueAdhoc({ ...base, prompt: `p${n}` }).id);
+    expect(queue.claimNext()?.id).toBe(ids[0]);
+    expect(queue.claimNext()?.id).toBe(ids[1]);
+    expect(queue.claimNext()).toBeNull();
+    expect(db.prepare('SELECT isolation FROM runs WHERE id = ?').get(ids[0])).toEqual({ isolation: 'copy' });
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(ids[0]);
+    expect(queue.claimNext()?.id).toBe(ids[2]);
+  });
+
+  test('a shared Run waits for a copy Run on the same checkout, and a copy Run waits for a shared one', () => {
+    const { db, queue, config } = setup();
+    const shared = queue.enqueueAdhoc({ ...base, prompt: 'shared' });
+    expect(queue.claimNext()?.id).toBe(shared.id);
+    config.runs.isolation = 'copy';
+    const copy = queue.enqueueAdhoc({ ...base, prompt: 'copy' });
+    expect(queue.claimNext()).toBeNull();
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(shared.id);
+    expect(queue.claimNext()?.id).toBe(copy.id);
+    config.runs.isolation = 'shared';
+    queue.enqueueAdhoc({ ...base, prompt: 'shared 2' });
+    expect(queue.claimNext()).toBeNull();
+  });
+
   test('claimNext drops rows for closed or needs_you watches and scheduled rows for paused watches', () => {
     const { db, queue } = setup();
     const closed = insertWatch(db, { state: 'closed' });
