@@ -22,7 +22,7 @@ Prerequisites:
 
 ### Upgrading
 
-Stop any running Automator instance first (the command does not stop it), then run:
+From a terminal, stop any running Automator instance first (the command does not stop it), then run:
 
 ```
 npm run upgrade-and-restart
@@ -333,6 +333,7 @@ Failures:
 - **Data** (SQLite, result files, transcripts) lives in `~/.automator` by default, configurable. Transcripts can contain private code and stay on your machine.
 - Settings manages Repositories and edits validated, non-secret values in the active config file. It never reads `.env` values or exposes environment-variable binding names.
 - Settings shows compact summaries for Projects, Repositories, Agents, Workflow assignments/templates and Configuration. **New**, **Add** and **Open** buttons launch modal editors with save/create actions beside Cancel in a fixed footer. Cancel or Escape discards unsaved edits; failed saves keep the editor and entered values. Workflow assignment changes save immediately, while operation templates have a separate Save button.
+- **Upgrade and restart** (Settings → Configuration) runs `npm run upgrade-and-restart` detached, then stops the running application without waiting for the upgrade. It is rejected with an error while Runs are active or queued. The page shows a spinner, polls until the server is back online and reloads. A failed upgrade is not reported in the UI.
 - Restart is a separate, confirmed Settings action. The supervisor drains active work before restarting the web process and worker.
 
 ## Continuous integration
