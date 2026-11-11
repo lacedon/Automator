@@ -26,7 +26,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <div className="muted">
-        <Link href="/runs">Runs</Link> / #{run.id}
+        {run.watchId === null ? (
+          <Link href="/runs">Chats</Link>
+        ) : (
+          <Link href={`/automations/${run.watchId}`}>{watchTitle ?? `Automation #${run.watchId}`}</Link>
+        )}{' '}
+        / #{run.id}
       </div>
       <div className="detail-head">
         <h1 className="detail-title">

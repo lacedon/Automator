@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import type { RunFilter, RunRow, Trigger } from '@core/index';
+import type { RunFilter, RunRow } from '@core/index';
 import { Elapsed } from '../components/Elapsed';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBox } from '../components/ErrorBox';
 import { RunPill } from '../components/Pill';
-import { RunItem, TRIGGER_NAME } from '../components/RunMeta';
+import { RunItem } from '../components/RunMeta';
 import { getCore } from '../lib/core';
 import { currentScope } from '../lib/scope';
 import { formatDateTime, formatTook } from '../lib/format';
@@ -14,17 +14,16 @@ export const dynamic = 'force-dynamic';
 
 type SearchParams = Record<string, string | string[] | undefined>;
 type Outcome = NonNullable<RunFilter['outcome']>;
-type Filter = { outcome?: Outcome; trigger?: Trigger; repo?: string; q?: string; from?: string; to?: string };
+type Filter = { outcome?: Outcome; repo?: string; q?: string; from?: string; to?: string };
 
 const OUTCOME_CHIPS: { outcome: Outcome | undefined; label: string }[] = [
-  { outcome: undefined, label: 'All runs' },
+  { outcome: undefined, label: 'All chats' },
   { outcome: 'needs-you', label: 'Needs you' },
   { outcome: 'error', label: 'Errors' },
   { outcome: 'acted', label: 'Acted' },
   { outcome: 'nothing', label: 'No action' },
 ];
 const OUTCOMES: readonly Outcome[] = ['needs-you', 'acted', 'nothing', 'error'];
-const TRIGGERS: readonly Trigger[] = ['schedule', 'manual', 'adhoc'];
 
 function pick<T extends string>(value: string | string[] | undefined, allowed?: readonly T[]): T | undefined {
   const v = Array.isArray(value) ? value[0] : value;
@@ -69,14 +68,6 @@ function RunFilters({ filter, repositories }: { filter: Filter; repositories: st
             </option>
           ))}
         </select>
-        <select name="trigger" defaultValue={filter.trigger ?? ''} aria-label="Trigger">
-          <option value="">Trigger: any</option>
-          {TRIGGERS.map((t) => (
-            <option key={t} value={t}>
-              {TRIGGER_NAME[t]}
-            </option>
-          ))}
-        </select>
         <label>
           From <input type="date" name="from" defaultValue={filter.from ?? ''} aria-label="From date" />
         </label>
@@ -106,7 +97,7 @@ function RunListRow({ run }: { run: RunRow }) {
         </Link>
         <div className="recent-result">{run.summary ?? run.error?.message ?? 'No summary recorded.'}</div>
         <div className="task-meta">
-          <Link href={href}>#{run.id}</Link> · {TRIGGER_NAME[run.trigger]}
+          <Link href={href}>#{run.id}</Link>
         </div>
       </td>
       <td data-label="Repository">{run.repository}</td>
@@ -128,7 +119,6 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const params = await searchParams;
   const filter: Filter = {
     outcome: pick(params.outcome, OUTCOMES),
-    trigger: pick(params.trigger, TRIGGERS),
     repo: pick(params.repo),
     q: pick(params.q),
     from: pick(params.from),
@@ -139,7 +129,6 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const runs = dates.ok
     ? core.read.runList({
         outcome: filter.outcome,
-        trigger: filter.trigger,
         repository: filter.repo,
         project: await currentScope(),
         q: filter.q,
@@ -153,8 +142,10 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   return (
     <div className="history-view">
       <div className="page-heading">
-        <h1 className="page-title">Runs</h1>
-        <p className="muted">Execution history for the selected project scope.</p>
+        <h1 className="page-title">Chats</h1>
+        <p className="muted">
+          Ad-hoc chats for the selected project scope. Automation Runs are on each Automation&apos;s page.
+        </p>
       </div>
       <RunFilters filter={filter} repositories={repositories} />
       {!dates.ok ? (
@@ -162,10 +153,10 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
       ) : (
         <>
           <p className="history-count">
-            {runs.length} {runs.length === 1 ? 'Run' : 'Runs'} · Newest first
+            {runs.length} {runs.length === 1 ? 'Chat' : 'Chats'} · Newest first
           </p>
           {runs.length === 0 ? (
-            <EmptyState>{filtered ? 'No Runs match these filters.' : 'No Runs yet.'}</EmptyState>
+            <EmptyState>{filtered ? 'No chats match these filters.' : 'No chats yet.'}</EmptyState>
           ) : (
             <table className="table run-history">
               <thead>

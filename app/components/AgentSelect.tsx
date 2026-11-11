@@ -3,19 +3,28 @@
 import { useState } from 'react';
 import type { FormOptions } from '@core/index';
 
+export type AgentPick = { forDefault: number | null; value: string };
+
 // Only an override is submitted, so leaving the preselected Agent keeps following the Agent Settings assignment.
 export function AgentSelect({
   id,
   options,
   defaultAgent,
   className,
+  picked: controlledPick,
+  onPick,
 }: {
   id: string;
   options: Pick<FormOptions, 'agents'>;
   defaultAgent: number | null;
   className?: string;
+  // Lets a parent drive the choice (e.g. the chat prompt's @agent mentions).
+  picked?: AgentPick | null;
+  onPick?: (pick: AgentPick) => void;
 }) {
-  const [picked, setPicked] = useState<{ forDefault: number | null; value: string } | null>(null);
+  const [ownPick, setOwnPick] = useState<AgentPick | null>(null);
+  const picked = controlledPick !== undefined ? controlledPick : ownPick;
+  const setPicked = onPick ?? setOwnPick;
   // A choice made against an earlier default is dropped when the default changes (Repository or type switch).
   const value = picked !== null && picked.forDefault === defaultAgent ? picked.value : String(defaultAgent ?? '');
   const overridden = value !== String(defaultAgent ?? '') && value !== '';

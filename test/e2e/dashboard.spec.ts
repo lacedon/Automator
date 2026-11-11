@@ -16,12 +16,11 @@ test('Home prioritizes current attention and previews the shared queue', async (
   await expect(page).toHaveURL(/\/queue$/);
 });
 
-test('Runs search and filters retain context and link to real run details', async ({ page }) => {
+test('Chats search and filters retain context and link to real run details', async ({ page }) => {
   await page.goto('/runs');
-  await expect(page.getByRole('heading', { name: 'Runs', exact: true })).toBeVisible();
-  await page.getByLabel('Search runs').fill('Replied to 2 comments');
+  await expect(page.getByRole('heading', { name: 'Chats', exact: true })).toBeVisible();
+  await page.getByLabel('Search runs').fill('Committed CHANGELOG entry');
   await page.getByLabel('Repository', { exact: true }).selectOption('pages');
-  await page.getByLabel('Trigger', { exact: true }).selectOption('schedule');
   const now = new Date();
   const today = [
     now.getFullYear(),
@@ -33,16 +32,17 @@ test('Runs search and filters retain context and link to real run details', asyn
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
   await expect(page.locator('.run-history tbody tr')).toHaveCount(1);
   await page.getByRole('link', { name: 'Errors', exact: true }).click();
-  await expect(page.getByLabel('Search runs')).toHaveValue('Replied to 2 comments');
+  await expect(page.getByLabel('Search runs')).toHaveValue('Committed CHANGELOG entry');
   await expect(page.getByLabel('Repository', { exact: true })).toHaveValue('pages');
-  await expect(page.getByLabel('Trigger', { exact: true })).toHaveValue('schedule');
   await expect(page.getByLabel('From date')).toHaveValue(today);
   await expect(page.getByLabel('To date')).toHaveValue(today);
-  await expect(page.getByText('No Runs match these filters.')).toBeVisible();
-  await page.getByRole('link', { name: 'All runs', exact: true }).click();
-  await page.locator('.run-history').getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
+  await expect(page.getByText('No chats match these filters.')).toBeVisible();
+  await page.getByRole('link', { name: 'All chats', exact: true }).click();
+  await page
+    .locator('.run-history')
+    .getByRole('link', { name: /Update CHANGELOG for 4\.2/ })
+    .click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
-  await expect(page.getByRole('tabpanel')).toContainText('Replied to 2 comments');
   await page.goto('/runs?from=2026-02-30');
   await expect(page.getByRole('alert').filter({ hasText: 'Enter valid dates' })).toBeVisible();
   await page.goto('/runs?from=2026-11-05&to=2026-11-04');
@@ -79,7 +79,7 @@ test('Projects remain manageable in Settings while the header scopes operational
   await expect(page.getByText('Nothing needs you.', { exact: true })).toBeVisible();
   await expect(page.getByText('Nothing running.', { exact: true })).toBeVisible();
   await page.goto('/runs');
-  await expect(page.getByText('No Runs yet.', { exact: true })).toBeVisible();
+  await expect(page.getByText('No chats yet.', { exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: 'Project', exact: true }).selectOption('all');
   await expect(page.locator('.run-history tbody tr')).not.toHaveCount(0);
   await page.goto('/settings/projects');
@@ -132,11 +132,30 @@ test('mobile navigation keeps actions accessible without horizontal overflow', a
     expect(dateField?.height).toBeGreaterThanOrEqual(44);
   }
   await page.locator('.mobile-nav-trigger').click();
-  await page.getByRole('navigation', { name: 'Main mobile' }).getByRole('link', { name: 'Ad-hoc run' }).click();
+  await page.getByRole('navigation', { name: 'Main mobile' }).getByRole('link', { name: 'Chat', exact: true }).click();
   await expect(page).toHaveURL(/\/adhoc$/);
   await expect(page.locator('.mobile-nav')).not.toHaveAttribute('open');
   for (const route of ['/', '/runs', '/settings/projects', '/settings/repositories']) {
     await page.goto(route);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
+});
+
+test('New chat page is a chat window with prompt autocomplete and per-chat fields', async ({ page }) => {
+  await page.goto('/adhoc');
+  await expect(page.getByRole('heading', { name: 'New chat', exact: true })).toBeVisible();
+  const prompt = page.getByRole('textbox', { name: 'Message' }).or(page.locator('#ah-prompt'));
+  await expect(prompt).toBeVisible();
+  for (const label of ['Repository', 'Ticket (optional)', 'Agent', 'Model']) {
+    await expect(page.getByLabel(label, { exact: true })).toBeVisible();
+  }
+  await prompt.fill('/mod');
+  await expect(page.getByRole('listbox', { name: 'Commands' })).toBeVisible();
+  await prompt.press('Escape');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+});
+
+test('Home no longer lists recently completed Runs', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('Recently completed')).toHaveCount(0);
 });

@@ -70,6 +70,7 @@ export type RunFilter = {
   trigger?: Trigger;
   repository?: string;
   project?: ProjectScope;
+  limit?: number;
 };
 
 export const RUNS_WITH_TITLE =
@@ -111,43 +112,47 @@ export function toRunRow(run: RunWithTitle, config: Config, repositories: Reposi
   };
 }
 
+// A chat is an Ad-hoc run with its follow-up Runs; it is listed once, as its newest Run, titled by its first request.
+// Runs created by an Automation are only listed on the Automation's own page.
 export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
   const { db, config } = deps;
   const inScope = scopeFilter(deps, f.project ?? null);
-  return db
-    .prepare(
-      `${RUNS_WITH_TITLE}
-       WHERE r.status <> 'queued'
-         AND (@trigger IS NULL OR r.trigger = @trigger)
-         AND (@repository IS NULL OR r.repository = @repository)
-         AND (@outcome IS NULL OR (@outcome = 'error' AND r.result_status = 'error') OR r.outcome = @outcome)
-         AND (@startedFrom IS NULL OR COALESCE(r.started_at, r.queued_at) >= @startedFrom)
-         AND (@startedBefore IS NULL OR COALESCE(r.started_at, r.queued_at) < @startedBefore)
-       ORDER BY r.id DESC`,
+  const runs = db.prepare(`${RUNS_WITH_TITLE} WHERE r.watch_id IS NULL ORDER BY r.id`).all().map(toRunWithTitle);
+  const byId = new Map(runs.map((run) => [run.id, run]));
+  const followUp = new Map<number, RunWithTitle>();
+  for (const run of runs) if (run.parentRunId !== null && byId.has(run.parentRunId)) followUp.set(run.parentRunId, run);
+
+  const query = f.q?.trim().toLowerCase();
+  const matches = (run: RunWithTitle) =>
+    [
+      `#${run.id}`,
+      run.watchTitle,
+      run.adhocPrompt,
+      run.ticketKey,
+      run.ticketTitle,
+      run.summary,
+      run.error?.message,
+    ].some((value) => value != null && String(value).toLowerCase().includes(query!));
+  const rows: RunRow[] = [];
+  for (const root of runs) {
+    if (root.parentRunId !== null && byId.has(root.parentRunId)) continue;
+    const chain = [root];
+    for (let next = followUp.get(root.id); next !== undefined && !chain.includes(next); next = followUp.get(next.id))
+      chain.push(next);
+    const tip = chain.findLast((run) => run.status !== 'queued');
+    if (tip === undefined) continue;
+    const started = tip.startedAt ?? tip.queuedAt;
+    if (
+      !inScope(tip.repository) ||
+      (f.trigger !== undefined && tip.trigger !== f.trigger) ||
+      (f.repository !== undefined && tip.repository !== f.repository) ||
+      (f.outcome !== undefined && (f.outcome === 'error' ? tip.resultStatus !== 'error' : tip.outcome !== f.outcome)) ||
+      (f.startedFrom !== undefined && started < f.startedFrom) ||
+      (f.startedBefore !== undefined && started >= f.startedBefore) ||
+      (query && !chain.some(matches))
     )
-    .all({
-      outcome: f.outcome ?? null,
-      trigger: f.trigger ?? null,
-      repository: f.repository ?? null,
-      startedFrom: f.startedFrom ?? null,
-      startedBefore: f.startedBefore ?? null,
-    })
-    .map(toRunWithTitle)
-    .filter((run) => inScope(run.repository))
-    .filter((run) => {
-      const query = f.q?.trim().toLowerCase();
-      return (
-        !query ||
-        [
-          `#${run.id}`,
-          run.watchTitle,
-          run.adhocPrompt,
-          run.ticketKey,
-          run.ticketTitle,
-          run.summary,
-          run.error?.message,
-        ].some((value) => value != null && String(value).toLowerCase().includes(query))
-      );
-    })
-    .map((run) => toRunRow(run, config, deps.repositories));
+      continue;
+    rows.push(toRunRow({ ...tip, adhocPrompt: root.adhocPrompt ?? tip.adhocPrompt }, config, deps.repositories));
+  }
+  return rows.sort((a, b) => b.id - a.id).slice(0, f.limit);
 }

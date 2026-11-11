@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import type { NeedsYouCard, QueueRow, RunningCard, RunRow } from '@core/index';
+import type { NeedsYouCard, QueueRow, RunningCard } from '@core/index';
 import { cancelRun } from './actions/runs';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Elapsed } from './components/Elapsed';
 import { EmptyState } from './components/EmptyState';
-import { Pill, RunPill } from './components/Pill';
+import { Pill } from './components/Pill';
 import { RelativeTime } from './components/RelativeTime';
 import { RunItem, TRIGGER_NAME } from './components/RunMeta';
 import { getCore } from './lib/core';
@@ -123,39 +123,10 @@ function UpNext({ waiting }: { waiting: QueueRow[] }) {
   );
 }
 
-function RecentRuns({ runs }: { runs: RunRow[] }) {
-  return (
-    <section aria-labelledby="recent-runs" className="home-section">
-      <div className="section-heading">
-        <h2 id="recent-runs">Recently completed</h2>
-        <Link href="/runs" className="section-link">
-          View history
-        </Link>
-      </div>
-      {runs.length === 0 && <EmptyState>No Runs yet.</EmptyState>}
-      {runs.map((run) => (
-        <Link key={run.id} href={`/runs/${run.id}`} className="recent-run">
-          <RunPill run={run} />
-          <span className="recent-task">
-            <span className="task-title">
-              <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
-            </span>
-            <span className="task-meta">
-              {run.repository} · Run #{run.id}
-            </span>
-            <span className="recent-result">{run.summary ?? run.error?.message ?? 'No summary recorded.'}</span>
-          </span>
-          <RelativeTime at={run.endedAt ?? run.startedAt ?? run.queuedAt} />
-        </Link>
-      ))}
-    </section>
-  );
-}
-
 export default async function HomePage() {
   const core = getCore();
   const scope = await currentScope();
-  const { needsYou, running, recent } = core.read.homeView(scope);
+  const { needsYou, running } = core.read.homeView(scope);
   const { waiting } = core.read.queueView(scope);
   return (
     <div className="home-view">
@@ -172,7 +143,6 @@ export default async function HomePage() {
         <NowRunning run={running} />
         <UpNext waiting={waiting} />
       </div>
-      <RecentRuns runs={recent.slice(0, 5)} />
     </div>
   );
 }

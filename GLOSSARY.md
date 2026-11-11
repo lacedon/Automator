@@ -27,6 +27,9 @@ _Avoid_: Session, check
 **Ad-hoc run**:
 A Run requested directly by the user without an associated Automation. It happens once and may optionally be _for_ a Ticket; without one it is a generic request. A finished one can be followed up by replying in its Chat tab.
 
+**Chat**:
+An Ad-hoc run together with its Follow-up runs, listed once (as its newest Run, titled by its first request) in the Chats list and left menu. Runs created for an Automation are not chats; they appear only on that Automation's page.
+
 **Follow-up run**:
 An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same Copilot session.
 _Avoid_: continuation, reopen

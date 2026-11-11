@@ -260,10 +260,50 @@ describe('read models', () => {
     const failed2 = insertRun(db, { result_status: 'error', trigger: 'adhoc', priority: 0, adhoc_prompt: 'x' });
     insertRun(db, { watch_id: w, status: 'queued' });
 
-    expect(read.runList({ outcome: 'error' }).map((r) => r.id)).toEqual([failed2, failed]);
+    expect(failed).toBeGreaterThan(0);
+    expect(read.runList({ outcome: 'error' }).map((r) => r.id)).toEqual([failed2]);
     expect(read.runList({ outcome: 'error', trigger: 'adhoc' }).map((r) => r.id)).toEqual([failed2]);
-    expect(read.runList({ outcome: 'acted' })).toHaveLength(1);
-    expect(read.runList({})).toHaveLength(3);
+    expect(read.runList({ outcome: 'acted' })).toHaveLength(0);
+    expect(read.runList({})).toHaveLength(1);
+  });
+
+  test('run list joins follow-up Runs into one chat and hides Automation Runs', () => {
+    const { db, read } = setup();
+    const watch = insertWatch(db);
+    insertRun(db, { watch_id: watch });
+    const first = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'first question', outcome: 'needs-you' });
+    const reply = insertRun(db, {
+      trigger: 'adhoc',
+      adhoc_prompt: 'the answer',
+      parent_run_id: first,
+      outcome: 'acted',
+    });
+    const other = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'unrelated' });
+
+    const chats = read.runList({});
+    expect(chats.map((r) => r.id)).toEqual([other, reply]);
+    expect(chats[1]).toMatchObject({ adhocPrompt: 'first question', outcome: 'acted' });
+    expect(read.runList({ q: 'the answer' }).map((r) => r.id)).toEqual([reply]);
+    expect(read.runList({ limit: 1 }).map((r) => r.id)).toEqual([other]);
+  });
+
+  test('run list orders chats by their latest Run so an updated old chat stays on top', () => {
+    const { db, read } = setup();
+    const a = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat A' });
+    const b = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat B' });
+    const reply = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'more A', parent_run_id: a });
+
+    expect(read.runList({}).map((r) => r.id)).toEqual([reply, b]);
+    expect(read.runList({ limit: 1 }).map((r) => r.id)).toEqual([reply]);
+  });
+
+  test('run list keeps a chat visible while its follow-up is queued', () => {
+    const { db, read } = setup();
+    const a = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat A' });
+    insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'more A', parent_run_id: a, status: 'queued' });
+    insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'only queued', status: 'queued' });
+
+    expect(read.runList({}).map((r) => r.id)).toEqual([a]);
   });
 
   test('run history searches task, prompt, ticket, result, error and ID without treating wildcards specially', () => {
@@ -279,13 +319,14 @@ describe('read models', () => {
     });
     insertRun(db, { status: 'queued', adhoc_prompt: 'café' });
 
-    expect(read.runList({ q: 'CAFÉ' }).map((r) => r.id)).toEqual([watched]);
-    expect(read.runList({ q: 'layout' }).map((r) => r.id)).toEqual([watched]);
+    expect(watched).toBeGreaterThan(0);
+    expect(read.runList({ q: 'CAFÉ' })).toEqual([]);
+    expect(read.runList({ q: 'layout' })).toEqual([]);
     expect(read.runList({ q: '100%' }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: 'ABC-123' }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: 'redirect' }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: 'unavailable' }).map((r) => r.id)).toEqual([adhoc]);
-    expect(read.runList({ q: `#${watched}` }).map((r) => r.id)).toEqual([watched]);
+    expect(read.runList({ q: `#${adhoc}` }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: '%' })).toHaveLength(1);
     expect(read.runList({ q: 'not present' })).toEqual([]);
   });
