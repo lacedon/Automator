@@ -106,7 +106,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(17);
+    expect(db.pragma('user_version', { simple: true })).toBe(18);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -118,12 +118,12 @@ describe('db', () => {
     );
   });
 
-  test('migrate is idempotent and sets user_version 17', () => {
+  test('migrate is idempotent and sets user_version 18', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(17);
+    expect(db.pragma('user_version', { simple: true })).toBe(18);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(17);
+    expect(db.pragma('user_version', { simple: true })).toBe(18);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -247,7 +247,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(17);
+    expect(db.pragma('user_version', { simple: true })).toBe(18);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,
@@ -381,13 +381,13 @@ describe('db', () => {
     expect(() => insertRun(db, a, 'finished')).not.toThrow();
   });
 
-  test('allows only one running run', () => {
+  test('allows several running runs', () => {
     const db = setup();
     const a = insertWatch(db, 'active', 'a');
     const b = insertWatch(db, 'active', 'b');
     insertRun(db, a, 'running');
-    expect(constraintCode(() => insertRun(db, b, 'running'))).toBe('SQLITE_CONSTRAINT_UNIQUE');
-    expect(constraintCode(() => insertRun(db, null, 'running'))).toBe('SQLITE_CONSTRAINT_UNIQUE');
+    expect(() => insertRun(db, b, 'running')).not.toThrow();
+    expect(() => insertRun(db, null, 'running')).not.toThrow();
   });
 
   test('deleting a watch cascades runs and needs_you_events', () => {

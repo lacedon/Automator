@@ -8,7 +8,7 @@ export class WorkerLoop {
   private readonly schedulerEveryMs: number;
   private lastSchedulerAt: number | null = null;
   private readonly onLockLost: () => void;
-  private active: Promise<void> | null = null;
+  private readonly active = new Set<Promise<void>>();
   private ticking: Promise<void> | null = null;
   private current: Promise<void> | null = null;
   private timer: NodeJS.Timeout | null = null;
@@ -36,9 +36,10 @@ export class WorkerLoop {
     this.guard('watchdog', () => core.executor.watchdog());
     if (this.stopping) return;
 
-    if (!core.executor.isBusy()) {
+    for (;;) {
       const run = this.guard('claim', () => core.queue.claimNext());
-      if (run) this.track(core.executor.execute(run).then(() => undefined));
+      if (!run) break;
+      this.track(core.executor.execute(run).then(() => undefined));
     }
 
     // The tick runs in the background so slow pre-checks never stall the heartbeat or the watchdog.
@@ -84,11 +85,11 @@ export class WorkerLoop {
     tick();
   }
 
-  // Stops claiming and scheduling; keeps the watchdog ticking until the active Run and any pending tick end.
+  // Stops claiming and scheduling; keeps the watchdog ticking until the active Runs and any pending tick end.
   async stop(): Promise<void> {
     this.stopping = true;
     await this.current;
-    if (this.active !== null) await this.active;
+    while (this.active.size > 0) await Promise.all(this.active);
     if (this.ticking !== null) await this.ticking;
     this.started = false;
     if (this.timer !== null) clearTimeout(this.timer);
@@ -100,9 +101,9 @@ export class WorkerLoop {
     const active: Promise<void> = execution
       .catch((e: unknown) => console.error(`${ts()} run execution failed: ${message(e)}`))
       .finally(() => {
-        if (this.active === active) this.active = null;
+        this.active.delete(active);
       });
-    this.active = active;
+    this.active.add(active);
   }
 
   private guard<T>(step: string, fn: () => T): T | undefined {

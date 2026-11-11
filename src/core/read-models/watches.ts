@@ -14,7 +14,7 @@ import { allowedActions, type WatchAction } from '../domain/watchState';
 import { configOf, type ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 import { nextCheckText, type NextCheck } from './nextCheck';
-import { runningRun, waitingRows } from './queue';
+import { runningRuns, waitingRows } from './queue';
 import type { RunWithTitle } from './runs';
 
 export type LastRun = {
@@ -57,18 +57,20 @@ export function actionsFor(watch: Watch, running: Run | null): WatchAction[] {
   return allowedActions(watch.state).filter((a) => !(a === 'delete' && isRunning));
 }
 
-export type NextCheckSource = { running: RunWithTitle | null; queuedPos(watchId: number): number | null };
+export type NextCheckSource = { running: Map<number, RunWithTitle>; queuedPos(watchId: number): number | null };
 
 export function nextCheckSource(deps: ReadDeps): NextCheckSource {
   const positions = new Map<number, number>();
   for (const row of waitingRows(deps)) if (row.watchId !== null) positions.set(row.watchId, row.position);
-  return { running: runningRun(deps), queuedPos: (id) => positions.get(id) ?? null };
+  const running = new Map<number, RunWithTitle>();
+  for (const run of runningRuns(deps)) if (run.watchId !== null) running.set(run.watchId, run);
+  return { running, queuedPos: (id) => positions.get(id) ?? null };
 }
 
 export function nextCheckFor(watch: Watch, src: NextCheckSource, deps: ReadDeps): NextCheck {
   return nextCheckText(watch, {
     now: deps.clock.now(),
-    running: src.running,
+    running: src.running.get(watch.id) ?? null,
     queuedPos: src.queuedPos(watch.id),
     config: configOf(deps, watch.repository),
   });
@@ -136,8 +138,8 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
       nextCheck: nextCheckFor(w, src, deps),
       lastRun: last.get(w.id) ?? null,
       needsYouReason: w.needsYouReason,
-      running: src.running?.watchId === w.id,
-      actions: actionsFor(w, src.running),
+      running: src.running.has(w.id),
+      actions: actionsFor(w, src.running.get(w.id) ?? null),
     }));
   return { counts, jiraNotice, rows };
 }

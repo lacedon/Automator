@@ -105,6 +105,17 @@ describe('recoverInterruptedRuns', () => {
     expect(await recoverInterruptedRuns(s.deps)).toBe(0);
   });
 
+  test('removes per-Run copies left behind by a crash', async () => {
+    const s = setup();
+    const runId = insertRunning(s.db, null, s.clock.now());
+    const copy = s.dataDir.workspacePath(runId, s.deps.config.repositories.pages.folder);
+    fs.mkdirSync(copy, { recursive: true });
+
+    await recoverInterruptedRuns(s.deps);
+
+    expect(fs.existsSync(path.dirname(copy))).toBe(false);
+  });
+
   test('kills live process group of leftover row', async () => {
     const s = setup();
     const child = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });

@@ -32,5 +32,7 @@ export async function recoverInterruptedRuns(deps: RunExecutorDeps): Promise<num
       branch,
     });
   }
+  // No Run is active during startup recovery, so every per-Run copy left behind is an orphan.
+  deps.dataDir.clearWorkspaces();
   return runs.length;
 }

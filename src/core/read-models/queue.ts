@@ -31,13 +31,14 @@ export type QueueRow = {
   reason: string;
 };
 
-export function runningRun({ db }: ReadDeps): RunWithTitle | null {
-  const row = db.prepare(`${RUNS_WITH_TITLE} WHERE r.status = 'running'`).get();
-  return row ? toRunWithTitle(row) : null;
+export function runningRuns({ db }: ReadDeps): RunWithTitle[] {
+  return db
+    .prepare(`${RUNS_WITH_TITLE} WHERE r.status = 'running' ORDER BY r.started_at, r.id`)
+    .all()
+    .map(toRunWithTitle);
 }
 
-export function toRunningCard(run: RunWithTitle | null, deps: ReadDeps): RunningCard | null {
-  if (run === null) return null;
+export function toRunningCard(run: RunWithTitle, deps: ReadDeps): RunningCard {
   return {
     runId: run.id,
     watchId: run.watchId,
@@ -75,15 +76,13 @@ export function waitingRows(deps: ReadDeps): QueueRow[] {
     });
 }
 
-// Queue positions stay global: the queue is shared by all Projects, so a Project sees its real place in line.
-export function queueView(
-  deps: ReadDeps,
-  scope: ProjectScope = null,
-): { running: RunningCard | null; waiting: QueueRow[] } {
+// Queue positions stay global: the queue is ordered across all Projects, so a Project sees its real place in line.
+export function queueView(deps: ReadDeps, scope: ProjectScope = null): { running: RunningCard[]; waiting: QueueRow[] } {
   const inScope = scopeFilter(deps, scope);
-  const running = runningRun(deps);
   return {
-    running: running && inScope(running.repository) ? toRunningCard(running, deps) : null,
+    running: runningRuns(deps)
+      .filter((run) => inScope(run.repository))
+      .map((run) => toRunningCard(run, deps)),
     waiting: waitingRows(deps).filter((row) => inScope(row.repository)),
   };
 }

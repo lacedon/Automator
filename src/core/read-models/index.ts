@@ -28,7 +28,7 @@ export interface ReadModels {
   homeView(scope?: ProjectScope): HomeView;
   watchList(f: WatchFilter): WatchListView;
   watchDetail(id: number): WatchDetailView | null;
-  queueView(scope?: ProjectScope): { running: RunningCard | null; waiting: QueueRow[] };
+  queueView(scope?: ProjectScope): { running: RunningCard[]; waiting: QueueRow[] };
   runList(f: RunFilter): RunRow[];
   runDetail(id: number): Promise<RunDetailView | null>;
   adhocView(scope?: ProjectScope): { rows: AdhocRow[] };

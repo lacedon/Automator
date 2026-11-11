@@ -327,4 +327,10 @@ CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
 );
 `,
   },
+  {
+    version: 18,
+    sql: `DROP INDEX ux_run_running;
+ALTER TABLE runs ADD COLUMN isolation TEXT NOT NULL DEFAULT 'shared' CHECK (isolation IN ('shared', 'copy'));
+`,
+  },
 ];

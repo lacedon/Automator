@@ -48,6 +48,19 @@ export class DataDir {
     fs.rmSync(this.runDir(id), { recursive: true, force: true });
   }
 
+  // A per-Run copy of the Repository folder; the leaf keeps the folder name for tools that read it.
+  workspacePath(id: number, folder: string): string {
+    return path.join(this.root, 'workspaces', String(id), path.basename(folder));
+  }
+
+  removeWorkspace(id: number): void {
+    fs.rmSync(path.join(this.root, 'workspaces', String(id)), { recursive: true, force: true });
+  }
+
+  clearWorkspaces(): void {
+    fs.rmSync(path.join(this.root, 'workspaces'), { recursive: true, force: true });
+  }
+
   notifyTranscriptPath(eventId: number): string {
     return path.join(this.notifyDir, `${eventId}.md`);
   }

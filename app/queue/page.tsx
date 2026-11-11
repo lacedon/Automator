@@ -23,8 +23,18 @@ function QueueItem({ run, strong }: { run: Item; strong?: boolean }) {
   );
 }
 
-function Running({ run }: { run: RunningCard | null }) {
-  if (run === null) return <EmptyState>Nothing running.</EmptyState>;
+function Running({ runs }: { runs: RunningCard[] }) {
+  if (runs.length === 0) return <EmptyState>Nothing running.</EmptyState>;
+  return (
+    <>
+      {runs.map((run) => (
+        <RunningRun key={run.runId} run={run} />
+      ))}
+    </>
+  );
+}
+
+function RunningRun({ run }: { run: RunningCard }) {
   return (
     <div className="card card-running">
       <div className="card-head">
@@ -123,7 +133,7 @@ export default async function QueuePage() {
   return (
     <>
       <h2 className="section-h">Running</h2>
-      <Running run={running} />
+      <Running runs={running} />
       <h2 className="section-h">Waiting · manual &amp; ad-hoc go first</h2>
       <Waiting rows={waiting} />
     </>
