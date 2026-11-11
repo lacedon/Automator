@@ -29,9 +29,16 @@ function parseValues(json: unknown): OverrideValues {
 export class ConfigResolver {
   constructor(
     private readonly db: Database,
-    readonly base: Config,
+    private current: Config,
     private readonly env: Env = process.env,
+    private readonly reload: () => Config | null = () => null,
   ) {}
+
+  // The global config follows the saved config file, so edits apply without restarting the process.
+  get base(): Config {
+    this.current = this.reload() ?? this.current;
+    return this.current;
+  }
 
   valuesOf(projectId: number): OverrideValues | null {
     const row = this.db.prepare('SELECT config_overrides FROM projects WHERE id = ?').get(projectId) as Row | undefined;
