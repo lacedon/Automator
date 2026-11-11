@@ -1,9 +1,11 @@
 import fs from 'node:fs';
-import { afterEach, describe, expect, test } from 'vitest';
+import path from 'node:path';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
 import { tempDb } from '../../../test/helpers/db';
 import { testRepositories } from '../../../test/helpers/repositories';
 import { ProjectService } from '../projects/projectService';
+import { configReloader, loadConfig } from './load';
 import { ConfigResolver } from './resolver';
 
 const cleanups: (() => void)[] = [];
@@ -75,5 +77,34 @@ describe('ConfigResolver', () => {
     expect(configs.secretsFor(effective).gitlab.corp).toBe('other');
     expect(configs.secretsFor(config).gitlab.corp).toBe('global');
     expect(configs.secretsFor(config).envNames).toEqual(expect.arrayContaining(['GITLAB_TOKEN', 'OTHER_TOKEN']));
+  });
+
+  test('a running resolver follows saved schedule changes and keeps the last valid config on a bad edit', () => {
+    const { config } = setup();
+    const file = path.join(config.configDir, 'automator.config.json');
+    const write = (schedule: unknown) =>
+      fs.writeFileSync(
+        file,
+        JSON.stringify({
+          dataDir: config.dataDir,
+          gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
+          schedule,
+        }),
+      );
+    write({ intervals: { mr: '15m', default: '2h' } });
+    const { db, cleanup } = tempDb();
+    cleanups.push(cleanup);
+    const configs = new ConfigResolver(db, loadConfig({ path: file }), {}, configReloader(file));
+    expect(configs.forRepository(null).schedule.intervals.mr).toBe(15 * 60_000);
+
+    write({ intervals: { mr: '5m', default: '2h' }, workingHours: { days: [1], start: '09:00', end: '10:00' } });
+    fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
+    expect(configs.forRepository(null).schedule.intervals.mr).toBe(5 * 60_000);
+    expect(configs.forRepository(null).schedule.workingHours.days).toEqual([1]);
+
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    write({ intervals: { mr: 'soon' } });
+    fs.utimesSync(file, new Date(), new Date(Date.now() + 10_000));
+    expect(configs.forRepository(null).schedule.intervals.mr).toBe(5 * 60_000);
   });
 });

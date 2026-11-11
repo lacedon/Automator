@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { loadConfig, loadDotenv, readRawConfig, type Secrets } from './config/load';
+import { configReloader, loadConfig, loadDotenv, readRawConfig, type Secrets } from './config/load';
 import { ConfigResolver } from './config/resolver';
 import type { Config } from './config/schema';
 import { migrate } from './db/migrate';
@@ -169,7 +169,12 @@ function mrPreview(deps: Pick<Deps, 'gitlab' | 'github'>): NonNullable<WatchServ
   };
 }
 
-export function createCore(config: Config, overrides: Partial<Deps> = {}, legacyConfig?: unknown): Core {
+export function createCore(
+  config: Config,
+  overrides: Partial<Deps> = {},
+  legacyConfig?: unknown,
+  reload?: () => Config | null,
+): Core {
   const dataDir = new DataDir(config.dataDir);
   const db = openDb(dataDir.db);
   migrate(db);
@@ -183,7 +188,7 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
     (overrides.clock ?? systemClock).now(),
   );
   const repositories = new RepositoryService(db, config);
-  const configs = new ConfigResolver(db, config);
+  const configs = new ConfigResolver(db, config, process.env, reload);
   const configFor = (repository: string | null) => configs.forRepository(repository);
   const secrets = configs.secretsFor(config);
   const secretsOf = (repository?: string) => configs.secretsFor(configs.forRepository(repository ?? null));
@@ -294,5 +299,5 @@ export function createCore(config: Config, overrides: Partial<Deps> = {}, legacy
 export function bootstrap(opts: { configPath?: string } = {}): Core {
   const file = path.resolve(opts.configPath ?? process.env.AUTOMATOR_CONFIG ?? 'automator.config.json');
   loadDotenv(path.dirname(file));
-  return createCore(loadConfig({ path: file }), {}, readRawConfig(file));
+  return createCore(loadConfig({ path: file }), {}, readRawConfig(file), configReloader(file));
 }

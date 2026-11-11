@@ -44,6 +44,33 @@ export function loadConfig(opts: { path?: string; env?: Env } = {}): Config {
   return { ...parsed.data, configDir } as Config;
 }
 
+// Returns a function that yields a freshly loaded Config when the file changed since the last call and is valid;
+// an invalid edit keeps the last valid config in effect and is logged.
+export function configReloader(file: string, env: Env = process.env): () => Config | null {
+  const stamp = () => {
+    try {
+      const stat = fs.statSync(file);
+      return `${stat.mtimeMs}:${stat.size}`;
+    } catch {
+      return null;
+    }
+  };
+  let seen = stamp();
+  return () => {
+    const now = stamp();
+    if (now === null || now === seen) return null;
+    seen = now;
+    try {
+      return loadConfig({ path: file, env });
+    } catch (e) {
+      console.error(
+        `${new Date().toISOString()} config: reload failed, keeping previous config: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return null;
+    }
+  };
+}
+
 export function resolveSecrets(config: Config, env: Env): Secrets {
   const envNames = new Set<string>();
   const gitlab: Secrets['gitlab'] = {};
