@@ -1876,3 +1876,54 @@ body:has(.settings-dialog[open]) {
   display: grid;
   gap: 1rem;
 }
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link, #58a6ff);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.run-file-links {
+  display: inline-flex;
+  gap: 12px;
+}
+
+dialog.file-dialog {
+  width: min(900px, 94vw);
+  max-height: 85dvh;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+dialog.file-dialog::backdrop {
+  background: rgb(1 4 9 / 0.6);
+}
+
+.file-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.run-details {
+  margin-top: 24px;
+}
+
+.run-details > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
