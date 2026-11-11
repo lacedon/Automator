@@ -174,6 +174,18 @@ code {
   font-weight: 600;
 }
 
+.nav-chat {
+  min-height: 32px;
+  padding: 4px 12px 4px 24px;
+  font-size: 13px;
+}
+
+.nav-chat > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nav-settings {
   margin-top: auto;
 }
@@ -903,6 +915,85 @@ textarea:focus {
 .chat-agent {
   align-self: flex-start;
   background: var(--surface);
+}
+
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 190px);
+  min-height: 420px;
+}
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0 16px;
+}
+
+.chat-empty {
+  margin: auto;
+}
+
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-prompt {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.prompt-input {
+  position: relative;
+  flex: 1;
+}
+
+.prompt-input textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.prompt-suggestions {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0 0 4px;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.prompt-suggestions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.prompt-suggestions li.active {
+  background: var(--nav-active-bg);
+}
+
+.chat-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .chat-form textarea {

@@ -23,6 +23,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const core = getCore();
   const selection = await currentSelection();
   const counts = core.read.navCounts(await currentScope());
+  const chats = core.read
+    .runList({ project: await currentScope(), limit: 10 })
+    .map((run) => ({ id: run.id, title: run.adhocPrompt || (run.ticket?.key ?? `Chat #${run.id}`) }));
   const projects = await readableProjects();
   const active = typeof selection === 'number' ? projects.find((p) => p.id === selection) : undefined;
   const hue = active ? projectHue(active.name) : undefined;
@@ -31,9 +34,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en">
       <body style={accent ? ({ '--project-accent': accent, '--project-header': header } as CSSProperties) : undefined}>
-        <TopBar counts={counts} projects={projects} scope={selection} username={user.username} />
+        <TopBar counts={counts} chats={chats} projects={projects} scope={selection} username={user.username} />
         <div className="shell">
-          <Sidebar counts={counts} />
+          <Sidebar counts={counts} chats={chats} />
           <main className="main">{children}</main>
         </div>
         <AutoRefresh intervalMs={3000} />

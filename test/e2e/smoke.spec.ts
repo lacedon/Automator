@@ -88,8 +88,9 @@ test('create form shows duplicate error with link to existing watch', async ({ p
 });
 
 test('run detail shows transcript, result json and prompt tabs', async ({ page }) => {
-  await page.goto('/runs?q=Replied+to+2+comments');
-  await page.locator('.run-history .task-title').click();
+  await page.goto('/automations');
+  await page.getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
+  await page.getByRole('link', { name: 'Replied to 2 comments, pushed fix' }).click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
   await expect(page.locator('.kv')).toContainText('GitHub Copilot CLI');
   const panel = page.getByRole('tabpanel');
@@ -121,8 +122,9 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
   await page.waitForTimeout(4000);
   expect(refreshes.length).toBeGreaterThan(0);
 
-  await page.goto('/runs?q=Replied+to+2+comments');
-  await page.locator('.run-history .task-title').click();
+  await page.goto('/automations');
+  await page.getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
+  await page.getByRole('link', { name: 'Replied to 2 comments, pushed fix' }).click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
   refreshes.length = 0;
   await page.waitForTimeout(4000);
@@ -131,8 +133,11 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
 
 // Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
 test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('link', { name: /Check <b>the<\/b> export job/ }).click();
+  await page.goto('/runs');
+  await page
+    .locator('.run-history')
+    .getByRole('link', { name: /Check <b>the<\/b> export job/ })
+    .click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
   await page.getByRole('tab', { name: 'Chat' }).click();
 

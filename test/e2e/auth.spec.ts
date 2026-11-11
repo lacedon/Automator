@@ -8,7 +8,7 @@ test('unauthenticated pages redirect to sign-in and keep the destination', async
   await page.getByLabel('Username').fill('admin');
   await page.getByLabel('Password').fill('admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Runs', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Chats', exact: true })).toBeVisible();
 });
 
 test('a wrong password is rejected', async ({ page }) => {

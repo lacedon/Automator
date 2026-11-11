@@ -260,10 +260,31 @@ describe('read models', () => {
     const failed2 = insertRun(db, { result_status: 'error', trigger: 'adhoc', priority: 0, adhoc_prompt: 'x' });
     insertRun(db, { watch_id: w, status: 'queued' });
 
-    expect(read.runList({ outcome: 'error' }).map((r) => r.id)).toEqual([failed2, failed]);
+    expect(failed).toBeGreaterThan(0);
+    expect(read.runList({ outcome: 'error' }).map((r) => r.id)).toEqual([failed2]);
     expect(read.runList({ outcome: 'error', trigger: 'adhoc' }).map((r) => r.id)).toEqual([failed2]);
-    expect(read.runList({ outcome: 'acted' })).toHaveLength(1);
-    expect(read.runList({})).toHaveLength(3);
+    expect(read.runList({ outcome: 'acted' })).toHaveLength(0);
+    expect(read.runList({})).toHaveLength(1);
+  });
+
+  test('run list joins follow-up Runs into one chat and hides Automation Runs', () => {
+    const { db, read } = setup();
+    const watch = insertWatch(db);
+    insertRun(db, { watch_id: watch });
+    const first = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'first question', outcome: 'needs-you' });
+    const reply = insertRun(db, {
+      trigger: 'adhoc',
+      adhoc_prompt: 'the answer',
+      parent_run_id: first,
+      outcome: 'acted',
+    });
+    const other = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'unrelated' });
+
+    const chats = read.runList({});
+    expect(chats.map((r) => r.id)).toEqual([other, reply]);
+    expect(chats[1]).toMatchObject({ adhocPrompt: 'first question', outcome: 'acted' });
+    expect(read.runList({ q: 'the answer' }).map((r) => r.id)).toEqual([reply]);
+    expect(read.runList({ limit: 1 }).map((r) => r.id)).toEqual([other]);
   });
 
   test('run history searches task, prompt, ticket, result, error and ID without treating wildcards specially', () => {
@@ -279,13 +300,14 @@ describe('read models', () => {
     });
     insertRun(db, { status: 'queued', adhoc_prompt: 'café' });
 
-    expect(read.runList({ q: 'CAFÉ' }).map((r) => r.id)).toEqual([watched]);
-    expect(read.runList({ q: 'layout' }).map((r) => r.id)).toEqual([watched]);
+    expect(watched).toBeGreaterThan(0);
+    expect(read.runList({ q: 'CAFÉ' })).toEqual([]);
+    expect(read.runList({ q: 'layout' })).toEqual([]);
     expect(read.runList({ q: '100%' }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: 'ABC-123' }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: 'redirect' }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: 'unavailable' }).map((r) => r.id)).toEqual([adhoc]);
-    expect(read.runList({ q: `#${watched}` }).map((r) => r.id)).toEqual([watched]);
+    expect(read.runList({ q: `#${adhoc}` }).map((r) => r.id)).toEqual([adhoc]);
     expect(read.runList({ q: '%' })).toHaveLength(1);
     expect(read.runList({ q: 'not present' })).toEqual([]);
   });
