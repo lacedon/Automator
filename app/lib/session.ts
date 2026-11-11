@@ -4,11 +4,19 @@ import { getCore } from './core';
 
 export const SESSION_COOKIE = 'automator-session';
 
-// An `Authorization: Bearer <access token>` header (CLI and API clients) or the browser session cookie.
-export function bearerToken(header: string | null | undefined): string | undefined {
-  const match = /^Bearer\s+(\S+)$/i.exec(header ?? '');
-  return match?.[1];
+// An `Authorization` header (CLI and API clients): `Bearer <access token>` or `Basic <username:password>`.
+export function userForAuthorization(header: string | null | undefined): User | null {
+  const { users } = getCore();
+  const bearer = /^Bearer\s+(\S+)$/i.exec(header ?? '')?.[1];
+  if (bearer !== undefined) return users.userForToken(bearer);
+  const basic = /^Basic\s+(\S+)$/i.exec(header ?? '')?.[1];
+  if (basic === undefined) return null;
+  const decoded = Buffer.from(basic, 'base64').toString('utf8');
+  const colon = decoded.indexOf(':');
+  return colon < 0 ? null : users.userForPassword(decoded.slice(0, colon), decoded.slice(colon + 1));
 }
+
+export const hasAuthorization = (header: string | null | undefined): boolean => /^(Bearer|Basic)\s/i.test(header ?? '');
 
 // Browser session cookie only; ignores any Authorization header.
 export async function sessionUser(): Promise<User | null> {
@@ -17,7 +25,6 @@ export async function sessionUser(): Promise<User | null> {
 }
 
 export async function currentUser(): Promise<User | null> {
-  const token = bearerToken((await headers()).get('authorization'));
-  if (token !== undefined) return getCore().users.userForToken(token);
-  return sessionUser();
+  const header = (await headers()).get('authorization');
+  return hasAuthorization(header) ? userForAuthorization(header) : sessionUser();
 }

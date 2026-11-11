@@ -40,6 +40,12 @@ describe('sign-in', () => {
     expect(users.signIn('nobody', 'secret')).toBeNull();
   });
 
+  test('userForPassword checks the password without opening a session', () => {
+    expect(users.userForPassword('alice', 'secret')?.username).toBe('alice');
+    expect(users.userForPassword('alice', 'wrong')).toBeNull();
+    expect(handle.db.prepare('SELECT COUNT(*) AS n FROM sessions').get()).toEqual({ n: 0 });
+  });
+
   test('does not store the password or the session token in clear text', () => {
     const session = users.signIn('alice', 'secret')!;
     const stored = JSON.stringify([

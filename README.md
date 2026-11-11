@@ -378,6 +378,34 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Automations t
 - Add and delete Automations, for example `automator automation add <url> --repo <name>`
 - Start ad-hoc Runs
 
+## HTTP API (v1)
+
+The dashboard server also exposes a JSON API for the two operations scripts need most: creating an Automation (`automator automation add`) and queueing an ad-hoc Run (`automator run`). Other CLI operations are not available over HTTP yet. Behavior, validation and permissions match the CLI and dashboard; the CLI is unchanged.
+
+**Authentication.** Every request needs `Authorization: Basic <username:password>` (curl `-u user:password`) or `Authorization: Bearer <access token>`, and acts with that user's permissions. Missing or wrong credentials give `401`; lacking `write` on the Repository's Project gives `403`.
+
+**Errors.** Failures never use a `2xx` status and always have the shape `{"error": {"code": "...", "message": "..."}}`: `400` for invalid input or an unknown Repository (`INVALID_INPUT`, `INVALID_TARGET`, `MISSING_INSTRUCTIONS`, `UNKNOWN_REPOSITORY`), `401`, `403` (`FORBIDDEN`), `404` (`NOT_FOUND`; also for a Run you cannot read), `409` for conflicts (`DUPLICATE_WATCH`, `JIRA_DISABLED`).
+
+| Operation            | Request                 | Body fields                                                                                                                                                     | Success                                                      |
+| -------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Create an Automation | `POST /api/automations` | `target`, `repository` (required); `interval` (e.g. `30m`), `model`, `instructions` (required for free-form), `initialReview` (`baseline-only` or `unresolved`) | `201 {"automationId": 1, "kind": "mr", "repository": "api"}` |
+| Queue an ad-hoc Run  | `POST /api/runs`        | `repository` (required); `prompt` (optional with `ticket`), `ticket`, `model`                                                                                   | `202 {"runId": 7}`, plus `warning` when there is one         |
+| Poll a Run           | `GET /api/runs/{id}`    | none                                                                                                                                                            | see below                                                    |
+
+Queueing a Run returns at once; poll it with its id. A queued or running Run answers `202 {"runId": 7, "status": "pending", "error": null, "result": null}`. A finished Run answers `200` with `"status": "finished"` and either `"result": {"outcome": "acted", "summary": "...", "branch": "..."}` and `"error": null`, or `"error": {"code": "...", "message": "..."}` and `"result": null` when it failed or was interrupted.
+
+```sh
+curl -u me:secret -X POST http://127.0.0.1:3000/api/automations \
+  -H 'Content-Type: application/json' \
+  -d '{"target": "https://gitlab.com/group/project/-/merge_requests/1", "repository": "api", "interval": "30m"}'
+
+curl -u me:secret -X POST http://127.0.0.1:3000/api/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"repository": "api", "prompt": "Update the CHANGELOG"}'
+
+curl -u me:secret http://127.0.0.1:3000/api/runs/7
+```
+
 ## Out of scope for v1
 
 - Live streaming of transcripts

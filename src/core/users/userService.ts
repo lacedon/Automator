@@ -77,19 +77,25 @@ export class UserService {
   }
 
   // A wrong username and a wrong password are indistinguishable, in the result and in timing.
-  signIn(username: string, password: string): { user: User; token: string; expiresAt: number } | null {
+  userForPassword(username: string, password: string): User | null {
     const row = this.db
       .prepare('SELECT id, username, password_hash, disabled FROM users WHERE username = ?')
       .get(username.trim()) as Row | undefined;
     const valid = verifyPassword(password, (row?.password_hash as string | undefined) ?? hashPassword('x'));
     if (row === undefined || !valid || row.disabled === 1) return null;
+    return { id: row.id as number, username: row.username as string };
+  }
+
+  signIn(username: string, password: string): { user: User; token: string; expiresAt: number } | null {
+    const user = this.userForPassword(username, password);
+    if (user === null) return null;
     const token = randomBytes(32).toString('base64url');
     const now = this.now();
     const expiresAt = now + SESSION_TTL_MS;
     this.db
       .prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-      .run(hashToken(token), row.id, now, expiresAt);
-    return { user: { id: row.id as number, username: row.username as string }, token, expiresAt };
+      .run(hashToken(token), user.id, now, expiresAt);
+    return { user, token, expiresAt };
   }
 
   // Expired sessions are deleted when met; sessions of disabled users never validate.
