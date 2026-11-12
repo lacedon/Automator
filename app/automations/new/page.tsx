@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { WatchForm } from '../../components/WatchForm';
 import { getCore } from '../../lib/core';
 import { currentScope } from '../../lib/scope';
@@ -13,6 +14,7 @@ function first(value: string | string[] | undefined): string | undefined {
 
 export default async function NewWatchPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const t = await getTranslations('NewWatch');
   const options = getCore().read.formOptions(await currentScope());
   const initial = {
     target: first(params.target) ?? '',
@@ -21,9 +23,9 @@ export default async function NewWatchPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <div className="muted">
-        <Link href="/automations">Automations</Link> / New
+        <Link href="/automations">{t('automations')}</Link> / {t('new')}
       </div>
-      <h1 className="page-title">New Automation</h1>
+      <h1 className="page-title">{t('title')}</h1>
       <WatchForm mode="create" options={options} initial={initial} />
     </>
   );

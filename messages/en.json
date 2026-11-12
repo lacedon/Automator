@@ -333,5 +333,58 @@
     "mr": "MR",
     "jira": "Jira",
     "free": "Free"
+  },
+  "WatchForm": {
+    "target": "Target URL or Jira key",
+    "targetPlaceholder": "GitLab MR or GitHub PR URL, PROJ-123 or any URL",
+    "repository": "Repository",
+    "lockedTarget": "Target 🔒",
+    "lockedRepository": "Repository 🔒",
+    "lockedNote": "To change the target or Repository, close this Automation and create a new one.",
+    "jiraOff": "Jira checking is off in the config, so this Automation won't be checked until it is turned on.",
+    "extra": "Extra instructions",
+    "extraHint": "(optional for MR/Jira, required for free-form)",
+    "agentSettingsNote": "Runs also use the Agent and optional operation template configured in <link>Agent Settings</link>.",
+    "phMr": "Additional instructions for this MR Automation…",
+    "phJira": "Additional instructions for this Jira Automation…",
+    "phFree": "What the selected provider should do on every check…",
+    "interval": "Interval",
+    "default": "(default)",
+    "intervalPlaceholder": "{interval} (default)",
+    "intervalHint": "e.g. 15m, 2h, 1d · blank = default",
+    "model": "Model",
+    "defaultModel": "default ({model})",
+    "provider": "Provider: {provider}",
+    "initialReview": "Initial review",
+    "baselineOnly": "baseline-only",
+    "unresolved": "unresolved",
+    "reviewHint": "baseline-only: Ignore existing comments. unresolved: Review existing unresolved discussions once. Failed pipelines and conflicts count in both modes.",
+    "create": "Create Automation",
+    "save": "Save changes",
+    "cancel": "Cancel",
+    "previewUnavailable": "Preview unavailable",
+    "detectFailed": "Couldn't detect the kind: {reason}",
+    "detectedKind": "Detected kind:",
+    "open": "open",
+    "sourceBranch": "source"
+  },
+  "NewWatch": {
+    "automations": "Automations",
+    "new": "New",
+    "title": "New Automation"
+  },
+  "EditWatch": {
+    "edit": "Edit",
+    "title": "Edit Automation · {title}"
+  },
+  "ConfirmDialog": {
+    "back": "Back",
+    "noDetails": "No confirmation details were returned."
+  },
+  "ResumeForm": {
+    "note": "Resolution note",
+    "notePlaceholder": "Resolution note for the next run (optional)…",
+    "resume": "Resume",
+    "resumeRunNow": "Resume & run now"
   }
 }

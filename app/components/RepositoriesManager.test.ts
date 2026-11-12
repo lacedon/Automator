@@ -1,7 +1,9 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { NextIntlClientProvider } from 'next-intl';
 import { expect, test, vi } from 'vitest';
 import type { Repository } from '@core/index';
+import en from '../../messages/en.json';
 import { RepositoriesManager } from './RepositoriesManager';
 
 const coreHolder = vi.hoisted(() => ({ core: null as unknown }));
@@ -12,6 +14,10 @@ vi.mock('../actions/repositories', () => ({
   updateRepository: async () => ({ ok: true }),
 }));
 import RepositorySettingsPage from '../settings/repositories/page';
+
+const withIntl = (child: ReturnType<typeof createElement>) =>
+  // eslint-disable-next-line react/no-children-prop -- the provider's props type requires children
+  createElement(NextIntlClientProvider, { locale: 'en', messages: en, children: child });
 
 test('shows invalid imported Repository diagnostics and explains deletion safety', () => {
   const repository: Repository = {
@@ -24,16 +30,18 @@ test('shows invalid imported Repository diagnostics and explains deletion safety
     promptAddition: '',
   };
   const markup = renderToStaticMarkup(
-    createElement(RepositoriesManager, {
-      repositories: [
-        {
-          repository,
-          status: ['Folder does not exist: /missing/legacy', 'Unknown GitLab connection "retired"'],
-          projectName: 'Legacy project',
-        },
-      ],
-      connections: { gitlab: ['corp'], github: ['public'], jira: ['work'] },
-    }),
+    withIntl(
+      createElement(RepositoriesManager, {
+        repositories: [
+          {
+            repository,
+            status: ['Folder does not exist: /missing/legacy', 'Unknown GitLab connection "retired"'],
+            projectName: 'Legacy project',
+          },
+        ],
+        connections: { gitlab: ['corp'], github: ['public'], jira: ['work'] },
+      }),
+    ),
   );
   expect(markup).toContain('Folder does not exist: /missing/legacy');
   expect(markup).toContain('name="folder" value="/missing/legacy"');
@@ -68,7 +76,7 @@ test('settings page passes connection names only, not credential environment bin
     },
     projects: { list: () => [] },
   };
-  const markup = renderToStaticMarkup(createElement(RepositorySettingsPage));
+  const markup = renderToStaticMarkup(withIntl(createElement(RepositorySettingsPage)));
   expect(markup).toContain('corp');
   expect(markup).toContain('public');
   expect(markup).toContain('work');
@@ -77,10 +85,12 @@ test('settings page passes connection names only, not credential environment bin
 
 test('offers only connection names and never environment bindings', () => {
   const markup = renderToStaticMarkup(
-    createElement(RepositoriesManager, {
-      repositories: [],
-      connections: { gitlab: ['corp'], github: ['public'], jira: ['work'] },
-    }),
+    withIntl(
+      createElement(RepositoriesManager, {
+        repositories: [],
+        connections: { gitlab: ['corp'], github: ['public'], jira: ['work'] },
+      }),
+    ),
   );
   expect(markup).toContain('corp');
   expect(markup).toContain('public');

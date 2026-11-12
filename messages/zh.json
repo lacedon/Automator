@@ -333,5 +333,58 @@
     "mr": "MR",
     "jira": "Jira",
     "free": "自由"
+  },
+  "WatchForm": {
+    "target": "目标 URL 或 Jira 键",
+    "targetPlaceholder": "GitLab MR 或 GitHub PR 的 URL、PROJ-123 或任意 URL",
+    "repository": "仓库",
+    "lockedTarget": "目标 🔒",
+    "lockedRepository": "仓库 🔒",
+    "lockedNote": "若要更改目标或仓库，请关闭此自动化并新建一个。",
+    "jiraOff": "配置中已关闭 Jira 检查，因此在重新开启之前不会检查此自动化。",
+    "extra": "额外指令",
+    "extraHint": "（MR/Jira 可选，自由格式必填）",
+    "agentSettingsNote": "运行还会使用在<link>智能体设置</link>中配置的智能体和可选的操作模板。",
+    "phMr": "此 MR 自动化的额外指令…",
+    "phJira": "此 Jira 自动化的额外指令…",
+    "phFree": "所选提供方在每次检查时应执行的操作…",
+    "interval": "间隔",
+    "default": "（默认）",
+    "intervalPlaceholder": "{interval}（默认）",
+    "intervalHint": "例如 15m、2h、1d · 留空 = 默认",
+    "model": "模型",
+    "defaultModel": "默认（{model}）",
+    "provider": "提供方：{provider}",
+    "initialReview": "初次评审",
+    "baselineOnly": "仅基线",
+    "unresolved": "未解决",
+    "reviewHint": "仅基线：忽略已有评论。未解决：对已有的未解决讨论评审一次。失败的流水线和冲突在两种模式下都会计入。",
+    "create": "创建自动化",
+    "save": "保存更改",
+    "cancel": "取消",
+    "previewUnavailable": "无法预览",
+    "detectFailed": "无法检测类型：{reason}",
+    "detectedKind": "检测到的类型：",
+    "open": "打开",
+    "sourceBranch": "源分支"
+  },
+  "NewWatch": {
+    "automations": "自动化",
+    "new": "新建",
+    "title": "新建自动化"
+  },
+  "EditWatch": {
+    "edit": "编辑",
+    "title": "编辑自动化 · {title}"
+  },
+  "ConfirmDialog": {
+    "back": "返回",
+    "noDetails": "未返回确认详情。"
+  },
+  "ResumeForm": {
+    "note": "处理说明",
+    "notePlaceholder": "给下次运行的处理说明（可选）…",
+    "resume": "恢复",
+    "resumeRunNow": "恢复并立即运行"
   }
 }
