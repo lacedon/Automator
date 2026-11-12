@@ -386,5 +386,85 @@
     "notePlaceholder": "给下次运行的处理说明（可选）…",
     "resume": "恢复",
     "resumeRunNow": "恢复并立即运行"
+  },
+  "SettingsNav": {
+    "label": "设置",
+    "projects": "项目",
+    "repositories": "仓库",
+    "agents": "智能体",
+    "access": "用户与角色",
+    "config": "配置"
+  },
+  "SettingsDialog": {
+    "open": "打开",
+    "cancel": "取消"
+  },
+  "ConfigPage": {
+    "title": "配置",
+    "intro": "编辑非机密的应用设置。凭据值和环境变量绑定在此表单之外管理。",
+    "agentSettings": "打开智能体设置 →",
+    "repositorySettings": "打开仓库设置 →",
+    "editTitle": "编辑配置",
+    "open": "打开配置",
+    "restartNote": "已保存的应用设置在重启后生效。",
+    "tableLabel": "配置",
+    "setting": "设置项",
+    "value": "值",
+    "configured": "已配置 {count} 项设置",
+    "restartHeading": "重启应用",
+    "restartText": "已保存的设置在重启后生效。进行中的工作会先完成。",
+    "upgradeHeading": "升级应用",
+    "upgradeText": "在 Automator 检出目录中运行 <code>npm run upgrade-and-restart</code>。有运行进行中或排队时不可用。"
+  },
+  "ConfigForm": {
+    "provider": "提供方",
+    "onePerLine": "{field}（每行一项）",
+    "saving": "保存中…",
+    "save": "保存配置"
+  },
+  "Restart": {
+    "label": "重启应用",
+    "message": "重启应用？进行中的工作会先完成，然后再重新启动。",
+    "confirm": "重启",
+    "accepted": "已接受重启。进行中的工作正在完成，随后应用将重启。"
+  },
+  "Upgrade": {
+    "upgrading": "正在升级并重启… 应用重新上线后此页面会自动刷新。",
+    "label": "升级并重启",
+    "message": "升级并重启？这将检出 master、拉取最新更改、运行 npm ci、构建并重启应用。有运行进行中或排队时会被拒绝。"
+  },
+  "Tokens": {
+    "never": "从不",
+    "copy": "请立即复制此令牌；它不会再次显示：",
+    "nameLabel": "令牌名称",
+    "name": "名称",
+    "expiresLabel": "有效天数",
+    "expiresPlaceholder": "有效天数（留空：永不过期）",
+    "create": "创建令牌",
+    "tableLabel": "访问令牌",
+    "token": "令牌",
+    "usage": "使用情况",
+    "actions": "操作",
+    "regenerate": "重新生成",
+    "revoke": "吊销",
+    "usageText": "过期时间：{expires} · 上次使用：{lastUsed}"
+  },
+  "Credentials": {
+    "nameLabel": "凭据名称",
+    "valueLabel": "凭据值",
+    "value": "值",
+    "enterValue": "请输入值",
+    "save": "保存凭据",
+    "tableLabel": "凭据",
+    "name": "名称",
+    "updated": "更新时间",
+    "actions": "操作",
+    "remove": "移除"
+  },
+  "Account": {
+    "title": "访问令牌",
+    "intro": "令牌允许 CLI 和 API 客户端以 {username} 的身份、使用你的权限执行操作。以 <code>{header}</code> 的形式发送。令牌只显示一次；丢失后请重新生成。",
+    "credentials": "凭据",
+    "credentialsIntro": "你自己的机密，用于你拥有的运行，例如智能体登录所用的令牌。它们加密存储，不会再次显示，并优先于服务器的值；没有时则使用服务器的值。"
   }
 }

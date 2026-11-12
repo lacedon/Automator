@@ -2,18 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 export function SettingsNavigation() {
   const pathname = usePathname();
+  const t = useTranslations('SettingsNav');
   return (
-    <nav className="settings-nav" aria-label="Settings">
+    <nav className="settings-nav" aria-label={t('label')}>
       {(
         [
-          ['/settings/projects', 'Projects'],
-          ['/settings/repositories', 'Repositories'],
-          ['/settings/agents', 'Agents'],
-          ['/settings/access', 'Users & roles'],
-          ['/settings/config', 'Configuration'],
+          ['/settings/projects', 'projects'],
+          ['/settings/repositories', 'repositories'],
+          ['/settings/agents', 'agents'],
+          ['/settings/access', 'access'],
+          ['/settings/config', 'config'],
         ] as const
       ).map(([href, label]) => (
         <Link
@@ -21,7 +23,7 @@ export function SettingsNavigation() {
           href={href}
           aria-current={pathname === href || pathname.startsWith(`${href}/`) ? 'page' : undefined}
         >
-          {label}
+          {t(label)}
         </Link>
       ))}
     </nav>

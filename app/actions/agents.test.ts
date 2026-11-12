@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { NextIntlClientProvider } from 'next-intl';
 import { createCore, type Core } from '@core/index';
+import en from '../../messages/en.json';
 import { AgentSettings } from '../components/AgentSettings';
 import { fakeClock } from '../../test/helpers/clock';
 import { testConfig } from '../../test/helpers/config';
@@ -97,12 +99,17 @@ test('Agent Settings shows actionable status for an invalid persisted Repository
     .run(missingFolder);
   const status = core.repositories.status('broken');
   const markup = renderToStaticMarkup(
-    createElement(AgentSettings, {
-      agents: [],
-      assignments: [],
-      templates: [],
-      repositories: [{ name: 'broken', status }],
-      workflows: [{ type: 'mr-watch', label: 'MR Watch' }],
+    // eslint-disable-next-line react/no-children-prop -- the provider's props type requires children
+    createElement(NextIntlClientProvider, {
+      locale: 'en',
+      messages: en,
+      children: createElement(AgentSettings, {
+        agents: [],
+        assignments: [],
+        templates: [],
+        repositories: [{ name: 'broken', status }],
+        workflows: [{ type: 'mr-watch', label: 'MR Watch' }],
+      }),
     }),
   );
 

@@ -12,6 +12,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal, flushSync } from 'react-dom';
 
 const Editor = createContext<{
@@ -39,7 +40,7 @@ export function useSettingsDialog(pending = false) {
 
 export function SettingsDialog({
   title,
-  trigger = 'Open',
+  trigger,
   wide = false,
   children,
 }: {
@@ -48,6 +49,7 @@ export function SettingsDialog({
   wide?: boolean;
   children: ReactNode;
 }) {
+  const t = useTranslations('SettingsDialog');
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [session, setSession] = useState(0);
@@ -67,7 +69,7 @@ export function SettingsDialog({
           dialog.current?.querySelector<HTMLElement>('.settings-dialog-content :is(input, select, textarea)')?.focus();
         }}
       >
-        {trigger}
+        {trigger ?? t('open')}
       </button>
       <dialog
         ref={dialog}
@@ -86,7 +88,7 @@ export function SettingsDialog({
         <div className="settings-dialog-footer">
           <div className="settings-dialog-actions" ref={setActions} />
           <button type="button" className="btn btn-secondary" disabled={pendingCount > 0} onClick={close}>
-            Cancel
+            {t('cancel')}
           </button>
         </div>
       </dialog>

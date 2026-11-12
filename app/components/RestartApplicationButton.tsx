@@ -1,10 +1,12 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { requestApplicationRestart } from '../actions/restart';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export function RestartApplicationButton() {
+  const t = useTranslations('Restart');
   const [accepted, setAccepted] = useState(false);
 
   const restart = async () => {
@@ -16,16 +18,10 @@ export function RestartApplicationButton() {
 
   return (
     <>
-      <ConfirmDialog
-        label="Restart Application"
-        message="Restart the application? Active work will drain before it starts again."
-        confirmLabel="Restart"
-        action={restart}
-        danger
-      />
+      <ConfirmDialog label={t('label')} message={t('message')} confirmLabel={t('confirm')} action={restart} danger />
       {accepted && (
         <p className="success-box" role="status">
-          Restart accepted. Active work is draining before the application restarts.
+          {t('accepted')}
         </p>
       )}
     </>

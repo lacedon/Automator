@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { upgradeAndRestart } from '../actions/upgrade';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -16,6 +17,7 @@ async function isServerUp(): Promise<boolean> {
 }
 
 export function UpgradeAndRestartButton() {
+  const t = useTranslations('Upgrade');
   const [upgrading, setUpgrading] = useState(false);
 
   useEffect(() => {
@@ -38,17 +40,9 @@ export function UpgradeAndRestartButton() {
   if (upgrading)
     return (
       <p className="muted" role="status" aria-busy="true">
-        Upgrading and restarting… This page reloads once the application is back online.
+        {t('upgrading')}
       </p>
     );
 
-  return (
-    <ConfirmDialog
-      label="Upgrade and restart"
-      message="Upgrade and restart? This checks out master, pulls the latest changes, runs npm ci, builds and restarts the application. It is rejected while Runs are active or queued."
-      confirmLabel="Upgrade and restart"
-      action={upgrade}
-      danger
-    />
-  );
+  return <ConfirmDialog label={t('label')} message={t('message')} confirmLabel={t('label')} action={upgrade} danger />;
 }
