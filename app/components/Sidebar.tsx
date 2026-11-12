@@ -3,6 +3,7 @@
 import { Fragment, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Pill } from './Pill';
 
 type Counts = { watches: number; queued: number };
@@ -18,12 +19,13 @@ function NavigationItems({
   onNavigate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const pathname = usePathname();
+  const t = useTranslations('Navigation');
   const items = [
-    { href: '/', label: 'Home' },
-    { href: '/automations', label: 'Automations', count: counts.watches },
-    { href: '/queue', label: 'Queue', count: counts.queued },
-    { href: '/runs', label: 'Chats' },
-    { href: '/settings', label: 'Settings' },
+    { href: '/', label: t('home') },
+    { href: '/automations', label: t('automations'), count: counts.watches },
+    { href: '/queue', label: t('queue'), count: counts.queued },
+    { href: '/runs', label: t('chats') },
+    { href: '/settings', label: t('settings') },
   ];
   return items.map(({ href, label, count }) => {
     const active = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
@@ -48,7 +50,7 @@ function NavigationItems({
               onClick={onNavigate}
             >
               <span>{chat.title}</span>
-              {chat.needsYou && <Pill variant="needs-you">Needs you</Pill>}
+              {chat.needsYou && <Pill variant="needs-you">{t('needsYou')}</Pill>}
             </Link>
           ))}
       </Fragment>
@@ -57,14 +59,16 @@ function NavigationItems({
 }
 
 export function Sidebar({ counts, chats }: { counts: Counts; chats: NavChat[] }) {
+  const t = useTranslations('Navigation');
   return (
-    <nav className="sidebar" aria-label="Main">
+    <nav className="sidebar" aria-label={t('main')}>
       <NavigationItems counts={counts} chats={chats} />
     </nav>
   );
 }
 
 export function MobileNavigation({ counts, chats }: { counts: Counts; chats: NavChat[] }) {
+  const t = useTranslations('Navigation');
   const close = (event: MouseEvent<HTMLAnchorElement>) => {
     const menu = event.currentTarget.closest('details');
     if (menu) menu.open = false;
@@ -72,15 +76,15 @@ export function MobileNavigation({ counts, chats }: { counts: Counts; chats: Nav
 
   return (
     <details className="mobile-nav">
-      <summary className="mobile-nav-trigger">Menu</summary>
+      <summary className="mobile-nav-trigger">{t('menu')}</summary>
       <div className="mobile-nav-sheet">
-        <nav aria-label="Main mobile">
+        <nav aria-label={t('mainMobile')}>
           <NavigationItems counts={counts} chats={chats} onNavigate={close} />
           <Link href="/automations/new" className="nav-item" onClick={close}>
-            New automation
+            {t('newAutomation')}
           </Link>
           <Link href="/adhoc" className="nav-item" onClick={close}>
-            Chat
+            {t('chat')}
           </Link>
         </nav>
       </div>

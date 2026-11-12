@@ -1,5 +1,22 @@
 {
   "Common": {
     "appName": "Automator"
+  },
+  "Navigation": {
+    "home": "Home",
+    "automations": "Automations",
+    "queue": "Queue",
+    "chats": "Chats",
+    "settings": "Settings",
+    "needsYou": "Needs you",
+    "menu": "Menu",
+    "newAutomation": "New automation",
+    "chat": "Chat",
+    "addAutomation": "+ Automation",
+    "accessTokens": "Access tokens",
+    "signedInAs": "Signed in as {username}",
+    "signOut": "Sign out",
+    "main": "Main",
+    "mainMobile": "Main mobile"
   }
 }
