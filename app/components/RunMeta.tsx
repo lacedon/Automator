@@ -1,9 +1,8 @@
-import type { FileView, RunDetailView, RunError, TicketLink, Trigger } from '@core/index';
+import type { FileView, RunDetailView, RunError, TicketLink } from '@core/index';
+import { useTranslations } from 'next-intl';
 import { formatDateTime, formatTook } from '../lib/format';
 import { Elapsed } from './Elapsed';
 import { providerLabel } from '../lib/providerLabel';
-
-export const TRIGGER_NAME: Record<Trigger, string> = { schedule: 'schedule', manual: 'manual', adhoc: 'ad-hoc' };
 
 export function ticketText(ticket: TicketLink): string {
   return ticket.title === null ? ticket.key : `${ticket.key}: ${ticket.title}`;
@@ -18,10 +17,11 @@ export function RunItem({
   adhocPrompt: string | null;
   ticket?: TicketLink | null;
 }) {
+  const t = useTranslations('RunMeta');
   if (watchTitle !== null) return <>{watchTitle}</>;
   return (
     <>
-      <em>ad-hoc:</em> {ticket && <strong>{ticketText(ticket)}</strong>}
+      <em>{t('adhoc')}</em> {ticket && <strong>{ticketText(ticket)}</strong>}
       {ticket && adhocPrompt !== null && ' '}
       {adhocPrompt !== null && <>“{adhocPrompt}”</>}
     </>
@@ -29,66 +29,70 @@ export function RunItem({
 }
 
 function RunTime({ view }: { view: RunDetailView }) {
+  const t = useTranslations('RunMeta');
   const { run, tookMs } = view;
-  if (run.startedAt === null) return <>queued {formatDateTime(run.queuedAt)} · not started</>;
+  if (run.startedAt === null) return <>{t('queued', { time: formatDateTime(run.queuedAt) })}</>;
   if (run.status === 'running') {
     return (
       <>
-        {formatDateTime(run.startedAt)} → running <Elapsed since={run.startedAt} />
+        {formatDateTime(run.startedAt)} → {t('running')} <Elapsed since={run.startedAt} />
       </>
     );
   }
   return (
     <>
       {formatDateTime(run.startedAt)} → {run.endedAt === null ? '—' : formatDateTime(run.endedAt)} (
-      {tookMs === null ? '—' : formatTook(tookMs)}){run.exitCode !== null && ` · exit ${run.exitCode}`}
+      {tookMs === null ? '—' : formatTook(tookMs)}){run.exitCode !== null && ` · ${t('exit', { code: run.exitCode })}`}
     </>
   );
 }
 
 function FileLink({ runId, name, file }: { runId: number; name: string; file: FileView }) {
+  const t = useTranslations('RunMeta');
   if (file.content === null) return null;
   return (
     <div>
       <code>{file.path}</code>{' '}
       <a href={`/files/run/${runId}/${name}`} target="_blank" rel="noreferrer">
-        open
+        {t('open')}
       </a>
     </div>
   );
 }
 
 export function RunMeta({ view }: { view: RunDetailView }) {
+  const t = useTranslations('RunMeta');
+  const tt = useTranslations('Trigger');
   const { run, result, transcript } = view;
   const noFiles = result.content === null && transcript.content === null;
   return (
     <div className="card">
       <dl className="kv">
-        <dt>Summary</dt>
+        <dt>{t('summary')}</dt>
         <dd>{run.summary ?? <span className="muted">—</span>}</dd>
-        <dt>Trigger</dt>
+        <dt>{t('trigger')}</dt>
         <dd>
-          {TRIGGER_NAME[run.trigger]} · {run.reason}
+          {tt(run.trigger)} · {run.reason}
         </dd>
-        <dt>Provider</dt>
+        <dt>{t('provider')}</dt>
         <dd>{providerLabel(run.provider)}</dd>
-        <dt>Time</dt>
+        <dt>{t('time')}</dt>
         <dd>
           <RunTime view={view} />
         </dd>
-        <dt>Repository</dt>
+        <dt>{t('repository')}</dt>
         <dd>
           {run.repository}
           {run.branch !== null && (
             <>
-              {' · branch '}
+              {` · ${t('branch')} `}
               <code>{run.branch}</code>
             </>
           )}
         </dd>
         {view.ticket && (
           <>
-            <dt>Ticket</dt>
+            <dt>{t('ticket')}</dt>
             <dd>
               {view.ticket.url === null ? (
                 ticketText(view.ticket)
@@ -100,7 +104,7 @@ export function RunMeta({ view }: { view: RunDetailView }) {
             </dd>
           </>
         )}
-        <dt>Files</dt>
+        <dt>{t('files')}</dt>
         <dd>
           <FileLink runId={run.id} name="result.json" file={result} />
           <FileLink runId={run.id} name="transcript.md" file={transcript} />

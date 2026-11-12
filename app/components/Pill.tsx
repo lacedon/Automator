@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import type { NextCheck, RunRow, Trigger, WatchState } from '@core/index';
 import { Elapsed } from './Elapsed';
@@ -8,11 +9,7 @@ export function Pill({ variant, children }: { variant: PillVariant; children: Re
   return <span className={`pill pill-${variant}`}>{children}</span>;
 }
 
-const INTERRUPTED_LABEL = { timeout: 'timed out', cancelled: 'cancelled', 'worker-restart': 'worker restart' } as const;
 const OUTCOME_VARIANT = { 'needs-you': 'needs-you', acted: 'good', nothing: 'neutral' } as const;
-const OUTCOME_LABEL = { 'needs-you': 'Needs you', acted: 'Acted', nothing: 'No action' } as const;
-
-export const PRIORITY_LABEL: Record<Trigger, string> = { schedule: 'scheduled', manual: 'manual', adhoc: 'ad-hoc' };
 
 // Manual and ad-hoc requests jump the queue (Info); scheduled ones wait their turn (Neutral).
 function queuedVariant(trigger: Trigger | undefined): PillVariant {
@@ -20,38 +17,41 @@ function queuedVariant(trigger: Trigger | undefined): PillVariant {
 }
 
 export function PriorityPill({ trigger }: { trigger: Trigger }) {
-  return <Pill variant={queuedVariant(trigger)}>{PRIORITY_LABEL[trigger]}</Pill>;
+  const t = useTranslations('Trigger');
+  return <Pill variant={queuedVariant(trigger)}>{t(trigger)}</Pill>;
 }
 
 type RunPillRun = Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrupted'> &
   Partial<Pick<RunRow, 'trigger'>>;
 
 export function RunPill({ run }: { run: RunPillRun }) {
-  if (run.interrupted !== null) return <Pill variant="interrupted">{INTERRUPTED_LABEL[run.interrupted]}</Pill>;
-  if (run.resultStatus === 'error') return <Pill variant="needs-you">error</Pill>;
-  if (run.outcome !== null) return <Pill variant={OUTCOME_VARIANT[run.outcome]}>{OUTCOME_LABEL[run.outcome]}</Pill>;
-  if (run.status === 'running') return <Pill variant="running">running</Pill>;
-  if (run.status === 'queued') return <Pill variant={queuedVariant(run.trigger)}>queued</Pill>;
+  const t = useTranslations('Pill');
+  if (run.interrupted !== null) return <Pill variant="interrupted">{t(run.interrupted)}</Pill>;
+  if (run.resultStatus === 'error') return <Pill variant="needs-you">{t('error')}</Pill>;
+  if (run.outcome !== null) return <Pill variant={OUTCOME_VARIANT[run.outcome]}>{t(run.outcome)}</Pill>;
+  if (run.status === 'running') return <Pill variant="running">{t('running')}</Pill>;
+  if (run.status === 'queued') return <Pill variant={queuedVariant(run.trigger)}>{t('queued')}</Pill>;
   return <Pill variant="neutral">—</Pill>;
 }
 
-const STATE_PILL: Record<WatchState, { variant: PillVariant; label: string }> = {
-  needs_you: { variant: 'needs-you', label: 'Needs you' },
-  active: { variant: 'good', label: 'Active' },
-  paused: { variant: 'paused', label: 'Paused' },
-  closed: { variant: 'closed', label: 'Closed' },
+const STATE_PILL: Record<WatchState, PillVariant> = {
+  needs_you: 'needs-you',
+  active: 'good',
+  paused: 'paused',
+  closed: 'closed',
 };
 
 export function WatchStatePill({ state }: { state: WatchState }) {
-  const { variant, label } = STATE_PILL[state];
-  return <Pill variant={variant}>{label}</Pill>;
+  const t = useTranslations('Pill');
+  return <Pill variant={STATE_PILL[state]}>{t(`state_${state}`)}</Pill>;
 }
 
 export function NextCheckLabel({ next }: { next: NextCheck }) {
+  const t = useTranslations('Pill');
   if (next.kind === 'running' && next.since !== undefined) {
     return (
       <Pill variant="running">
-        ● running <Elapsed since={next.since} />
+        ● {t('running')} <Elapsed since={next.since} />
       </Pill>
     );
   }

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 import type { RunFilter, RunRow } from '@core/index';
 import { Elapsed } from '../components/Elapsed';
 import { EmptyState } from '../components/EmptyState';
@@ -16,12 +18,12 @@ type SearchParams = Record<string, string | string[] | undefined>;
 type Outcome = NonNullable<RunFilter['outcome']>;
 type Filter = { outcome?: Outcome; repo?: string; q?: string; from?: string; to?: string };
 
-const OUTCOME_CHIPS: { outcome: Outcome | undefined; label: string }[] = [
-  { outcome: undefined, label: 'All chats' },
-  { outcome: 'needs-you', label: 'Needs you' },
-  { outcome: 'error', label: 'Errors' },
-  { outcome: 'acted', label: 'Acted' },
-  { outcome: 'nothing', label: 'No action' },
+const OUTCOME_CHIPS: { outcome: Outcome | undefined; label: 'all' | 'needsYou' | 'errors' | 'acted' | 'nothing' }[] = [
+  { outcome: undefined, label: 'all' },
+  { outcome: 'needs-you', label: 'needsYou' },
+  { outcome: 'error', label: 'errors' },
+  { outcome: 'acted', label: 'acted' },
+  { outcome: 'nothing', label: 'nothing' },
 ];
 const OUTCOMES: readonly Outcome[] = ['needs-you', 'acted', 'nothing', 'error'];
 
@@ -39,14 +41,15 @@ function hrefFor(filter: Filter): string {
 }
 
 function RunFilters({ filter, repositories }: { filter: Filter; repositories: string[] }) {
+  const t = useTranslations('Runs');
   return (
     <>
-      <nav className="history-tabs" aria-label="Run outcome">
+      <nav className="history-tabs" aria-label={t('outcomeNav')}>
         {OUTCOME_CHIPS.map(({ outcome, label }) => {
           const on = filter.outcome === outcome;
           return (
             <Link key={label} href={hrefFor({ ...filter, outcome })} aria-current={on ? 'page' : undefined}>
-              {label}
+              {t(label)}
             </Link>
           );
         })}
@@ -57,11 +60,11 @@ function RunFilters({ filter, repositories }: { filter: Filter; repositories: st
           type="search"
           name="q"
           defaultValue={filter.q ?? ''}
-          aria-label="Search runs"
-          placeholder="Search task, prompt, result or run ID"
+          aria-label={t('search')}
+          placeholder={t('placeholder')}
         />
-        <select name="repo" defaultValue={filter.repo ?? ''} aria-label="Repository">
-          <option value="">Repository: any</option>
+        <select name="repo" defaultValue={filter.repo ?? ''} aria-label={t('repository')}>
+          <option value="">{t('repoAny')}</option>
           {repositories.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -69,13 +72,13 @@ function RunFilters({ filter, repositories }: { filter: Filter; repositories: st
           ))}
         </select>
         <label>
-          From <input type="date" name="from" defaultValue={filter.from ?? ''} aria-label="From date" />
+          {t('from')} <input type="date" name="from" defaultValue={filter.from ?? ''} aria-label={t('fromDate')} />
         </label>
         <label>
-          To <input type="date" name="to" defaultValue={filter.to ?? ''} aria-label="To date" />
+          {t('to')} <input type="date" name="to" defaultValue={filter.to ?? ''} aria-label={t('toDate')} />
         </label>
         <button type="submit" className="btn btn-secondary">
-          Filter
+          {t('filter')}
         </button>
       </form>
     </>
@@ -88,6 +91,7 @@ function Took({ run }: { run: RunRow }) {
 }
 
 function RunListRow({ run }: { run: RunRow }) {
+  const t = useTranslations('Runs');
   const href = `/runs/${run.id}`;
   return (
     <tr>
@@ -95,20 +99,20 @@ function RunListRow({ run }: { run: RunRow }) {
         <Link href={href} className="task-title">
           <RunItem watchTitle={run.watchTitle} adhocPrompt={run.adhocPrompt} ticket={run.ticket} />
         </Link>
-        <div className="recent-result">{run.summary ?? run.error?.message ?? 'No summary recorded.'}</div>
+        <div className="recent-result">{run.summary ?? run.error?.message ?? t('noSummary')}</div>
         <div className="task-meta">
           <Link href={href}>#{run.id}</Link>
         </div>
       </td>
-      <td data-label="Repository">{run.repository}</td>
-      <td data-label="Outcome">
+      <td data-label={t('repository')}>{run.repository}</td>
+      <td data-label={t('outcome')}>
         <RunPill run={run} />
       </td>
-      <td className="history-number" data-label={run.startedAt === null ? 'Queued' : 'Started'}>
+      <td className="history-number" data-label={run.startedAt === null ? t('queued') : t('started')}>
         {formatDateTime(run.startedAt ?? run.queuedAt)}
-        {run.startedAt === null && <div className="task-meta">Queued · never started</div>}
+        {run.startedAt === null && <div className="task-meta">{t('queuedNever')}</div>}
       </td>
-      <td className="history-number" data-label="Duration">
+      <td className="history-number" data-label={t('duration')}>
         <Took run={run} />
       </td>
     </tr>
@@ -116,6 +120,7 @@ function RunListRow({ run }: { run: RunRow }) {
 }
 
 export default async function RunsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const t = await getTranslations('Runs');
   const params = await searchParams;
   const filter: Filter = {
     outcome: pick(params.outcome, OUTCOMES),
@@ -142,30 +147,26 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   return (
     <div className="history-view">
       <div className="page-heading">
-        <h1 className="page-title">Chats</h1>
-        <p className="muted">
-          Ad-hoc chats for the selected project scope. Automation Runs are on each Automation&apos;s page.
-        </p>
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="muted">{t('intro')}</p>
       </div>
       <RunFilters filter={filter} repositories={repositories} />
       {!dates.ok ? (
         <ErrorBox error={dates.error} />
       ) : (
         <>
-          <p className="history-count">
-            {runs.length} {runs.length === 1 ? 'Chat' : 'Chats'} · Newest first
-          </p>
+          <p className="history-count">{t('count', { count: runs.length })}</p>
           {runs.length === 0 ? (
-            <EmptyState>{filtered ? 'No chats match these filters.' : 'No chats yet.'}</EmptyState>
+            <EmptyState>{filtered ? t('noMatch') : t('none')}</EmptyState>
           ) : (
             <table className="table run-history">
               <thead>
                 <tr>
-                  <th>Task / result</th>
-                  <th>Repository</th>
-                  <th>Outcome</th>
-                  <th className="history-number">Started / queued</th>
-                  <th className="history-number">Duration</th>
+                  <th>{t('task')}</th>
+                  <th>{t('repository')}</th>
+                  <th>{t('outcome')}</th>
+                  <th className="history-number">{t('startedQueued')}</th>
+                  <th className="history-number">{t('duration')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,10 +178,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
           )}
         </>
       )}
-      <p className="history-help muted">
-        Outcomes record what happened at the time. A past Needs you Run may already be resolved. Date filters use local
-        start time, or queue time if never started.
-      </p>
+      <p className="history-help muted">{t('help')}</p>
     </div>
   );
 }
