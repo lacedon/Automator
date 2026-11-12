@@ -32,7 +32,7 @@ const DENIED: { rule: RegExp; message: string }[] = [
     message: 'follows redirects',
   },
   {
-    rule: /curl\b[^\n]*\s(?:-[A-Za-z]*[oOK]\b|--(?:output|output-dir|remote-name|remote-name-all|remote-header-name|config|create-dirs)\b)/,
+    rule: /curl\b[^\n]*\s(?:-[A-Za-z]*[oOKcJ]\b|--(?:output|output-dir|remote-name|remote-name-all|remote-header-name|config|create-dirs|cookie-jar|trace|trace-ascii|trace-time|stderr|dump-header|libcurl|hsts|alt-svc|etag-save|netrc-file)\b)/,
     message: 'writes curl output to a file or reads a curl config',
   },
   { rule: /\bsort\b[^\n]*\s(?:-[A-Za-z]*o|--output\b)/, message: 'writes sort output to a file' },
