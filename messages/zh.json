@@ -58,7 +58,9 @@
     "alreadyAutomated": "已有自动化",
     "existingAutomation": "此目标已有自动化：",
     "every": "每 {interval}",
-    "openExisting": "打开现有自动化 →"
+    "openExisting": "打开现有自动化 →",
+    "noRunQueued": "没有运行被排队。",
+    "nothingChanged": "未做任何更改。"
   },
   "NeedsYouCard": {
     "sent": "已发送 ✓",
@@ -209,5 +211,54 @@
     "outcome": "结果",
     "startedQueued": "开始 / 入队",
     "help": "结果记录当时发生的情况。过去需要你处理的运行可能已解决。日期筛选使用本地开始时间；从未开始则使用入队时间。"
+  },
+  "RunDetail": {
+    "chats": "聊天",
+    "automationFallback": "自动化 #{id}",
+    "adhocRun": "临时运行",
+    "title": "运行 #{id}",
+    "details": "运行详情"
+  },
+  "Chat": {
+    "run": "运行 #{id}",
+    "thisRun": "（本次运行）",
+    "message": "消息",
+    "placeholder": "在同一个 Copilot 会话中继续…",
+    "send": "发送",
+    "queued": "运行 #{id} 已排队"
+  },
+  "RunFiles": {
+    "transcript": "记录",
+    "result": "结果 JSON",
+    "prompt": "提示词",
+    "file": "文件",
+    "close": "关闭",
+    "missing": "此运行没有{file}文件。",
+    "loading": "加载中…",
+    "heading": "{file} · 运行 #{id}"
+  },
+  "Agent": {
+    "label": "智能体",
+    "none": "未分配",
+    "default": "{name}（默认）"
+  },
+  "Adhoc": {
+    "title": "新建聊天",
+    "empty": "开始新的聊天：在下方提出请求。",
+    "repository": "仓库",
+    "ticket": "工单（可选）",
+    "ticketPlaceholder": "工单编号或 URL",
+    "model": "模型",
+    "defaultModel": "默认（{model}）",
+    "ticketHint": "关联工单",
+    "modelHint": "使用此模型",
+    "agentHint": "使用此智能体",
+    "send": "发送",
+    "provider": "提供方：{provider}。优先于计划任务，忽略工作时间，不会中断当前运行。"
+  },
+  "Kind": {
+    "mr": "合并/拉取请求",
+    "jira": "Jira 工单",
+    "free": "自由格式"
   }
 }

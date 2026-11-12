@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { FormOptions } from '@core/index';
 import { queueAdhoc } from '../actions/adhoc';
@@ -18,6 +19,8 @@ export function AdhocForm({
     'repositories' | 'provider' | 'models' | 'defaultModel' | 'byRepository' | 'agents' | 'agentAssignments'
   >;
 }) {
+  const t = useTranslations('Adhoc');
+  const tError = useTranslations('ErrorBox');
   const [state, formAction, pending] = useActionState(queueAdhoc, null);
   const [repository, setRepository] = useState(options.repositories[0]?.name ?? '');
   const [prompt, setPrompt] = useState('');
@@ -53,28 +56,28 @@ export function AdhocForm({
       : undefined;
 
   const commands: Suggestion[] = [
-    { id: 'ticket', label: '/ticket', hint: 'Link a Ticket', apply: () => ticketRef.current?.focus() },
+    { id: 'ticket', label: '/ticket', hint: t('ticketHint'), apply: () => ticketRef.current?.focus() },
     ...settings.models.map((m) => ({
       id: `model:${m}`,
       label: `/model ${m}`,
-      hint: 'Use this model',
+      hint: t('modelHint'),
       apply: () => setModel(m === settings.defaultModel ? '' : m),
     })),
   ];
   const mentions: Suggestion[] = options.agents.map((a) => ({
     id: `agent:${a.id}`,
     label: a.name,
-    hint: 'Use this agent',
+    hint: t('agentHint'),
     apply: () => setAgentPick({ forDefault: defaultAgent, value: String(a.id) }),
   }));
 
   return (
     <form ref={formRef} action={formAction} onSubmit={submit} className="chat-window">
       <div className="chat-history" aria-live="polite">
-        <p className="muted chat-empty">Start a new chat: ask for something below.</p>
+        <p className="muted chat-empty">{t('empty')}</p>
       </div>
       <div className="chat-composer">
-        {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome="No Run was queued." />}
+        {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome={tError('noRunQueued')} />}
         <div className="chat-prompt">
           <PromptInput
             id="ah-prompt"
@@ -88,12 +91,12 @@ export function AdhocForm({
             onSubmit={() => formRef.current?.requestSubmit()}
           />
           <button type="submit" className="btn btn-primary" disabled={pending || state?.ok === true}>
-            Send
+            {t('send')}
           </button>
         </div>
         <div className="chat-fields">
           <div className="field">
-            <label htmlFor="ah-repository">Repository</label>
+            <label htmlFor="ah-repository">{t('repository')}</label>
             <select
               id="ah-repository"
               name="repository"
@@ -110,7 +113,7 @@ export function AdhocForm({
             </select>
           </div>
           <div className="field">
-            <label htmlFor="ah-ticket">Ticket (optional)</label>
+            <label htmlFor="ah-ticket">{t('ticket')}</label>
             <input
               id="ah-ticket"
               ref={ticketRef}
@@ -119,7 +122,7 @@ export function AdhocForm({
               className={inputClass('ticket')}
               value={ticket}
               onChange={(e) => setTicket(e.target.value)}
-              placeholder="Ticket number or URL"
+              placeholder={t('ticketPlaceholder')}
             />
           </div>
           <AgentSelect
@@ -131,7 +134,7 @@ export function AdhocForm({
             onPick={setAgentPick}
           />
           <div className="field">
-            <label htmlFor="ah-model">Model</label>
+            <label htmlFor="ah-model">{t('model')}</label>
             <select
               id="ah-model"
               name="model"
@@ -139,7 +142,7 @@ export function AdhocForm({
               value={model}
               onChange={(e) => setModel(e.target.value)}
             >
-              <option value="">default ({settings.defaultModel})</option>
+              <option value="">{t('defaultModel', { model: settings.defaultModel })}</option>
               {otherModels.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -148,10 +151,7 @@ export function AdhocForm({
             </select>
           </div>
         </div>
-        <div className="field-hint muted">
-          Provider: {providerLabel(settings.provider)}. Goes ahead of scheduled work, ignores working hours, never
-          interrupts the current Run.
-        </div>
+        <div className="field-hint muted">{t('provider', { provider: providerLabel(settings.provider) })}</div>
       </div>
     </form>
   );

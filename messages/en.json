@@ -58,7 +58,9 @@
     "alreadyAutomated": "Already automated",
     "existingAutomation": "This target already has an Automation:",
     "every": "every {interval}",
-    "openExisting": "Open existing Automation →"
+    "openExisting": "Open existing Automation →",
+    "noRunQueued": "No Run was queued.",
+    "nothingChanged": "Nothing was changed."
   },
   "NeedsYouCard": {
     "sent": "sent ✓",
@@ -209,5 +211,54 @@
     "outcome": "Outcome",
     "startedQueued": "Started / queued",
     "help": "Outcomes record what happened at the time. A past Needs you Run may already be resolved. Date filters use local start time, or queue time if never started."
+  },
+  "RunDetail": {
+    "chats": "Chats",
+    "automationFallback": "Automation #{id}",
+    "adhocRun": "Ad-hoc run",
+    "title": "Run #{id}",
+    "details": "Run details"
+  },
+  "Chat": {
+    "run": "Run #{id}",
+    "thisRun": " (this Run)",
+    "message": "Message",
+    "placeholder": "Follow up in the same Copilot session…",
+    "send": "Send",
+    "queued": "Run #{id} queued"
+  },
+  "RunFiles": {
+    "transcript": "Transcript",
+    "result": "Result JSON",
+    "prompt": "Prompt",
+    "file": "File",
+    "close": "Close",
+    "missing": "No {file} file for this Run.",
+    "loading": "Loading…",
+    "heading": "{file} · Run #{id}"
+  },
+  "Agent": {
+    "label": "Agent",
+    "none": "none assigned",
+    "default": "{name} (default)"
+  },
+  "Adhoc": {
+    "title": "New chat",
+    "empty": "Start a new chat: ask for something below.",
+    "repository": "Repository",
+    "ticket": "Ticket (optional)",
+    "ticketPlaceholder": "Ticket number or URL",
+    "model": "Model",
+    "defaultModel": "default ({model})",
+    "ticketHint": "Link a Ticket",
+    "modelHint": "Use this model",
+    "agentHint": "Use this agent",
+    "send": "Send",
+    "provider": "Provider: {provider}. Goes ahead of scheduled work, ignores working hours, never interrupts the current Run."
+  },
+  "Kind": {
+    "mr": "Merge/pull request",
+    "jira": "Jira issue",
+    "free": "Free-form"
   }
 }

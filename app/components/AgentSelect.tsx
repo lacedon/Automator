@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import type { FormOptions } from '@core/index';
 
@@ -22,6 +23,7 @@ export function AgentSelect({
   picked?: AgentPick | null;
   onPick?: (pick: AgentPick) => void;
 }) {
+  const t = useTranslations('Agent');
   const [ownPick, setOwnPick] = useState<AgentPick | null>(null);
   const picked = controlledPick !== undefined ? controlledPick : ownPick;
   const setPicked = onPick ?? setOwnPick;
@@ -31,18 +33,17 @@ export function AgentSelect({
 
   return (
     <div className="field">
-      <label htmlFor={id}>Agent</label>
+      <label htmlFor={id}>{t('label')}</label>
       <select
         id={id}
         className={className}
         value={value}
         onChange={(e) => setPicked({ forDefault: defaultAgent, value: e.target.value })}
       >
-        {defaultAgent === null && <option value="">none assigned</option>}
+        {defaultAgent === null && <option value="">{t('none')}</option>}
         {options.agents.map((a) => (
           <option key={a.id} value={a.id}>
-            {a.name}
-            {a.id === defaultAgent ? ' (default)' : ''}
+            {a.id === defaultAgent ? t('default', { name: a.name }) : a.name}
           </option>
         ))}
       </select>

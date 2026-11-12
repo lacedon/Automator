@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import type { ThreadRun, ThreadView } from '@core/index';
 import { sendRunMessage, type ChatFormState } from '../actions/chat';
@@ -10,6 +11,7 @@ import { RunFileLinks } from './RunFileLinks';
 
 // All text is rendered as React text nodes: no HTML, no Markdown.
 function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
+  const t = useTranslations('Chat');
   const pillRun = {
     status: run.status,
     outcome: run.outcome,
@@ -19,8 +21,8 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
   return (
     <div className="chat-run">
       <div className="chat-run-head muted">
-        <Link href={`/runs/${run.id}`}>Run #{run.id}</Link>
-        {current && ' (this Run)'}
+        <Link href={`/runs/${run.id}`}>{t('run', { id: run.id })}</Link>
+        {current && t('thisRun')}
       </div>
       <div className="chat-bubble chat-request">{run.request ?? run.ticketKey}</div>
       {run.status === 'finished' ? (
@@ -41,6 +43,8 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
 }
 
 export function ChatPane({ thread, currentRunId }: { thread: ThreadView; currentRunId: number }) {
+  const t = useTranslations('Chat');
+  const tError = useTranslations('ErrorBox');
   const [state, formAction, pending] = useActionState(sendRunMessage, null);
   const [message, setMessage] = useState('');
 
@@ -70,15 +74,15 @@ export function ChatPane({ thread, currentRunId }: { thread: ThreadView; current
         thread.replyBlockedReason !== null && <p className="muted">{thread.replyBlockedReason}</p>
       ) : (
         <form action={formAction} onSubmit={submit} className="watch-form chat-form">
-          {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome="No Run was queued." />}
+          {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome={tError('noRunQueued')} />}
           {state?.ok && (
             <div className="success-box" role="status">
-              Run #{state.value.runId} queued
+              {t('queued', { id: state.value.runId })}
             </div>
           )}
           <input type="hidden" name="runId" value={thread.replyToRunId} />
           <div className="field">
-            <label htmlFor="chat-message">Message</label>
+            <label htmlFor="chat-message">{t('message')}</label>
             <textarea
               id="chat-message"
               name="message"
@@ -86,12 +90,12 @@ export function ChatPane({ thread, currentRunId }: { thread: ThreadView; current
               required
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Follow up in the same Copilot session…"
+              placeholder={t('placeholder')}
             />
           </div>
           <div className="actions">
             <button type="submit" className="btn btn-primary" disabled={pending}>
-              Send
+              {t('send')}
             </button>
           </div>
         </form>
