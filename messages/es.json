@@ -333,5 +333,58 @@
     "mr": "MR",
     "jira": "Jira",
     "free": "Libre"
+  },
+  "WatchForm": {
+    "target": "URL de destino o clave de Jira",
+    "targetPlaceholder": "URL de MR de GitLab o PR de GitHub, PROJ-123 o cualquier URL",
+    "repository": "Repositorio",
+    "lockedTarget": "Destino 🔒",
+    "lockedRepository": "Repositorio 🔒",
+    "lockedNote": "Para cambiar el destino o el repositorio, cierra esta automatización y crea una nueva.",
+    "jiraOff": "La comprobación de Jira está desactivada en la configuración, así que esta automatización no se comprobará hasta que se active.",
+    "extra": "Instrucciones adicionales",
+    "extraHint": "(opcional para MR/Jira, obligatorio para formato libre)",
+    "agentSettingsNote": "Las ejecuciones también usan el agente y la plantilla de operación opcional configurados en <link>Ajustes de agentes</link>.",
+    "phMr": "Instrucciones adicionales para esta automatización de MR…",
+    "phJira": "Instrucciones adicionales para esta automatización de Jira…",
+    "phFree": "Qué debe hacer el proveedor seleccionado en cada comprobación…",
+    "interval": "Intervalo",
+    "default": "(predeterminado)",
+    "intervalPlaceholder": "{interval} (predeterminado)",
+    "intervalHint": "p. ej. 15m, 2h, 1d · vacío = predeterminado",
+    "model": "Modelo",
+    "defaultModel": "predeterminado ({model})",
+    "provider": "Proveedor: {provider}",
+    "initialReview": "Revisión inicial",
+    "baselineOnly": "solo línea base",
+    "unresolved": "sin resolver",
+    "reviewHint": "solo línea base: ignora los comentarios existentes. sin resolver: revisa una vez las discusiones sin resolver existentes. Los pipelines fallidos y los conflictos cuentan en ambos modos.",
+    "create": "Crear automatización",
+    "save": "Guardar cambios",
+    "cancel": "Cancelar",
+    "previewUnavailable": "Vista previa no disponible",
+    "detectFailed": "No se pudo detectar el tipo: {reason}",
+    "detectedKind": "Tipo detectado:",
+    "open": "abierto",
+    "sourceBranch": "origen"
+  },
+  "NewWatch": {
+    "automations": "Automatizaciones",
+    "new": "Nueva",
+    "title": "Nueva automatización"
+  },
+  "EditWatch": {
+    "edit": "Editar",
+    "title": "Editar automatización · {title}"
+  },
+  "ConfirmDialog": {
+    "back": "Atrás",
+    "noDetails": "No se devolvieron detalles de confirmación."
+  },
+  "ResumeForm": {
+    "note": "Nota de resolución",
+    "notePlaceholder": "Nota de resolución para la próxima ejecución (opcional)…",
+    "resume": "Reanudar",
+    "resumeRunNow": "Reanudar y ejecutar ahora"
   }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useEffect, useState, type FormEvent } from 'react';
 import type { AppError, FormOptions, InitialReview, PreviewTargetResult, Watch, WatchKind } from '@core/index';
 import { createWatch, previewTarget, updateWatch } from '../actions/watches';
@@ -22,11 +23,7 @@ type Props = { options: FormOptions } & (
 
 const PREVIEW_DEBOUNCE_MS = 500;
 const REVIEW_MODES: readonly InitialReview[] = ['baseline-only', 'unresolved'];
-const PLACEHOLDER: Record<WatchKind, string> = {
-  mr: 'Additional instructions for this MR Automation…',
-  jira: 'Additional instructions for this Jira Automation…',
-  free: 'What the selected provider should do on every check…',
-};
+const PLACEHOLDER_KEY = { mr: 'phMr', jira: 'phJira', free: 'phFree' } as const satisfies Record<WatchKind, string>;
 
 function errorField(error: AppError | undefined): string | null {
   switch (error?.code) {
@@ -73,21 +70,24 @@ function useDetectedKind(enabled: boolean, target: string, repository: string): 
 }
 
 function DetectedKind({ detected }: { detected: PreviewTargetResult }) {
+  const t = useTranslations('WatchForm');
+  const previewError =
+    detected.previewError === PREVIEW_UNAVAILABLE.previewError ? t('previewUnavailable') : detected.previewError;
   if (detected.kind === null) {
-    if (detected.error === undefined) return <div className="field-hint muted">{detected.previewError}</div>;
+    if (detected.error === undefined) return <div className="field-hint muted">{previewError}</div>;
     const reason = detected.error?.code === 'INVALID_TARGET' ? detected.error.message : detected.error?.code;
-    return <div className="field-hint">Couldn&apos;t detect the kind: {reason}</div>;
+    return <div className="field-hint">{t('detectFailed', { reason: reason ?? '' })}</div>;
   }
-  const { preview, previewError } = detected;
+  const { preview } = detected;
   return (
     <div className="field-hint">
-      Detected kind: <KindBadge kind={detected.kind} />
+      {t('detectedKind')} <KindBadge kind={detected.kind} />
       {preview !== null && (
         <>
-          {' · '}“{preview.title}” · {preview.state === 'opened' ? 'open' : preview.state}
+          {' · '}“{preview.title}” · {preview.state === 'opened' ? t('open') : preview.state}
           {preview.sourceBranch !== undefined && (
             <>
-              {' · source '}
+              {` · ${t('sourceBranch')} `}
               <code>{preview.sourceBranch}</code>
             </>
           )}
@@ -100,6 +100,7 @@ function DetectedKind({ detected }: { detected: PreviewTargetResult }) {
 
 export function WatchForm(props: Props) {
   const { options, mode } = props;
+  const t = useTranslations('WatchForm');
   const watch = mode === 'edit' ? props.watch : null;
   const [state, formAction, pending] = useActionState(mode === 'create' ? createWatch : updateWatch, null);
 
@@ -142,20 +143,20 @@ export function WatchForm(props: Props) {
       {watch === null ? (
         <>
           <div className="field">
-            <label htmlFor="wf-target">Target URL or Jira key</label>
+            <label htmlFor="wf-target">{t('target')}</label>
             <input
               id="wf-target"
               name="target"
               className={inputClass('target')}
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              placeholder="GitLab MR or GitHub PR URL, PROJ-123 or any URL"
+              placeholder={t('targetPlaceholder')}
               autoComplete="off"
             />
             {detected !== null && <DetectedKind detected={detected} />}
           </div>
           <div className="field">
-            <label htmlFor="wf-repository">Repository</label>
+            <label htmlFor="wf-repository">{t('repository')}</label>
             <select
               id="wf-repository"
               name="repository"
@@ -183,29 +184,23 @@ export function WatchForm(props: Props) {
           <input type="hidden" name="id" value={watch.id} />
           <div className="field-split">
             <div className="field">
-              <label>Target 🔒</label>
+              <label>{t('lockedTarget')}</label>
               <div className="input-locked">{watch.targetUrl}</div>
             </div>
             <div className="field">
-              <label>Repository 🔒</label>
+              <label>{t('lockedRepository')}</label>
               <div className="input-locked">{watch.repository}</div>
             </div>
           </div>
-          <p className="field-hint muted locked-note">
-            To change the target or Repository, close this Automation and create a new one.
-          </p>
+          <p className="field-hint muted locked-note">{t('lockedNote')}</p>
         </>
       )}
 
-      {kind === 'jira' && !settings.jiraEnabled && (
-        <div className="notice">
-          Jira checking is off in the config, so this Automation won&apos;t be checked until it is turned on.
-        </div>
-      )}
+      {kind === 'jira' && !settings.jiraEnabled && <div className="notice">{t('jiraOff')}</div>}
 
       <div className="field">
         <label htmlFor="wf-instructions">
-          Extra instructions <span className="muted">(optional for MR/Jira, required for free-form)</span>
+          {t('extra')} <span className="muted">{t('extraHint')}</span>
         </label>
         <textarea
           id="wf-instructions"
@@ -214,11 +209,10 @@ export function WatchForm(props: Props) {
           className={inputClass('instructions')}
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
-          placeholder={kind === null ? undefined : PLACEHOLDER[kind]}
+          placeholder={kind === null ? undefined : t(PLACEHOLDER_KEY[kind])}
         />
         <div className="field-hint muted">
-          Runs also use the Agent and optional operation template configured in{' '}
-          <Link href="/settings/agents">Agent Settings</Link>.
+          {t.rich('agentSettingsNote', { link: (chunks) => <Link href="/settings/agents">{chunks}</Link> })}
         </div>
       </div>
 
@@ -233,20 +227,22 @@ export function WatchForm(props: Props) {
 
       <div className="field-row">
         <div className="field">
-          <label htmlFor="wf-interval">Interval {intervalIsDefault && <span className="muted">(default)</span>}</label>
+          <label htmlFor="wf-interval">
+            {t('interval')} {intervalIsDefault && <span className="muted">{t('default')}</span>}
+          </label>
           <input
             id="wf-interval"
             name={interval === null ? undefined : 'interval'}
             className={inputClass('interval')}
             value={shownInterval}
             onChange={(e) => setIntervalText(e.target.value)}
-            placeholder={`${formatInterval(kindDefaultMs)} (default)`}
+            placeholder={t('intervalPlaceholder', { interval: formatInterval(kindDefaultMs) })}
             autoComplete="off"
           />
-          <div className="field-hint muted">e.g. 15m, 2h, 1d · blank = default</div>
+          <div className="field-hint muted">{t('intervalHint')}</div>
         </div>
         <div className="field">
-          <label htmlFor="wf-model">Model</label>
+          <label htmlFor="wf-model">{t('model')}</label>
           <select
             id="wf-model"
             name="model"
@@ -254,7 +250,7 @@ export function WatchForm(props: Props) {
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
-            <option value="">default ({settings.defaultModel})</option>
+            <option value="">{t('defaultModel', { model: settings.defaultModel })}</option>
             {model !== '' && !otherModels.includes(model) && <option value={model}>{model}</option>}
             {otherModels.map((m) => (
               <option key={m} value={m}>
@@ -262,12 +258,12 @@ export function WatchForm(props: Props) {
               </option>
             ))}
           </select>
-          <div className="field-hint muted">Provider: {providerLabel(settings.provider)}</div>
+          <div className="field-hint muted">{t('provider', { provider: providerLabel(settings.provider) })}</div>
         </div>
         {kind === 'mr' && (
           <div className="field">
-            <span className="field-label">Initial review</span>
-            <div className="seg" role="radiogroup" aria-label="Initial review">
+            <span className="field-label">{t('initialReview')}</span>
+            <div className="seg" role="radiogroup" aria-label={t('initialReview')}>
               {REVIEW_MODES.map((option) => (
                 <label key={option} className={shownReview === option ? 'on' : undefined}>
                   <input
@@ -279,7 +275,7 @@ export function WatchForm(props: Props) {
                       setReviewTouched(true);
                     }}
                   />
-                  {option}
+                  {t(option === 'baseline-only' ? 'baselineOnly' : 'unresolved')}
                 </label>
               ))}
             </div>
@@ -293,19 +289,14 @@ export function WatchForm(props: Props) {
           </div>
         )}
       </div>
-      {kind === 'mr' && (
-        <p className="field-hint muted review-hint">
-          baseline-only: Ignore existing comments. unresolved: Review existing unresolved discussions once. Failed
-          pipelines and conflicts count in both modes.
-        </p>
-      )}
+      {kind === 'mr' && <p className="field-hint muted review-hint">{t('reviewHint')}</p>}
 
       <div className="actions">
         <button type="submit" className="btn btn-primary" disabled={pending}>
-          {watch === null ? 'Create Automation' : 'Save changes'}
+          {watch === null ? t('create') : t('save')}
         </button>
         <Link href={watch === null ? '/automations' : `/automations/${watch.id}`} className="btn btn-secondary">
-          Cancel
+          {t('cancel')}
         </Link>
       </div>
     </form>

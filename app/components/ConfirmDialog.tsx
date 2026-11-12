@@ -1,6 +1,7 @@
 'use client';
 
 import { unstable_rethrow } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { AppError } from '@core/index';
 import type { ActionResult } from '../actions/types';
@@ -22,13 +23,14 @@ export function ConfirmDialog({
   label,
   message,
   confirmLabel,
-  dismissLabel = 'Back',
+  dismissLabel,
   action,
   prepare,
   danger,
   disabledReason,
   className,
 }: Props) {
+  const t = useTranslations('ConfirmDialog');
   const dialog = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<AppError | string | null>(null);
   const [preparationError, setPreparationError] = useState<AppError | string | null>(null);
@@ -57,7 +59,7 @@ export function ConfirmDialog({
         return;
       }
       if (result.value === undefined) {
-        setPreparationError('No confirmation details were returned.');
+        setPreparationError(t('noDetails'));
         return;
       }
       setPreparedMessage(result.value);
@@ -120,7 +122,7 @@ export function ConfirmDialog({
             disabled={pending}
             onClick={() => dialog.current?.close()}
           >
-            {dismissLabel}
+            {dismissLabel ?? t('back')}
           </button>
           <button
             type="button"
