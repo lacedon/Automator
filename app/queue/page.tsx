@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 import type { QueueRow, RunningCard } from '@core/index';
 import { cancelQueued, cancelRun, closeWatchFromQueue } from '../actions/runs';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Elapsed } from '../components/Elapsed';
 import { EmptyState } from '../components/EmptyState';
-import { Pill, PriorityPill, PRIORITY_LABEL } from '../components/Pill';
+import { Pill, PriorityPill } from '../components/Pill';
 import { RunItem } from '../components/RunMeta';
 import { getCore } from '../lib/core';
 import { currentScope } from '../lib/scope';
@@ -24,7 +26,8 @@ function QueueItem({ run, strong }: { run: Item; strong?: boolean }) {
 }
 
 function Running({ runs }: { runs: RunningCard[] }) {
-  if (runs.length === 0) return <EmptyState>Nothing running.</EmptyState>;
+  const t = useTranslations('Queue');
+  if (runs.length === 0) return <EmptyState>{t('nothingRunning')}</EmptyState>;
   return (
     <>
       {runs.map((run) => (
@@ -35,43 +38,46 @@ function Running({ runs }: { runs: RunningCard[] }) {
 }
 
 function RunningRun({ run }: { run: RunningCard }) {
+  const t = useTranslations('Queue');
   return (
     <div className="card card-running">
       <div className="card-head">
         <Pill variant="running">
-          ● Running <Elapsed since={run.startedAt} limitMs={run.timeoutMs} />
+          {t('runningPill')} <Elapsed since={run.startedAt} limitMs={run.timeoutMs} />
         </Pill>
         <span className="row-text">
           <QueueItem run={run} strong /> · {run.repository}{' '}
           <span className="muted">
-            · {PRIORITY_LABEL[run.trigger]} · <Link href={`/runs/${run.runId}`}>run #{run.runId}</Link> · started{' '}
-            {formatDateTime(run.startedAt)}
+            · {t(`priorityLabel.${run.trigger}`)} ·{' '}
+            <Link href={`/runs/${run.runId}`}>{t('run', { id: run.runId })}</Link> ·{' '}
+            {t('started', { time: formatDateTime(run.startedAt) })}
           </span>
         </span>
         <ConfirmDialog
-          label={run.cancelRequested ? 'Cancelling…' : 'Cancel run'}
-          message="Cancelling can't undo replies or pushes that already happened."
-          confirmLabel="Cancel run"
-          dismissLabel="Keep running"
+          label={run.cancelRequested ? t('cancelling') : t('cancelRun')}
+          message={t('cancelMessage')}
+          confirmLabel={t('cancelRun')}
+          dismissLabel={t('keepRunning')}
           danger
-          disabledReason={run.cancelRequested ? 'Cancel already requested' : undefined}
+          disabledReason={run.cancelRequested ? t('cancelRequested') : undefined}
           action={cancelRun.bind(null, run.runId)}
         />
       </div>
-      <div className="muted">Live transcript isn&apos;t available in v1. It appears when the Run finishes.</div>
+      <div className="muted">{t('noTranscript')}</div>
     </div>
   );
 }
 
 function WaitingAction({ row }: { row: QueueRow }) {
+  const t = useTranslations('Queue');
   if (row.watchId !== null) {
     return (
       <ConfirmDialog
         className="btn-link"
-        label="close Automation"
-        message="Closing stops follow-up and removes its queued request. History is kept until cleanup."
-        confirmLabel="Close Automation"
-        dismissLabel="Keep Automation"
+        label={t('closeAutomation')}
+        message={t('closeMessage')}
+        confirmLabel={t('closeConfirm')}
+        dismissLabel={t('keepAutomation')}
         action={closeWatchFromQueue.bind(null, row.watchId)}
       />
     );
@@ -79,27 +85,28 @@ function WaitingAction({ row }: { row: QueueRow }) {
   return (
     <ConfirmDialog
       className="btn-link"
-      label="cancel"
-      message="Remove this ad-hoc Run from the queue?"
-      confirmLabel="Remove from queue"
-      dismissLabel="Keep queued"
+      label={t('cancel')}
+      message={t('removeMessage')}
+      confirmLabel={t('remove')}
+      dismissLabel={t('keepQueued')}
       action={cancelQueued.bind(null, row.runId)}
     />
   );
 }
 
 function Waiting({ rows }: { rows: QueueRow[] }) {
-  if (rows.length === 0) return <EmptyState>Nothing waiting.</EmptyState>;
+  const t = useTranslations('Queue');
+  if (rows.length === 0) return <EmptyState>{t('nothingWaiting')}</EmptyState>;
   return (
     <table className="table">
       <thead>
         <tr>
           <th>#</th>
-          <th>Priority</th>
-          <th>Item</th>
-          <th>Repository</th>
-          <th>Queued</th>
-          <th>Reason</th>
+          <th>{t('priority')}</th>
+          <th>{t('item')}</th>
+          <th>{t('repository')}</th>
+          <th>{t('queued')}</th>
+          <th>{t('reason')}</th>
           <th />
         </tr>
       </thead>
@@ -129,12 +136,13 @@ function Waiting({ rows }: { rows: QueueRow[] }) {
 }
 
 export default async function QueuePage() {
+  const t = await getTranslations('Queue');
   const { running, waiting } = getCore().read.queueView(await currentScope());
   return (
     <>
-      <h2 className="section-h">Running</h2>
+      <h2 className="section-h">{t('running')}</h2>
       <Running runs={running} />
-      <h2 className="section-h">Waiting · manual &amp; ad-hoc go first</h2>
+      <h2 className="section-h">{t('waiting')}</h2>
       <Waiting rows={waiting} />
     </>
   );
