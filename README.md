@@ -374,6 +374,19 @@ A cleanup job is **on by default** and runs **weekly**. It deletes Automations t
 - **Settings** groups Projects, Repositories, Agents and Configuration. Manage Repository folders, named service connections and validation commands directly under Repositories, alongside Project membership. Repository changes are stored in SQLite and take effect without restarting; credentials remain in Configuration and environment variables.
 - The project switcher remains in the header; Settings always covers the entire installation. On narrow screens the menu includes navigation, New automation and Ad-hoc run actions.
 
+### Language
+
+The web UI is available in English (default), Spanish (`es`), Chinese (`zh`) and Russian (`ru`). The language is a per-project setting chosen under Settings → Configuration; CLI, API and Run output are not translated. Missing translations fall back to English.
+
+To add a locale (for example `de`):
+
+1. Copy `messages/en.json` to `messages/de.json` and translate the values; keep the keys and `{placeholders}`. Partial catalogs are fine.
+2. Register it in `app/lib/i18n.ts` (import the catalog and add it to `locales` and `catalogs`).
+3. Add it to the `locale` enum in `src/core/config/schema.ts` and to `LOCALES` in `src/core/config/overrides.ts`.
+4. Run `npm run check` and `npm run e2e`.
+
+New UI text must go through `useTranslations` (client) or `getTranslations` (server) with a key added to `messages/en.json`; dates and numbers use the helpers in `app/lib/format.ts` with the active locale.
+
 ## CLI (v1)
 
 - Add and delete Automations, for example `automator automation add <url> --repo <name>`
