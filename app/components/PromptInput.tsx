@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, type KeyboardEvent } from 'react';
+import { useTranslations } from 'next-intl';
 
 export type Suggestion = { id: string; label: string; hint?: string; apply: () => void };
 
@@ -37,6 +38,7 @@ export function PromptInput({
   mentions: Suggestion[];
   onSubmit: () => void;
 }) {
+  const t = useTranslations('PromptInput');
   const ref = useRef<HTMLTextAreaElement>(null);
   const [caret, setCaret] = useState(0);
   const [active, setActive] = useState(0);
@@ -88,7 +90,11 @@ export function PromptInput({
   return (
     <div className="prompt-input">
       {open && (
-        <ul className="prompt-suggestions" role="listbox" aria-label={trigger.kind === '/' ? 'Commands' : 'Agents'}>
+        <ul
+          className="prompt-suggestions"
+          role="listbox"
+          aria-label={trigger.kind === '/' ? t('commands') : t('agents')}
+        >
           {items.map((item, index) => (
             <li
               key={item.id}
@@ -122,7 +128,7 @@ export function PromptInput({
         }}
         onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
         onKeyDown={keyDown}
-        placeholder="Message… type / for commands, @ for agents"
+        placeholder={t('placeholder')}
       />
     </div>
   );

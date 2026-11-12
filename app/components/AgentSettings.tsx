@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { Agent, AgentAssignment, OperationTemplate, WorkflowType } from '@core/index';
 import {
@@ -31,23 +32,25 @@ type Props = {
 const BLOCKED = '__blocked';
 const INHERIT = '';
 
-function describeReference(ref: AgentAssignment, labels: Map<WorkflowType, string>): string {
-  return `${ref.repository ?? 'Default'} · ${labels.get(ref.workflowType) ?? ref.workflowType}`;
+type Translate = (key: 'slotDefault' | 'deleteNone' | 'deleteAssigned', values?: Record<string, string>) => string;
+
+function describeReference(ref: AgentAssignment, labels: Map<WorkflowType, string>, t: Translate): string {
+  return `${ref.repository ?? t('slotDefault')} · ${labels.get(ref.workflowType) ?? ref.workflowType}`;
 }
 
 export function buildAgentDeletionMessage(
   name: string,
   references: AgentAssignment[],
   labels: Map<WorkflowType, string>,
+  t: Translate,
 ): string {
   return references.length === 0
-    ? `Delete Agent "${name}"? It is not assigned anywhere.`
-    : `Delete Agent "${name}"? It is assigned to: ${references
-        .map((r) => describeReference(r, labels))
-        .join('; ')}. Each of these slots will have no Agent and block Runs until you assign another one.`;
+    ? t('deleteNone', { name })
+    : t('deleteAssigned', { name, slots: references.map((r) => describeReference(r, labels, t)).join('; ') });
 }
 
 export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
+  const t = useTranslations('AgentSettings');
   const formId = useId();
   const close = useSettingsDialog();
   const [state, formAction, pending] = useActionState(
@@ -75,7 +78,7 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
       {state !== null && <ErrorBox error={state.error} />}
       {agent && <input type="hidden" name="id" value={agent.id} />}
       <div className="field">
-        <label htmlFor={`${idPrefix}-name`}>Name</label>
+        <label htmlFor={`${idPrefix}-name`}>{t('name')}</label>
         <input
           id={`${idPrefix}-name`}
           name="name"
@@ -85,7 +88,7 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
         />
       </div>
       <div className="field">
-        <label htmlFor={`${idPrefix}-instructions`}>Instructions</label>
+        <label htmlFor={`${idPrefix}-instructions`}>{t('instructions')}</label>
         <textarea
           id={`${idPrefix}-instructions`}
           name="instructions"
@@ -93,7 +96,7 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
           defaultValue={echoed('instructions', agent?.instructions ?? '')}
         />
         {agent && agent.instructions.trim() === '' && (
-          <div className="field-hint muted">Empty: Runs that resolve to this Agent are blocked.</div>
+          <div className="field-hint muted">{t('emptyInstructionsHint')}</div>
         )}
       </div>
       <div className="field">
@@ -104,14 +107,12 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
             name="allowAllTools"
             defaultChecked={state === null ? (agent?.allowAllTools ?? true) : state.values.allowAllTools !== undefined}
           />{' '}
-          Allow all tools
+          {t('allowAll')}
         </label>
-        <div className="field-hint muted">
-          Copilot only. When unchecked, only the allowed tools below are permitted.
-        </div>
+        <div className="field-hint muted">{t('allowAllHint')}</div>
       </div>
       <div className="field">
-        <label htmlFor={`${idPrefix}-allowed-tools`}>Allowed tools</label>
+        <label htmlFor={`${idPrefix}-allowed-tools`}>{t('allowedTools')}</label>
         <textarea
           id={`${idPrefix}-allowed-tools`}
           name="allowedTools"
@@ -119,10 +120,10 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
           placeholder="shell(git status)"
           defaultValue={echoed('allowedTools', agent?.allowedTools.join('\n') ?? '')}
         />
-        <div className="field-hint muted">One Copilot tool pattern per line.</div>
+        <div className="field-hint muted">{t('allowedToolsHint')}</div>
       </div>
       <div className="field">
-        <label htmlFor={`${idPrefix}-blocked-tools`}>Blocked tools</label>
+        <label htmlFor={`${idPrefix}-blocked-tools`}>{t('blockedTools')}</label>
         <textarea
           id={`${idPrefix}-blocked-tools`}
           name="blockedTools"
@@ -130,18 +131,16 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
           placeholder="shell(git push)"
           defaultValue={echoed('blockedTools', agent?.blockedTools.join('\n') ?? '')}
         />
-        <div className="field-hint muted">
-          One Copilot tool pattern per line, added to the global runs.denyTools, which always applies.
-        </div>
+        <div className="field-hint muted">{t('blockedToolsHint')}</div>
       </div>
       {agent && close && (
         <p>
-          <Link href={`/settings/agents/${agent.id}`}>Open full page</Link>
+          <Link href={`/settings/agents/${agent.id}`}>{t('openFullPage')}</Link>
         </p>
       )}
       <SettingsDialogActions>
         <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
-          {agent ? 'Save Agent' : 'Create Agent'}
+          {agent ? t('saveAgent') : t('createAgent')}
         </button>
       </SettingsDialogActions>
     </form>
@@ -157,31 +156,32 @@ function AgentCard({
   assignments: AgentAssignment[];
   labels: Map<WorkflowType, string>;
 }) {
+  const t = useTranslations('AgentSettings');
   const references = assignments.filter((a) => a.agentId === agent.id);
   const served =
     references.length === 0
-      ? 'Not assigned anywhere.'
-      : `Serves ${references.map((r) => describeReference(r, labels)).join('; ')}.`;
+      ? t('notAssigned')
+      : t('serves', { slots: references.map((r) => describeReference(r, labels, t)).join('; ') });
   const prepare = async (): Promise<ActionResult<string>> => {
     const result = await agentDeletionImpact(agent.id);
     if (!result.ok) return result;
     if (result.value === undefined) return { ok: true };
-    return { ok: true, value: buildAgentDeletionMessage(agent.name, result.value, labels) };
+    return { ok: true, value: buildAgentDeletionMessage(agent.name, result.value, labels, t) };
   };
   return (
     <SettingsTableRow
       name={agent.name}
       actions={
         <>
-          <SettingsDialog title={`Edit Agent: ${agent.name}`} wide>
+          <SettingsDialog title={t('editTitle', { name: agent.name })} wide>
             <AgentForm agent={agent} rows={16} />
           </SettingsDialog>
           <ConfirmDialog
             danger
-            label="Delete Agent"
-            message={buildAgentDeletionMessage(agent.name, references, labels)}
-            confirmLabel="Delete Agent"
-            dismissLabel="Keep Agent"
+            label={t('deleteAgent')}
+            message={buildAgentDeletionMessage(agent.name, references, labels, t)}
+            confirmLabel={t('deleteAgent')}
+            dismissLabel={t('keepAgent')}
             action={deleteAgent.bind(null, agent.id)}
             prepare={prepare}
           />
@@ -189,7 +189,7 @@ function AgentCard({
       }
     >
       <p className="muted field-hint">{served}</p>
-      <p className="agent-preview">{agent.instructions.trim() === '' ? 'No instructions yet.' : agent.instructions}</p>
+      <p className="agent-preview">{agent.instructions.trim() === '' ? t('noInstructions') : agent.instructions}</p>
     </SettingsTableRow>
   );
 }
@@ -211,6 +211,7 @@ function AssignmentSelect({
   agents: Agent[];
   onResult: (result: ActionResult | string) => void;
 }) {
+  const t = useTranslations('AgentSettings');
   const [pending, setPending] = useState(false);
   useSettingsDialog(pending);
   const value =
@@ -243,9 +244,9 @@ function AssignmentSelect({
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <select id={id} value={value} disabled={pending} onChange={(e) => change(e.target.value)}>
-        {repository !== null && <option value={INHERIT}>Inherit default</option>}
+        {repository !== null && <option value={INHERIT}>{t('inheritDefault')}</option>}
         <option value={BLOCKED} disabled>
-          {repository === null && slot === undefined ? 'Not set: Runs blocked' : 'No Agent: Runs blocked'}
+          {repository === null && slot === undefined ? t('notSetBlocked') : t('noAgentBlocked')}
         </option>
         {agents.map((a) => (
           <option key={a.id} value={a.id}>
@@ -258,10 +259,11 @@ function AssignmentSelect({
 }
 
 function RepositoryStatus({ status }: { status: string[] }) {
+  const t = useTranslations('AgentSettings');
   if (status.length === 0) return null;
   return (
     <p className="field-hint" role="status">
-      Repository setup needs attention: {status.join('; ')}
+      {t('setupNeedsAttention', { status: status.join('; ') })}
     </p>
   );
 }
@@ -273,6 +275,7 @@ function TemplateForm({
   workflowType: WorkflowType;
   template: OperationTemplate | undefined;
 }) {
+  const t = useTranslations('AgentSettings');
   const formId = useId();
   const close = useSettingsDialog();
   const [state, formAction, pending] = useActionState(
@@ -295,20 +298,18 @@ function TemplateForm({
       {state !== null && <ErrorBox error={state.error} />}
       <input type="hidden" name="workflowType" value={workflowType} />
       <div className="field">
-        <label htmlFor={`template-${workflowType}`}>Operation template</label>
+        <label htmlFor={`template-${workflowType}`}>{t('operationTemplate')}</label>
         <textarea
           id={`template-${workflowType}`}
           name="instructions"
           rows={4}
           defaultValue={echoed('instructions', template?.instructions ?? '')}
         />
-        <div className="field-hint muted">
-          Shared by every Repository and Agent for this Workflow. Blank means none.
-        </div>
+        <div className="field-hint muted">{t('templateHint')}</div>
       </div>
       <SettingsDialogActions>
         <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
-          Save template
+          {t('saveTemplate')}
         </button>
       </SettingsDialogActions>
     </form>
@@ -322,6 +323,8 @@ function WorkflowEditor({
   templates,
   repositories,
 }: Omit<Props, 'workflows'> & { type: WorkflowType }) {
+  const t = useTranslations('AgentSettings');
+  const tError = useTranslations('ErrorBox');
   const [assignmentError, setAssignmentError] = useState<Extract<ActionResult, { ok: false }>['error'] | string | null>(
     null,
   );
@@ -335,11 +338,13 @@ function WorkflowEditor({
 
   return (
     <>
-      <p className="muted">Assignment changes save immediately. Save the operation template separately.</p>
-      {assignmentError !== null && <ErrorBox error={assignmentError} unknownRepositoryOutcome="Nothing was changed." />}
+      <p className="muted">{t('assignmentsSaveNote')}</p>
+      {assignmentError !== null && (
+        <ErrorBox error={assignmentError} unknownRepositoryOutcome={tError('nothingChanged')} />
+      )}
       <AssignmentSelect
         id={`default-${type}`}
-        label="Default Agent"
+        label={t('defaultAgent')}
         repository={null}
         workflowType={type}
         slot={slot(null, type)}
@@ -366,30 +371,28 @@ function WorkflowEditor({
 }
 
 export function AgentSettings({ agents, assignments, templates, repositories, workflows }: Props) {
+  const t = useTranslations('AgentSettings');
   const labels = new Map(workflows.map((workflow) => [workflow.type, workflow.label]));
   return (
     <div className="agent-settings">
       <div className="settings-toolbar">
-        <SettingsDialog title="New Agent" trigger="New Agent" wide>
+        <SettingsDialog title={t('newAgent')} trigger={t('newAgent')} wide>
           <AgentForm rows={12} />
         </SettingsDialog>
       </div>
-      <h2 className="section-h">Agents</h2>
-      <p className="muted">Agents are instruction-only profiles and can be assigned to any Workflow.</p>
-      {agents.length === 0 && <EmptyState>No Agents yet.</EmptyState>}
+      <h2 className="section-h">{t('agentsHeading')}</h2>
+      <p className="muted">{t('agentsIntro')}</p>
+      {agents.length === 0 && <EmptyState>{t('noAgents')}</EmptyState>}
       {agents.length > 0 && (
-        <SettingsTable label="Agents" headers={['Agent', 'Details', 'Actions']}>
+        <SettingsTable label={t('agentsHeading')} headers={[t('agentCol'), t('detailsCol'), t('actionsCol')]}>
           {agents.map((agent) => (
             <AgentCard key={agent.id} agent={agent} assignments={assignments} labels={labels} />
           ))}
         </SettingsTable>
       )}
-      <h2 className="section-h">Assignments and templates</h2>
-      <p className="muted">
-        Each Workflow uses its Repository Agent if one is set, otherwise the default. A slot with no Agent, or an Agent
-        with empty instructions, blocks Runs before Copilot starts.
-      </p>
-      <SettingsTable label="Workflows" headers={['Workflow', 'Details', 'Actions']}>
+      <h2 className="section-h">{t('assignmentsHeading')}</h2>
+      <p className="muted">{t('assignmentsIntro')}</p>
+      <SettingsTable label={t('workflows')} headers={[t('workflowCol'), t('detailsCol'), t('actionsCol')]}>
         {workflows.map(({ type, label }) => {
           const defaultSlot = assignments.find(
             (assignment) => assignment.repository === null && assignment.workflowType === type,
@@ -400,7 +403,7 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
               key={type}
               name={label}
               actions={
-                <SettingsDialog title={`${label} settings`} wide>
+                <SettingsDialog title={t('workflowSettings', { label })} wide>
                   <WorkflowEditor
                     type={type}
                     agents={agents}
@@ -412,10 +415,10 @@ export function AgentSettings({ agents, assignments, templates, repositories, wo
               }
             >
               <span className="muted">
-                Default: {defaultAgent?.name ?? 'No Agent: Runs blocked'} ·{' '}
+                {t('defaultSummary', { agent: defaultAgent?.name ?? t('noAgentBlocked') })} ·{' '}
                 {templates.find((template) => template.workflowType === type)?.instructions.trim()
-                  ? 'Operation template configured'
-                  : 'No operation template'}
+                  ? t('templateConfigured')
+                  : t('noTemplate')}
               </span>
             </SettingsTableRow>
           );
