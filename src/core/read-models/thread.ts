@@ -1,5 +1,5 @@
 import { toRun } from '../db/rows';
-import type { Outcome, Run, RunError, RunStatus } from '../domain/types';
+import type { Interrupted, Outcome, Run, RunError, RunStatus } from '../domain/types';
 import type { ReadDeps } from './deps';
 
 export type ThreadRun = {
@@ -10,6 +10,7 @@ export type ThreadRun = {
   ticketKey: string | null;
   summary: string | null;
   error: RunError | null;
+  interrupted: Interrupted | null;
   closedAt: number | null;
   queuedAt: number;
   endedAt: number | null;
@@ -30,6 +31,7 @@ function toThreadRun(run: Run): ThreadRun {
     ticketKey: run.ticketKey,
     summary: run.summary,
     error: run.error,
+    interrupted: run.interrupted,
     closedAt: run.closedAt,
     queuedAt: run.queuedAt,
     endedAt: run.endedAt,

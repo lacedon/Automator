@@ -9,13 +9,14 @@ import { ChatPane, canClose } from './ChatPane';
 vi.mock('../actions/chat', () => ({ sendRunMessage: async () => null }));
 vi.mock('../actions/runs', () => ({ closeRun: async () => ({ ok: true }) }));
 
-const run = { status: 'finished', outcome: null, error: null, closedAt: null } as const;
+const run = { status: 'finished', outcome: null, error: null, interrupted: null, closedAt: null } as const;
 
 test('canClose is true only for open finished Needs you or Error Runs', () => {
   expect(canClose({ ...run, outcome: 'needs-you' })).toBe(true);
   expect(canClose({ ...run, error: { code: 'x', message: 'm' } })).toBe(true);
   expect(canClose({ ...run, outcome: 'acted' })).toBe(false);
   expect(canClose({ ...run, outcome: 'needs-you', closedAt: 1 })).toBe(false);
+  expect(canClose({ ...run, interrupted: 'timeout', error: { code: 'x', message: 'm' } })).toBe(false);
   expect(canClose({ ...run, status: 'running', outcome: 'needs-you' })).toBe(false);
 });
 
@@ -30,6 +31,7 @@ function render(outcome: 'needs-you' | 'acted', closedAt: number | null) {
         ticketKey: null,
         summary: 's',
         error: null,
+        interrupted: null,
         closedAt,
         queuedAt: 1,
         endedAt: 2,

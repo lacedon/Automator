@@ -11,8 +11,13 @@ import { ErrorBox } from './ErrorBox';
 import { RunPill } from './Pill';
 import { RunFileLinks } from './RunFileLinks';
 
-export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | 'closedAt'>): boolean {
-  return run.status === 'finished' && run.closedAt === null && (run.outcome === 'needs-you' || run.error !== null);
+export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | 'interrupted' | 'closedAt'>): boolean {
+  return (
+    run.status === 'finished' &&
+    run.closedAt === null &&
+    run.interrupted === null &&
+    (run.outcome === 'needs-you' || run.error !== null)
+  );
 }
 
 // All text is rendered as React text nodes: no HTML, no Markdown.
@@ -22,7 +27,7 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
     status: run.status,
     outcome: run.outcome,
     resultStatus: run.error === null ? null : ('error' as const),
-    interrupted: null,
+    interrupted: run.interrupted,
     closedAt: run.closedAt,
   };
   return (
