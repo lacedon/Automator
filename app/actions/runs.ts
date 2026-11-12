@@ -33,6 +33,14 @@ export async function cancelQueued(id: number): Promise<ActionResult> {
   return done(getCore().queue.cancelQueued(input.value));
 }
 
+export async function closeRun(id: number): Promise<ActionResult> {
+  const input = parseInput(idSchema, id);
+  if (!input.ok) return input;
+  const guard = await requireWriteOnRun(input.value);
+  if (!guard.ok) return guard;
+  return done(getCore().queue.closeRun(input.value));
+}
+
 export async function closeWatchFromQueue(watchId: number): Promise<ActionResult> {
   const input = parseInput(idSchema, watchId);
   if (!input.ok) return input;

@@ -32,7 +32,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const chats = core.read.runList({ project: await currentScope(), limit: 10 }).map((run) => ({
     id: run.id,
     title: run.adhocPrompt || (run.ticket?.key ?? t('chatFallback', { id: run.id })),
-    needsYou: run.outcome === 'needs-you',
+    needsYou: run.outcome === 'needs-you' && run.closedAt === null,
   }));
   const projects = await readableProjects();
   const active = typeof selection === 'number' ? projects.find((p) => p.id === selection) : undefined;

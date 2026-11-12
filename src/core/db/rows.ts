@@ -86,6 +86,7 @@ export function toRun(row: unknown): Run {
     summary: r.summary as string | null,
     error: parseJson<RunError>(r.error_json),
     interrupted: r.interrupted as Interrupted | null,
+    closedAt: r.closed_at as number | null,
     cursorCandidate: parseJson<Cursor>(r.cursor_candidate_json),
     branch: r.branch as string | null,
     promptPath: r.prompt_path as string | null,

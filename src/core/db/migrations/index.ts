@@ -333,4 +333,9 @@ CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
 ALTER TABLE runs ADD COLUMN isolation TEXT NOT NULL DEFAULT 'shared' CHECK (isolation IN ('shared', 'copy'));
 `,
   },
+  {
+    version: 19,
+    sql: `ALTER TABLE runs ADD COLUMN closed_at INTEGER;
+`,
+  },
 ];

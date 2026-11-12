@@ -56,6 +56,7 @@ export type RunRow = {
   outcome: Outcome | null;
   resultStatus: ResultStatus | null;
   interrupted: Interrupted | null;
+  closedAt: number | null;
   summary: string | null;
   error: RunError | null;
   transcriptPath: string | null;
@@ -105,6 +106,7 @@ export function toRunRow(run: RunWithTitle, config: Config, repositories: Reposi
     outcome: run.outcome,
     resultStatus: run.resultStatus,
     interrupted: run.interrupted,
+    closedAt: run.closedAt,
     summary: run.summary,
     error: run.error,
     transcriptPath: run.transcriptPath,

@@ -311,6 +311,29 @@ describe('QueueService', () => {
     expect(queue.cancelQueued(queued.id)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
   });
 
+  test('closeRun marks only finished Needs you or Error Runs as closed, once', () => {
+    const { db, queue } = setup();
+    const ids = [1, 2, 3].map((n) => queue.enqueueAdhoc({ ...base, prompt: `p${n}` }).id);
+    const [needsYou, errored, acted] = ids as [number, number, number];
+    expect(queue.closeRun(needsYou)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'queued', action: 'closeRun' },
+    });
+    db.prepare("UPDATE runs SET status = 'finished', outcome = 'needs-you' WHERE id = ?").run(needsYou);
+    db.prepare("UPDATE runs SET status = 'finished', result_status = 'error' WHERE id = ?").run(errored);
+    db.prepare("UPDATE runs SET status = 'finished', outcome = 'acted' WHERE id = ?").run(acted);
+
+    expect(queue.closeRun(acted)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
+    expect(queue.closeRun(needsYou)).toEqual({ ok: true, value: undefined });
+    expect(queue.closeRun(errored)).toEqual({ ok: true, value: undefined });
+    expect(queue.closeRun(needsYou)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
+    expect(queue.closeRun(9999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+    expect(db.prepare('SELECT id FROM runs WHERE closed_at IS NOT NULL ORDER BY id').all()).toEqual([
+      { id: needsYou },
+      { id: errored },
+    ]);
+  });
+
   test('deleteAdhoc removes finished adhoc row and its run dir; rejects watch runs and unfinished', () => {
     const { db, dataDir, queue } = setup();
     const w = insertWatch(db);
