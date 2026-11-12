@@ -26,6 +26,7 @@ export type OverrideRow = Pick<OverrideField, 'id' | 'group' | 'label' | 'kind' 
 
 export type OverrideErrors = Record<string, string>;
 
+const LOCALES: Config['locale'][] = ['en', 'es', 'zh', 'ru'];
 const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode'];
 const SEPARATE_PROVIDERS = ['claude-code', 'codex', 'opencode'] as const;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -223,6 +224,19 @@ export function overrideFields(base: Config): OverrideField[] {
         draft.copilotBin = value;
       },
     ),
+    {
+      id: 'locale',
+      group: 'Interface',
+      label: 'Language',
+      kind: 'select',
+      options: LOCALES,
+      read: (c) => c.locale,
+      apply(draft, value) {
+        if (!LOCALES.includes(value as Config['locale'])) return `Unknown language "${value}"`;
+        draft.locale = value as Config['locale'];
+        return null;
+      },
+    },
     {
       id: 'provider',
       group: 'Provider',

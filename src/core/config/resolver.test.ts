@@ -30,6 +30,15 @@ function setup() {
 }
 
 describe('ConfigResolver', () => {
+  test('a Project can override the interface language and rejects unknown ones', () => {
+    const { configs, web, apps } = setup();
+    expect(configs.forProject(web).locale).toBe('en');
+    expect(configs.setValues(web, { locale: 'ru' }).ok).toBe(true);
+    expect(configs.forProject(web).locale).toBe('ru');
+    expect(configs.forProject(apps).locale).toBe('en');
+    expect(configs.setValues(web, { locale: 'fr' }).ok).toBe(false);
+  });
+
   test('without overrides the effective config equals the global one', () => {
     const { config, configs } = setup();
     expect(configs.forRepository('pages')).toEqual(config);

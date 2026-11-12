@@ -1,8 +1,11 @@
 import { getRequestConfig } from 'next-intl/server';
-import { defaultLocale, loadMessages } from './i18n';
+import { getCore } from './core';
+import { loadMessages } from './i18n';
+import { currentSelection } from './scope';
 
-// The per-project locale setting is wired in a follow-up; until then every request uses the default locale.
-export default getRequestConfig(async () => ({
-  locale: defaultLocale,
-  messages: loadMessages(defaultLocale),
-}));
+// The language is a Project setting: the selected Project's effective config decides, otherwise the global one.
+export default getRequestConfig(async () => {
+  const selection = await currentSelection().catch(() => null);
+  const locale = getCore().configs.forProject(typeof selection === 'number' ? selection : null).locale;
+  return { locale, messages: loadMessages(locale) };
+});
