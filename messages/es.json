@@ -112,6 +112,7 @@
     "nothingWaiting": "Nada en espera."
   },
   "Queue": {
+    "priorityLabel": { "schedule": "programada", "manual": "manual", "adhoc": "ad hoc" },
     "running": "En ejecución",
     "waiting": "En espera · primero las manuales y ad hoc",
     "nothingRunning": "Nada en ejecución.",

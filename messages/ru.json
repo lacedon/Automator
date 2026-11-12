@@ -112,6 +112,7 @@
     "nothingWaiting": "Ничего не ожидает."
   },
   "Queue": {
+    "priorityLabel": { "schedule": "по расписанию", "manual": "вручную", "adhoc": "ad-hoc" },
     "running": "Выполняются",
     "waiting": "Ожидают · ручные и ad-hoc — первыми",
     "nothingRunning": "Ничего не выполняется.",

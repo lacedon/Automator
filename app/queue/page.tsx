@@ -39,7 +39,6 @@ function Running({ runs }: { runs: RunningCard[] }) {
 
 function RunningRun({ run }: { run: RunningCard }) {
   const t = useTranslations('Queue');
-  const tt = useTranslations('Trigger');
   return (
     <div className="card card-running">
       <div className="card-head">
@@ -49,7 +48,8 @@ function RunningRun({ run }: { run: RunningCard }) {
         <span className="row-text">
           <QueueItem run={run} strong /> · {run.repository}{' '}
           <span className="muted">
-            · {tt(run.trigger)} · <Link href={`/runs/${run.runId}`}>{t('run', { id: run.runId })}</Link> ·{' '}
+            · {t(`priorityLabel.${run.trigger}`)} ·{' '}
+            <Link href={`/runs/${run.runId}`}>{t('run', { id: run.runId })}</Link> ·{' '}
             {t('started', { time: formatDateTime(run.startedAt) })}
           </span>
         </span>

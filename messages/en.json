@@ -112,6 +112,7 @@
     "nothingWaiting": "Nothing waiting."
   },
   "Queue": {
+    "priorityLabel": { "schedule": "scheduled", "manual": "manual", "adhoc": "ad-hoc" },
     "running": "Running",
     "waiting": "Waiting · manual & ad-hoc go first",
     "nothingRunning": "Nothing running.",
