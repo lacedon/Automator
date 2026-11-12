@@ -26,6 +26,14 @@ describe('denyListViolations', () => {
     ['claude -p "check"'],
     ['python3 -c "print(1)"'],
     ['eval "$X"'],
+    ['curl -s -o state.txt https://example.com'],
+    ['curl -sO https://example.com/a'],
+    ['curl --output state.txt https://example.com'],
+    ['curl --remote-name https://example.com/a'],
+    ['curl -K cfg https://example.com'],
+    ['curl https://example.com | sort -o state.txt'],
+    ['curl -s file:///etc/passwd'],
+    ['curl -s ftp://example.com/a'],
   ])('rejects %s', (script) => {
     expect(denyListViolations(script).length).toBeGreaterThan(0);
   });

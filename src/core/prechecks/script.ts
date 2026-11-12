@@ -31,6 +31,12 @@ const DENIED: { rule: RegExp; message: string }[] = [
     rule: /curl\b[^\n]*\s(?:-[A-Za-z]*L[A-Za-z]*\b|--location(?:-trusted)?\b|--max-redirs\b)/i,
     message: 'follows redirects',
   },
+  {
+    rule: /curl\b[^\n]*\s(?:-[A-Za-z]*[oOK]\b|--(?:output|output-dir|remote-name|remote-name-all|remote-header-name|config|create-dirs)\b)/,
+    message: 'writes curl output to a file or reads a curl config',
+  },
+  { rule: /\bsort\b[^\n]*\s(?:-[A-Za-z]*o|--output\b)/, message: 'writes sort output to a file' },
+  { rule: /\b(?!https?:)[a-z][a-z0-9+.-]*:\/\//i, message: 'uses a URL scheme other than http(s)' },
   { rule: word('wget|nc|ncat|netcat|telnet|ssh|socat'), message: 'uses a network tool other than plain curl GET' },
   {
     rule: word('eval|source|exec|sudo|su|xargs|nohup|crontab|bash|sh|zsh|dash|ksh|fish|osascript'),
@@ -70,7 +76,7 @@ function stripNoise(script: string): string {
     .split('\n')
     .filter((line, i) => !(i === 0 && line.startsWith('#!')) && !line.trimStart().startsWith('#'))
     .join('\n')
-    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`)|;&<>]+/gi, 'URL')
+    .replace(/\bhttps?:\/\/[^\s"'`)|;&<>]+/gi, 'URL')
     .replace(HARMLESS_REDIRECTS, ' ');
 }
 

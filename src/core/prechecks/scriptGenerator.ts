@@ -12,7 +12,7 @@ export type AgentTask = (prompt: string, file: string) => Promise<string | null>
 const RULES = `The script must:
 - be a bash script that only reads: no writes, deletes, POST/PUT/PATCH/DELETE requests or other state changes;
 - print the current state of the thing being watched to stdout (the same output means "nothing changed"), deterministically, without timestamps of its own;
-- use only plain shell tools and \`curl\` GET requests without following redirects;
+- use only plain shell tools and \`curl\` GET requests without following redirects, only to http(s) URLs (use \`--proto =http,https\`), never writing output to files (\`-o\`, \`-O\`);
 - stay in its working folder: no \`cd\`, absolute paths, \`..\` or \`~\`;
 - not read credentials, environment variables, \`.env\` files or tokens;
 - not use AI, scripting interpreters or other programs that run arbitrary code;
