@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { MobileNavigation, type NavChat } from './Sidebar';
 import { Logo } from './Logo';
@@ -12,7 +13,8 @@ type Props = {
   username: string;
 };
 
-export function TopBar({ counts, chats, projects, scope, username }: Props) {
+export async function TopBar({ counts, chats, projects, scope, username }: Props) {
+  const t = await getTranslations('Navigation');
   return (
     <header className="topbar">
       <Link href="/" className="brand">
@@ -22,17 +24,17 @@ export function TopBar({ counts, chats, projects, scope, username }: Props) {
       <ProjectSwitcher projects={projects} scope={scope} />
       <span className="spacer" />
       <Link href="/automations/new" className="btn btn-secondary">
-        + Automation
+        {t('addAutomation')}
       </Link>
       <Link href="/adhoc" className="btn btn-primary">
-        Chat
+        {t('chat')}
       </Link>
-      <Link href="/account" className="btn btn-secondary" title="Access tokens">
+      <Link href="/account" className="btn btn-secondary" title={t('accessTokens')}>
         {username}
       </Link>
       <form action={signOut}>
-        <button type="submit" className="btn btn-secondary" title={`Signed in as ${username}`}>
-          Sign out
+        <button type="submit" className="btn btn-secondary" title={t('signedInAs', { username })}>
+          {t('signOut')}
         </button>
       </form>
     </header>

@@ -1,5 +1,22 @@
 {
   "Common": {
     "appName": "Automator"
+  },
+  "Navigation": {
+    "home": "Главная",
+    "automations": "Автоматизации",
+    "queue": "Очередь",
+    "chats": "Чаты",
+    "settings": "Настройки",
+    "needsYou": "Нужно ваше действие",
+    "menu": "Меню",
+    "newAutomation": "Новая автоматизация",
+    "chat": "Чат",
+    "addAutomation": "+ Автоматизация",
+    "accessTokens": "Токены доступа",
+    "signedInAs": "Вы вошли как {username}",
+    "signOut": "Выйти",
+    "main": "Основная",
+    "mainMobile": "Основная (мобильная)"
   }
 }

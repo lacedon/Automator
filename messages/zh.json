@@ -1,5 +1,22 @@
 {
   "Common": {
     "appName": "Automator"
+  },
+  "Navigation": {
+    "home": "首页",
+    "automations": "自动化",
+    "queue": "队列",
+    "chats": "聊天",
+    "settings": "设置",
+    "needsYou": "需要你处理",
+    "menu": "菜单",
+    "newAutomation": "新建自动化",
+    "chat": "聊天",
+    "addAutomation": "+ 自动化",
+    "accessTokens": "访问令牌",
+    "signedInAs": "已登录为 {username}",
+    "signOut": "退出登录",
+    "main": "主导航",
+    "mainMobile": "移动端主导航"
   }
 }
