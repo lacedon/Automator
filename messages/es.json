@@ -58,7 +58,9 @@
     "alreadyAutomated": "Ya automatizado",
     "existingAutomation": "Este destino ya tiene una automatización:",
     "every": "cada {interval}",
-    "openExisting": "Abrir la automatización existente →"
+    "openExisting": "Abrir la automatización existente →",
+    "noRunQueued": "No se puso en cola ninguna ejecución.",
+    "nothingChanged": "No se cambió nada."
   },
   "NeedsYouCard": {
     "sent": "enviado ✓",
@@ -209,5 +211,54 @@
     "outcome": "Resultado",
     "startedQueued": "Inicio / en cola",
     "help": "Los resultados registran lo ocurrido en su momento. Una ejecución pasada que requería tu acción puede estar ya resuelta. Los filtros de fecha usan la hora local de inicio, o la de encolado si nunca se inició."
+  },
+  "RunDetail": {
+    "chats": "Chats",
+    "automationFallback": "Automatización #{id}",
+    "adhocRun": "Ejecución ad hoc",
+    "title": "Ejecución #{id}",
+    "details": "Detalles de la ejecución"
+  },
+  "Chat": {
+    "run": "Ejecución #{id}",
+    "thisRun": " (esta ejecución)",
+    "message": "Mensaje",
+    "placeholder": "Continúa en la misma sesión de Copilot…",
+    "send": "Enviar",
+    "queued": "Ejecución #{id} en cola"
+  },
+  "RunFiles": {
+    "transcript": "Transcripción",
+    "result": "JSON de resultado",
+    "prompt": "Prompt",
+    "file": "Archivo",
+    "close": "Cerrar",
+    "missing": "No hay archivo de {file} para esta ejecución.",
+    "loading": "Cargando…",
+    "heading": "{file} · Ejecución #{id}"
+  },
+  "Agent": {
+    "label": "Agente",
+    "none": "ninguno asignado",
+    "default": "{name} (predeterminado)"
+  },
+  "Adhoc": {
+    "title": "Nuevo chat",
+    "empty": "Inicia un nuevo chat: pide algo abajo.",
+    "repository": "Repositorio",
+    "ticket": "Ticket (opcional)",
+    "ticketPlaceholder": "Número o URL del ticket",
+    "model": "Modelo",
+    "defaultModel": "predeterminado ({model})",
+    "ticketHint": "Vincular un ticket",
+    "modelHint": "Usar este modelo",
+    "agentHint": "Usar este agente",
+    "send": "Enviar",
+    "provider": "Proveedor: {provider}. Se adelanta al trabajo programado, ignora el horario laboral y nunca interrumpe la ejecución actual."
+  },
+  "Kind": {
+    "mr": "Merge/pull request",
+    "jira": "Incidencia de Jira",
+    "free": "Libre"
   }
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import type { Run, ThreadView } from '@core/index';
 import { RunPill } from '../../components/Pill';
 import { RunErrorCard, RunMeta } from '../../components/RunMeta';
@@ -37,32 +38,30 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   const view = await getCore().read.runDetail(Number(id));
   if (view === null) notFound();
   const { run, watchTitle } = view;
+  const t = await getTranslations('RunDetail');
+  const automationName = watchTitle ?? t('automationFallback', { id: run.watchId ?? 0 });
 
   return (
     <>
       <div className="muted">
         {run.watchId === null ? (
-          <Link href="/runs">Chats</Link>
+          <Link href="/runs">{t('chats')}</Link>
         ) : (
-          <Link href={`/automations/${run.watchId}`}>{watchTitle ?? `Automation #${run.watchId}`}</Link>
+          <Link href={`/automations/${run.watchId}`}>{automationName}</Link>
         )}{' '}
         / #{run.id}
       </div>
       <div className="detail-head">
         <h1 className="detail-title">
-          Run #{run.id} ·{' '}
-          {run.watchId === null ? (
-            'Ad-hoc run'
-          ) : (
-            <Link href={`/automations/${run.watchId}`}>{watchTitle ?? `Automation #${run.watchId}`}</Link>
-          )}
+          {t('title', { id: run.id })} ·{' '}
+          {run.watchId === null ? t('adhocRun') : <Link href={`/automations/${run.watchId}`}>{automationName}</Link>}
         </h1>
         <RunPill run={run} />
       </div>
       {!keepsRefreshing(run.status, view.thread) && <NoAutoRefresh />}
       <ChatPane thread={view.thread ?? singleRunThread(run)} currentRunId={run.id} />
       <details className="run-details">
-        <summary>Run details</summary>
+        <summary>{t('details')}</summary>
         {run.error !== null && <RunErrorCard error={run.error} />}
         <RunMeta view={view} />
       </details>
