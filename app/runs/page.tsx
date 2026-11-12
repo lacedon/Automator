@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { RunFilter, RunRow } from '@core/index';
 import { Elapsed } from '../components/Elapsed';
@@ -86,12 +86,14 @@ function RunFilters({ filter, repositories }: { filter: Filter; repositories: st
 }
 
 function Took({ run }: { run: RunRow }) {
+  const locale = useLocale();
   if (run.status === 'running' && run.startedAt !== null) return <Elapsed since={run.startedAt} />;
-  return <>{run.tookMs === null ? '—' : formatTook(run.tookMs)}</>;
+  return <>{run.tookMs === null ? '—' : formatTook(run.tookMs, locale)}</>;
 }
 
 function RunListRow({ run }: { run: RunRow }) {
   const t = useTranslations('Runs');
+  const locale = useLocale();
   const href = `/runs/${run.id}`;
   return (
     <tr>
@@ -109,7 +111,7 @@ function RunListRow({ run }: { run: RunRow }) {
         <RunPill run={run} />
       </td>
       <td className="history-number" data-label={run.startedAt === null ? t('queued') : t('started')}>
-        {formatDateTime(run.startedAt ?? run.queuedAt)}
+        {formatDateTime(run.startedAt ?? run.queuedAt, locale)}
         {run.startedAt === null && <div className="task-meta">{t('queuedNever')}</div>}
       </td>
       <td className="history-number" data-label={t('duration')}>

@@ -1,5 +1,5 @@
 import type { FileView, RunDetailView, RunError, TicketLink } from '@core/index';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { formatDateTime, formatTook } from '../lib/format';
 import { Elapsed } from './Elapsed';
 import { providerLabel } from '../lib/providerLabel';
@@ -30,19 +30,21 @@ export function RunItem({
 
 function RunTime({ view }: { view: RunDetailView }) {
   const t = useTranslations('RunMeta');
+  const locale = useLocale();
   const { run, tookMs } = view;
-  if (run.startedAt === null) return <>{t('queued', { time: formatDateTime(run.queuedAt) })}</>;
+  if (run.startedAt === null) return <>{t('queued', { time: formatDateTime(run.queuedAt, locale) })}</>;
   if (run.status === 'running') {
     return (
       <>
-        {formatDateTime(run.startedAt)} → {t('running')} <Elapsed since={run.startedAt} />
+        {formatDateTime(run.startedAt, locale)} → {t('running')} <Elapsed since={run.startedAt} />
       </>
     );
   }
   return (
     <>
-      {formatDateTime(run.startedAt)} → {run.endedAt === null ? '—' : formatDateTime(run.endedAt)} (
-      {tookMs === null ? '—' : formatTook(tookMs)}){run.exitCode !== null && ` · ${t('exit', { code: run.exitCode })}`}
+      {formatDateTime(run.startedAt, locale)} → {run.endedAt === null ? '—' : formatDateTime(run.endedAt, locale)} (
+      {tookMs === null ? '—' : formatTook(tookMs, locale)})
+      {run.exitCode !== null && ` · ${t('exit', { code: run.exitCode })}`}
     </>
   );
 }

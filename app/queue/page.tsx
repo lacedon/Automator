@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { QueueRow, RunningCard } from '@core/index';
 import { cancelQueued, cancelRun, closeWatchFromQueue } from '../actions/runs';
@@ -39,6 +39,7 @@ function Running({ runs }: { runs: RunningCard[] }) {
 
 function RunningRun({ run }: { run: RunningCard }) {
   const t = useTranslations('Queue');
+  const locale = useLocale();
   return (
     <div className="card card-running">
       <div className="card-head">
@@ -50,7 +51,7 @@ function RunningRun({ run }: { run: RunningCard }) {
           <span className="muted">
             · {t(`priorityLabel.${run.trigger}`)} ·{' '}
             <Link href={`/runs/${run.runId}`}>{t('run', { id: run.runId })}</Link> ·{' '}
-            {t('started', { time: formatDateTime(run.startedAt) })}
+            {t('started', { time: formatDateTime(run.startedAt, locale) })}
           </span>
         </span>
         <ConfirmDialog
@@ -96,6 +97,7 @@ function WaitingAction({ row }: { row: QueueRow }) {
 
 function Waiting({ rows }: { rows: QueueRow[] }) {
   const t = useTranslations('Queue');
+  const locale = useLocale();
   if (rows.length === 0) return <EmptyState>{t('nothingWaiting')}</EmptyState>;
   return (
     <table className="table">
@@ -121,7 +123,7 @@ function Waiting({ rows }: { rows: QueueRow[] }) {
               <QueueItem run={row} />
             </td>
             <td>{row.repository}</td>
-            <td className="nowrap">{formatDateTime(row.queuedAt)}</td>
+            <td className="nowrap">{formatDateTime(row.queuedAt, locale)}</td>
             <td className="cell-text">{row.reason}</td>
             <td className="nowrap">
               <div className="row-actions">

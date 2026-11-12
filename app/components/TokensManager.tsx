@@ -1,10 +1,11 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import type { AppError, ApiToken } from '@core/index';
 import { createToken, regenerateToken, revokeToken } from '../actions/tokens';
 import type { ActionResult } from '../actions/types';
+import { formatFullDateTime } from '../lib/format';
 import { ErrorBox } from './ErrorBox';
 import { SettingsTable, SettingsTableRow } from './SettingsTable';
 
@@ -12,7 +13,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function TokensManager({ tokens }: { tokens: ApiToken[] }) {
   const t = useTranslations('Tokens');
-  const when = (ms: number | null) => (ms === null ? t('never') : new Date(ms).toLocaleString());
+  const locale = useLocale();
+  const when = (ms: number | null) => (ms === null ? t('never') : formatFullDateTime(ms, locale));
   const [name, setName] = useState('');
   const [days, setDays] = useState('');
   const [secret, setSecret] = useState<string | null>(null);

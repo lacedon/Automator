@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { formatDuration, type Watch, type WatchDetailView } from '@core/index';
 import { cancelRun } from '../../actions/runs';
 import { ActionErrorProvider } from '../../components/ActionButton';
@@ -50,7 +50,7 @@ function Subline({ watch, t, tKind }: { watch: Watch; t: T; tKind: TKind }) {
   );
 }
 
-function SettingsCard({ view, t }: { view: WatchDetailView; t: T }) {
+function SettingsCard({ view, t, locale }: { view: WatchDetailView; t: T; locale: string }) {
   const s = view.settings;
   return (
     <div className="card">
@@ -77,7 +77,7 @@ function SettingsCard({ view, t }: { view: WatchDetailView; t: T }) {
           <NextCheckLabel next={view.nextCheck} />
         </dd>
         <dt>{t('created')}</dt>
-        <dd>{formatDateTime(s.createdAt)}</dd>
+        <dd>{formatDateTime(s.createdAt, locale)}</dd>
       </dl>
     </div>
   );
@@ -172,7 +172,7 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
           <RunsTable runs={view.runs} />
         </div>
         <div className="side-cards">
-          <SettingsCard view={view} t={t} />
+          <SettingsCard view={view} t={t} locale={await getLocale()} />
           <div className="card">
             <h3 className="section-h">{watch.kind === 'free' ? t('instructions') : t('extraInstructions')}</h3>
             {watch.instructions ? (

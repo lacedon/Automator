@@ -1,8 +1,9 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { removeCredential, saveCredential } from '../actions/credentials';
+import { formatFullDateTime } from '../lib/format';
 import { ActionButton, ActionErrorProvider } from './ActionButton';
 import { SettingsTable, SettingsTableRow } from './SettingsTable';
 
@@ -10,6 +11,7 @@ type Props = { names: string[]; stored: { name: string; updatedAt: number }[] };
 
 export function CredentialsManager({ names, stored }: Props) {
   const t = useTranslations('Credentials');
+  const locale = useLocale();
   const [name, setName] = useState(names[0] ?? '');
   const [value, setValue] = useState('');
   return (
@@ -48,7 +50,7 @@ export function CredentialsManager({ names, stored }: Props) {
               </ActionButton>
             }
           >
-            {new Date(c.updatedAt).toLocaleString()}
+            {formatFullDateTime(c.updatedAt, locale)}
           </SettingsTableRow>
         ))}
       </SettingsTable>

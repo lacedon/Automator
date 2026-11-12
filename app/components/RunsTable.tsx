@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { RunRow } from '@core/index';
 import { formatDateTime, formatTook } from '../lib/format';
 import { providerLabel } from '../lib/providerLabel';
@@ -8,6 +8,7 @@ import { RunPill } from './Pill';
 
 export function RunsTable({ runs }: { runs: RunRow[] }) {
   const t = useTranslations('RunsTable');
+  const locale = useLocale();
   if (runs.length === 0) return <EmptyState>{t('empty')}</EmptyState>;
   return (
     <table className="table">
@@ -31,8 +32,8 @@ export function RunsTable({ runs }: { runs: RunRow[] }) {
             </td>
             <td>{run.trigger}</td>
             <td>{providerLabel(run.provider)}</td>
-            <td className="nowrap">{run.startedAt === null ? '—' : formatDateTime(run.startedAt)}</td>
-            <td className="nowrap">{run.tookMs === null ? '—' : formatTook(run.tookMs)}</td>
+            <td className="nowrap">{run.startedAt === null ? '—' : formatDateTime(run.startedAt, locale)}</td>
+            <td className="nowrap">{run.tookMs === null ? '—' : formatTook(run.tookMs, locale)}</td>
             <td>
               <RunPill run={run} />
             </td>
