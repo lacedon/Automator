@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { formatDuration, type Watch, type WatchDetailView } from '@core/index';
 import { cancelRun } from '../../actions/runs';
 import { ActionErrorProvider } from '../../components/ActionButton';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Elapsed } from '../../components/Elapsed';
-import { KIND_NAME } from '../../components/KindBadge';
 import { NeedsYouCard } from '../../components/NeedsYouCard';
 import { NextCheckLabel, Pill, WatchStatePill } from '../../components/Pill';
 import { RunNowPopover } from '../../components/RunNowPopover';
@@ -19,18 +19,20 @@ import { formatDateTime } from '../../lib/format';
 
 export const dynamic = 'force-dynamic';
 
-function runNowDisabledReason(view: WatchDetailView, jiraEnabled: boolean): string | undefined {
-  if (!view.actions.includes('runNow'))
-    return view.watch.state === 'closed' ? 'Reopen the Automation first' : 'Resume the Automation first';
-  if (view.watch.kind === 'jira' && !jiraEnabled) return 'Jira checking is off';
+type T = Awaited<ReturnType<typeof getTranslations<'AutomationDetail'>>>;
+type TKind = Awaited<ReturnType<typeof getTranslations<'Kind'>>>;
+
+function runNowDisabledReason(view: WatchDetailView, jiraEnabled: boolean, t: T): string | undefined {
+  if (!view.actions.includes('runNow')) return view.watch.state === 'closed' ? t('reopenFirst') : t('resumeFirst');
+  if (view.watch.kind === 'jira' && !jiraEnabled) return t('jiraOff');
   return undefined;
 }
 
-function Subline({ watch }: { watch: Watch }) {
+function Subline({ watch, t, tKind }: { watch: Watch; t: T; tKind: TKind }) {
   const isUrl = /^https?:\/\//.test(watch.targetUrl);
   return (
     <div className="muted">
-      {KIND_NAME[watch.kind]} ·{' '}
+      {tKind(watch.kind)} ·{' '}
       {isUrl ? (
         <a href={watch.targetUrl} target="_blank" rel="noreferrer">
           {watch.targetUrl.replace(/^https?:\/\//, '')}
@@ -40,7 +42,7 @@ function Subline({ watch }: { watch: Watch }) {
       )}
       {watch.kind === 'mr' && watch.mrSourceBranch !== null && (
         <>
-          {' · source branch '}
+          {t('sourceBranch')}
           <code>{watch.mrSourceBranch}</code>
         </>
       )}
@@ -48,44 +50,44 @@ function Subline({ watch }: { watch: Watch }) {
   );
 }
 
-function SettingsCard({ view }: { view: WatchDetailView }) {
+function SettingsCard({ view, t }: { view: WatchDetailView; t: T }) {
   const s = view.settings;
   return (
     <div className="card">
-      <h3 className="section-h">Settings</h3>
+      <h3 className="section-h">{t('settings')}</h3>
       <dl className="kv">
-        <dt>Repository</dt>
+        <dt>{t('repository')}</dt>
         <dd>
           {s.repository} {s.folder !== null && <span className="muted mono">{s.folder}</span>}
         </dd>
-        <dt>Interval</dt>
+        <dt>{t('interval')}</dt>
         <dd>
           {formatDuration(s.intervalMs)}
-          {s.intervalIsDefault && <span className="muted"> (default)</span>}
+          {s.intervalIsDefault && <span className="muted"> {t('default')}</span>}
         </dd>
-        <dt>Model</dt>
-        <dd>{s.modelIsDefault ? `default (${s.model})` : s.model}</dd>
-        <dt>Initial review</dt>
+        <dt>{t('model')}</dt>
+        <dd>{s.modelIsDefault ? t('defaultModel', { model: s.model }) : s.model}</dd>
+        <dt>{t('initialReview')}</dt>
         <dd>
           {s.initialReview}
-          {s.initialReviewIsDefault && <span className="muted"> (default)</span>}
+          {s.initialReviewIsDefault && <span className="muted"> {t('default')}</span>}
         </dd>
-        <dt>Next check</dt>
+        <dt>{t('nextCheck')}</dt>
         <dd>
           <NextCheckLabel next={view.nextCheck} />
         </dd>
-        <dt>Created</dt>
+        <dt>{t('created')}</dt>
         <dd>{formatDateTime(s.createdAt)}</dd>
       </dl>
     </div>
   );
 }
 
-function LastHandledCard({ lines }: { lines: string[] }) {
+function LastHandledCard({ lines, t }: { lines: string[]; t: T }) {
   if (lines.length === 0) return null;
   return (
     <div className="card">
-      <h3 className="section-h">Last handled point</h3>
+      <h3 className="section-h">{t('lastHandled')}</h3>
       <dl className="kv">
         {lines.map((line) => {
           const at = line.indexOf(': ');
@@ -115,12 +117,14 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
   if (view === null) notFound();
   const { jiraEnabled: globalJiraEnabled, byRepository } = core.read.formOptions(await currentScope());
   const { watch, running } = view;
+  const t = await getTranslations('AutomationDetail');
+  const tKind = await getTranslations('Kind');
   const jiraEnabled = byRepository[watch.repository]?.jiraEnabled ?? globalJiraEnabled;
 
   return (
     <ActionErrorProvider>
       <div className="muted">
-        <Link href="/automations">Automations</Link> /{' '}
+        <Link href="/automations">{t('automations')}</Link> /{' '}
         <Link href={`/automations?repo=${encodeURIComponent(watch.repository)}`}>{watch.repository}</Link>
       </div>
       <div className="detail-head">
@@ -131,7 +135,7 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
           <RunNowPopover
             watchId={watch.id}
             isMr={watch.kind === 'mr'}
-            disabledReason={runNowDisabledReason(view, jiraEnabled)}
+            disabledReason={runNowDisabledReason(view, jiraEnabled, t)}
           />
           <WatchActionBar
             watch={{ id: watch.id, kind: watch.kind, state: watch.state, running: running !== null }}
@@ -140,7 +144,7 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
           />
         </div>
       </div>
-      <Subline watch={watch} />
+      <Subline watch={watch} t={t} tKind={tKind} />
 
       <div className="detail-cols">
         <div>
@@ -151,33 +155,33 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
                 ● <Elapsed since={running.startedAt} limitMs={running.timeoutMs} />
               </Pill>
               <Link href={`/runs/${running.runId}`} className="row-text">
-                Run #{running.runId} <span className="muted">· {running.reason}</span>
+                {t('run', { id: running.runId })} <span className="muted">· {running.reason}</span>
               </Link>
               <ConfirmDialog
-                label={running.cancelRequested ? 'Cancelling…' : 'Cancel'}
-                message="Cancelling can't undo replies or pushes that already happened."
-                confirmLabel="Cancel run"
-                dismissLabel="Keep running"
+                label={running.cancelRequested ? t('cancelling') : t('cancel')}
+                message={t('cancelMessage')}
+                confirmLabel={t('cancelRun')}
+                dismissLabel={t('keepRunning')}
                 danger
-                disabledReason={running.cancelRequested ? 'Cancel already requested' : undefined}
+                disabledReason={running.cancelRequested ? t('cancelRequested') : undefined}
                 action={cancelRun.bind(null, running.runId)}
               />
             </div>
           )}
-          <h2 className="section-h">Runs</h2>
+          <h2 className="section-h">{t('runs')}</h2>
           <RunsTable runs={view.runs} />
         </div>
         <div className="side-cards">
-          <SettingsCard view={view} />
+          <SettingsCard view={view} t={t} />
           <div className="card">
-            <h3 className="section-h">{watch.kind === 'free' ? 'Instructions' : 'Extra instructions'}</h3>
+            <h3 className="section-h">{watch.kind === 'free' ? t('instructions') : t('extraInstructions')}</h3>
             {watch.instructions ? (
               <p className="pre-wrap">{watch.instructions}</p>
             ) : (
-              <p className="muted">Uses default prompt</p>
+              <p className="muted">{t('defaultPrompt')}</p>
             )}
           </div>
-          <LastHandledCard lines={view.lastHandled} />
+          <LastHandledCard lines={view.lastHandled} t={t} />
         </div>
       </div>
     </ActionErrorProvider>

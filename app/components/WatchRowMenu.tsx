@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useEffect, useRef } from 'react';
 import type { WatchAction, WatchKind, WatchState } from '@core/index';
 import { closeWatch, deleteWatch, pauseWatch, reopenWatch, resumeWatch, runWatchNow } from '../actions/watches';
@@ -26,6 +27,7 @@ function form(fields: Record<string, string | number>): FormData {
 }
 
 function WatchActionItems({ watch, actions, jiraEnabled, itemClass, omit = [], onDone }: ItemsProps) {
+  const t = useTranslations('WatchActions');
   const { id } = watch;
   const show = (a: WatchAction) => actions.includes(a) && !omit.includes(a);
   const secondary = itemClass('secondary');
@@ -34,55 +36,55 @@ function WatchActionItems({ watch, actions, jiraEnabled, itemClass, omit = [], o
       {show('runNow') && (
         <ActionButton
           className={secondary}
-          disabledReason={watch.kind === 'jira' && !jiraEnabled ? 'Jira checking is off' : undefined}
+          disabledReason={watch.kind === 'jira' && !jiraEnabled ? t('jiraOff') : undefined}
           action={() => runWatchNow(null, form({ id }))}
           onDone={onDone}
         >
-          Run now
+          {t('runNow')}
         </ActionButton>
       )}
       {show('pause') && (
         <ActionButton className={secondary} action={() => pauseWatch(id)} onDone={onDone}>
-          Pause
+          {t('pause')}
         </ActionButton>
       )}
       {show('resume') && (
         <ActionButton className={secondary} action={() => resumeWatch(null, form({ id }))} onDone={onDone}>
-          Resume
+          {t('resume')}
         </ActionButton>
       )}
       {show('resumeRunNow') && (
         <ActionButton className={secondary} action={() => resumeWatch(null, form({ id, runNow: '1' }))} onDone={onDone}>
-          Resume &amp; run now
+          {t('resumeRunNow')}
         </ActionButton>
       )}
       {show('close') && (
         <ConfirmDialog
           className={secondary}
-          label="Close"
-          message="Closing stops follow-up. History is kept until cleanup."
-          confirmLabel="Close Automation"
-          dismissLabel="Keep Automation"
+          label={t('close')}
+          message={t('closeMessage')}
+          confirmLabel={t('closeConfirm')}
+          dismissLabel={t('keep')}
           action={() => closeWatch(id)}
         />
       )}
       {show('reopen') && (
         <ActionButton className={secondary} action={() => reopenWatch(id)} onDone={onDone}>
-          Reopen
+          {t('reopen')}
         </ActionButton>
       )}
       <Link href={`/automations/${id}/edit`} className={secondary}>
-        Edit
+        {t('edit')}
       </Link>
       {(show('delete') || watch.running) && (
         <ConfirmDialog
           className={itemClass('danger')}
-          label="Delete"
-          message="Deleting removes this Automation, its Run history, result files and transcripts."
-          confirmLabel="Delete Automation"
-          dismissLabel="Keep Automation"
+          label={t('delete')}
+          message={t('deleteMessage')}
+          confirmLabel={t('deleteConfirm')}
+          dismissLabel={t('keep')}
           danger
-          disabledReason={watch.running ? 'Cancel the running Run first' : undefined}
+          disabledReason={watch.running ? t('cancelFirst') : undefined}
           action={() => deleteWatch(id)}
         />
       )}
@@ -93,6 +95,7 @@ function WatchActionItems({ watch, actions, jiraEnabled, itemClass, omit = [], o
 type Props = { watch: WatchMenuTarget; actions: WatchAction[]; jiraEnabled: boolean };
 
 export function WatchRowMenu(props: Props) {
+  const t = useTranslations('WatchActions');
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeOutside = (e: MouseEvent) => {
@@ -106,7 +109,7 @@ export function WatchRowMenu(props: Props) {
   };
   return (
     <details ref={menu} className="menu">
-      <summary className="btn btn-secondary" aria-label="Automation actions" title="Automation actions">
+      <summary className="btn btn-secondary" aria-label={t('menu')} title={t('menu')}>
         ⋯
       </summary>
       <div className="menu-pop">
@@ -136,5 +139,6 @@ export function WatchActionBar(props: Props) {
 }
 
 export function ResumeButton({ watchId }: { watchId: number }) {
-  return <ActionButton action={() => resumeWatch(null, form({ id: watchId }))}>Resume</ActionButton>;
+  const t = useTranslations('WatchActions');
+  return <ActionButton action={() => resumeWatch(null, form({ id: watchId }))}>{t('resume')}</ActionButton>;
 }

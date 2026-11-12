@@ -1,10 +1,11 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { formatDuration, type WatchKind, type WatchRow, type WatchState } from '@core/index';
 import { ActionErrorProvider } from '../components/ActionButton';
 import { EmptyState } from '../components/EmptyState';
 import { NextCheckLabel, RunPill, WatchStatePill } from '../components/Pill';
 import { RelativeTime } from '../components/RelativeTime';
-import { KIND_LABEL, WatchFilters, type WatchFilterParams } from '../components/WatchFilters';
+import { WatchFilters, type WatchFilterParams } from '../components/WatchFilters';
 import { ResumeButton, WatchRowMenu } from '../components/WatchRowMenu';
 import { getCore } from '../lib/core';
 import { currentScope } from '../lib/scope';
@@ -22,7 +23,7 @@ function pick<T extends string>(value: string | string[] | undefined, allowed?: 
   return allowed === undefined || allowed.includes(v as T) ? (v as T) : undefined;
 }
 
-function WatchTableRow({ row, jiraEnabled }: { row: WatchRow; jiraEnabled: boolean }) {
+function WatchTableRow({ row, jiraEnabled, kindLabel }: { row: WatchRow; jiraEnabled: boolean; kindLabel: string }) {
   const needsYou = row.state === 'needs_you';
   const closed = row.state === 'closed';
   return (
@@ -30,7 +31,7 @@ function WatchTableRow({ row, jiraEnabled }: { row: WatchRow; jiraEnabled: boole
       <td>
         <WatchStatePill state={row.state} />
       </td>
-      <td>{KIND_LABEL[row.kind]}</td>
+      <td>{kindLabel}</td>
       <td className="cell-text">
         <Link
           href={`/automations/${row.id}`}
@@ -69,6 +70,8 @@ function WatchTableRow({ row, jiraEnabled }: { row: WatchRow; jiraEnabled: boole
 
 export default async function WatchesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const t = await getTranslations('AutomationList');
+  const tKind = await getTranslations('KindShort');
   const filter: WatchFilterParams = {
     state: pick(params.state, STATES),
     kind: pick(params.kind, KINDS),
@@ -90,25 +93,20 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
   return (
     <ActionErrorProvider>
       <WatchFilters filter={filter} counts={counts} repositories={repositories.map((r) => r.name)} />
-      {jiraNotice && (
-        <div className="notice">
-          Jira checking is off (<code>jira.enabled</code> is false) for some Repositories. Their Jira Automations are
-          kept but don&apos;t run on schedule or via Run now.
-        </div>
-      )}
+      {jiraNotice && <div className="notice">{t.rich('jiraNotice', { code: (chunks) => <code>{chunks}</code> })}</div>}
       {rows.length === 0 ? (
-        <EmptyState>{filtered ? 'No Automations match these filters.' : 'No Automations yet.'}</EmptyState>
+        <EmptyState>{filtered ? t('noMatch') : t('none')}</EmptyState>
       ) : (
         <table className="table">
           <thead>
             <tr>
-              <th>State</th>
-              <th>Kind</th>
-              <th>Target</th>
-              <th>Repository</th>
-              <th>Every</th>
-              <th>Next check</th>
-              <th>Last run</th>
+              <th>{t('state')}</th>
+              <th>{t('kind')}</th>
+              <th>{t('target')}</th>
+              <th>{t('repository')}</th>
+              <th>{t('every')}</th>
+              <th>{t('nextCheck')}</th>
+              <th>{t('lastRun')}</th>
               <th />
             </tr>
           </thead>
@@ -117,6 +115,7 @@ export default async function WatchesPage({ searchParams }: { searchParams: Prom
               <WatchTableRow
                 key={row.id}
                 row={row}
+                kindLabel={tKind(row.kind)}
                 jiraEnabled={byRepository[row.repository]?.jiraEnabled ?? jiraEnabled}
               />
             ))}
