@@ -1,24 +1,30 @@
+import { getTranslations } from 'next-intl/server';
 import type { WorkflowType } from '@core/index';
 import { AgentSettings } from '../../components/AgentSettings';
 import { getCore } from '../../lib/core';
 
 export const dynamic = 'force-dynamic';
 
-const WORKFLOWS: { type: WorkflowType; label: string }[] = [
-  { type: 'mr-watch', label: 'MR Automation' },
-  { type: 'jira-watch', label: 'Jira Automation' },
-  { type: 'free-watch', label: 'Free Automation' },
-  { type: 'ticket-adhoc', label: 'Ticket Ad-hoc' },
-  { type: 'free-adhoc', label: 'Free-form Ad-hoc' },
-];
+const WORKFLOW_LABEL_KEYS = {
+  'mr-watch': 'wfMr',
+  'jira-watch': 'wfJira',
+  'free-watch': 'wfFree',
+  'ticket-adhoc': 'wfTicketAdhoc',
+  'free-adhoc': 'wfFreeAdhoc',
+} as const satisfies Record<WorkflowType, string>;
 
-export default function AgentSettingsPage() {
+export default async function AgentSettingsPage() {
   const core = getCore();
+  const t = await getTranslations('AgentSettings');
+  const WORKFLOWS = (Object.keys(WORKFLOW_LABEL_KEYS) as WorkflowType[]).map((type) => ({
+    type,
+    label: t(WORKFLOW_LABEL_KEYS[type]),
+  }));
   const templates = WORKFLOWS.flatMap(({ type }) => core.agents.getTemplate(type) ?? []);
   return (
     <>
-      <h1 className="page-title">Agents</h1>
-      <p className="muted">How is prompt behavior configured for each Repository and Workflow?</p>
+      <h1 className="page-title">{t('title')}</h1>
+      <p className="muted">{t('intro')}</p>
       <AgentSettings
         agents={core.agents.listAgents()}
         assignments={core.agents.listAssignments()}
