@@ -14,6 +14,7 @@ import { createGitLabClient, type GitLabClient } from './prechecks/gitlabClient'
 import type { GitLabPrecheckDeps } from './prechecks/gitlab';
 import { createGitHubClient, type GitHubClient } from './prechecks/githubClient';
 import { createPrechecks } from './prechecks/index';
+import { PrecheckScriptService } from './prechecks/scriptService';
 import { createJiraClient, type JiraClient } from './prechecks/jiraClient';
 import { ProjectService } from './projects/projectService';
 import { importLegacyRepositories } from './repositories/legacyImport';
@@ -108,6 +109,7 @@ export interface Core {
   deps: Deps;
   executorDeps: RunExecutorDeps;
   watches: WatchService;
+  precheckScripts: PrecheckScriptService;
   queue: QueueService;
   scheduler: Scheduler;
   executor: RunExecutor;
@@ -236,6 +238,7 @@ export function createCore(
     configFor,
     secretsFor: (effective) => configs.secretsFor(effective),
     repositories,
+    dataDir,
     gitlabClientFor: deps.gitlab,
     githubClientFor: deps.github,
     jiraClientFor: deps.jira,
@@ -277,6 +280,14 @@ export function createCore(
     deps,
     executorDeps,
     watches: new WatchService({ db, clock, config, configFor, repositories, queue, dataDir, preview: mrPreview(deps) }),
+    precheckScripts: new PrecheckScriptService({
+      dataDir,
+      launcherFor: (effective) => launchers[effective.provider],
+      scopeFor: (repository) => {
+        const effective = configFor(repository);
+        return { config: effective, secrets: configs.secretsFor(effective) };
+      },
+    }),
     queue,
     scheduler: new Scheduler({ db, clock, config, configFor, dataDir, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),

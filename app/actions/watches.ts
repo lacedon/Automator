@@ -95,6 +95,7 @@ const FORM_FIELDS = [
   'target',
   'repository',
   'instructions',
+  'precheckInstructions',
   'interval',
   'model',
   'agentId',
@@ -138,6 +139,7 @@ const initialReviewField = z
 
 const editableFields = {
   instructions: z.string().optional(),
+  precheckInstructions: z.string().optional(),
   interval: intervalField,
   model: z.string().optional(),
   initialReview: initialReviewField,
@@ -161,8 +163,16 @@ export async function createWatch(
   const guard = await requireWriteOnRepository(input.value.repository);
   if (!guard.ok) return { ...guard, values };
   const { interval, initialReview, ...rest } = input.value;
+  const precheckInstructions = rest.precheckInstructions?.trim();
+  let precheckScript: string | undefined;
+  if (precheckInstructions) {
+    const generated = await getCore().precheckScripts.generate(precheckInstructions, rest.repository);
+    if (!generated.ok) return { ...generated, values };
+    precheckScript = generated.value;
+  }
   const result = getCore().watches.create({
     ...rest,
+    precheckScript,
     intervalMs: interval ?? undefined,
     initialReview: initialReview ?? undefined,
   });
@@ -179,10 +189,25 @@ export async function updateWatch(
   const values = formValues(formData);
   const input = parseInput(updateSchema, values);
   if (!input.ok) return { ...input, values };
-  const { id, instructions, interval, model, initialReview } = input.value;
+  const { id, instructions, precheckInstructions, interval, model, initialReview } = input.value;
   const guard = await requireWriteOnWatch(id);
   if (!guard.ok) return { ...guard, values };
-  const result = getCore().watches.update(id, { instructions, intervalMs: interval, model, initialReview });
+  const watch = getCore().watches.get(id);
+  const changedPrecheck = precheckInstructions?.trim();
+  let precheckScript: string | undefined;
+  if (watch && changedPrecheck && changedPrecheck !== watch.precheckInstructions) {
+    const generated = await getCore().precheckScripts.generate(changedPrecheck, watch.repository);
+    if (!generated.ok) return { ...generated, values };
+    precheckScript = generated.value;
+  }
+  const result = getCore().watches.update(id, {
+    instructions,
+    precheckInstructions,
+    precheckScript,
+    intervalMs: interval,
+    model,
+    initialReview,
+  });
   if (!result.ok) return { ...result, values };
   revalidatePath('/', 'layout');
   redirect(`/automations/${id}`);

@@ -14,6 +14,16 @@ const sharePath = argValue('--share');
 const mode = process.env.FAKE_COPILOT_MODE ?? 'nothing';
 const resultPath = prompt.match(/write exactly this JSON to `([^`]+)`/)?.[1];
 
+// Pre-check script generation and review write into the current folder.
+if (prompt.includes('[precheck-generate]')) {
+  fs.writeFileSync('script.sh', '#!/usr/bin/env bash\ncurl -sI https://example.com/page | grep -i last-modified\n');
+  process.exit(0);
+}
+if (prompt.includes('[precheck-review]')) {
+  fs.writeFileSync('review.json', JSON.stringify({ approved: true, reason: 'read-only' }));
+  process.exit(0);
+}
+
 if (process.env.FAKE_COPILOT_RECORD) {
   fs.writeFileSync(process.env.FAKE_COPILOT_RECORD, JSON.stringify({ argv, cwd: process.cwd(), env: process.env }));
 }

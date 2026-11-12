@@ -37,6 +37,10 @@ export interface Watch {
   needsYouReason: string | null;
   needsYouSince: number | null;
   needsYouRunId: number | null;
+  precheckInstructions: string | null;
+  precheckScript: string | null;
+  precheckOutput: string | null;
+  precheckProblem: string | null;
   resolutionNote: string | null;
   closedReason: ClosedReason | null;
   closedAt: number | null;

@@ -14,6 +14,15 @@ export class DataDir {
     this.notifyDir = path.join(this.root, 'notify');
   }
 
+  // Working folder of a pre-check script; scripts are confined to it.
+  precheckDir(watchId: number): string {
+    return path.join(this.root, 'prechecks', String(watchId));
+  }
+
+  precheckTmpRoot(): string {
+    return path.join(this.root, 'prechecks', 'generation');
+  }
+
   runDir(id: number): string {
     return path.join(this.root, 'runs', String(id));
   }

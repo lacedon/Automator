@@ -181,6 +181,17 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
               <p className="muted">{t('defaultPrompt')}</p>
             )}
           </div>
+          {watch.precheckInstructions !== null && (
+            <div className="card">
+              <h3 className="section-h">{t('precheck')}</h3>
+              <p className="pre-wrap">{watch.precheckInstructions}</p>
+              {watch.precheckProblem !== null && (
+                <div className="notice" role="alert">
+                  {t('precheckProblem', { problem: watch.precheckProblem })}
+                </div>
+              )}
+            </div>
+          )}
           <LastHandledCard lines={view.lastHandled} t={t} />
         </div>
       </div>
