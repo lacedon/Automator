@@ -58,7 +58,7 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   const prechecks: Prechecks = {
     mr: mr.precheck,
     jira: { ...jira.precheck, hasToken: () => opts.jiraHasToken ?? true } as unknown as JiraPrecheck,
-    free: new FreeformPrecheck(),
+    free: new FreeformPrecheck(dataDir),
   };
   const events: NeedsYouEvent[] = [];
   const onNeedsYou = vi.fn((e: NeedsYouEvent): void | Promise<void> => {
@@ -301,6 +301,58 @@ describe('Scheduler.tick', () => {
       { status: 'finished', reason: 'interval' },
       { status: 'queued', trigger: 'schedule', reason: 'interval' },
     ]);
+  });
+
+  describe('free-form pre-check script', () => {
+    const scriptedWatch = (db: Database, now: number, script: string, output: string | null = null) => {
+      const id = dueWatch(db, now, 'free');
+      db.prepare('UPDATE watches SET precheck_script = ?, precheck_output = ? WHERE id = ?').run(script, output, id);
+      return id;
+    };
+    const finishRuns = (db: Database, id: number) =>
+      db.prepare("UPDATE runs SET status = 'finished' WHERE watch_id = ?").run(id);
+
+    test('runs on the first check and stores the output', async () => {
+      const { db, clock, scheduler } = setup();
+      const id = scriptedWatch(db, clock.now(), 'echo v1');
+      expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 1 });
+      expect(runsOf(db, id)).toMatchObject([{ reason: 'pre-check output changed' }]);
+      expect(watch(db, id)).toMatchObject({ precheckOutput: 'v1', precheckProblem: null });
+    });
+
+    test('skips the Run while the output equals the stored one, runs when it differs', async () => {
+      const { db, clock, config, scheduler } = setup();
+      const id = scriptedWatch(db, clock.now(), 'echo v1', 'v1');
+      expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
+      expect(runsOf(db, id)).toEqual([]);
+
+      db.prepare("UPDATE watches SET precheck_script = 'echo v2' WHERE id = ?").run(id);
+      clock.advance(config.schedule.intervals.default);
+      expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 1 });
+      expect(watch(db, id).precheckOutput).toBe('v2');
+      finishRuns(db, id);
+
+      clock.advance(config.schedule.intervals.default);
+      expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
+      expect(runsOf(db, id)).toHaveLength(1);
+    });
+
+    test('a failing script still runs, flags the problem and keeps the last output', async () => {
+      const { db, clock, scheduler } = setup();
+      const id = scriptedWatch(db, clock.now(), 'echo nope >&2; exit 2', 'v1');
+      expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 1 });
+      expect(watch(db, id)).toMatchObject({
+        precheckOutput: 'v1',
+        precheckProblem: 'The pre-check script failed: Exited with code 2: nope',
+      });
+    });
+
+    test('a script that breaks the deny-list is not executed', async () => {
+      const { db, clock, scheduler } = setup();
+      const id = scriptedWatch(db, clock.now(), 'rm -rf .');
+      expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 1 });
+      expect(watch(db, id).precheckProblem).toContain('not allowed');
+    });
   });
 
   test('sets next_check_at to now + interval after each check (missed intervals not replayed)', async () => {

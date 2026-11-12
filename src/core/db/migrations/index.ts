@@ -338,4 +338,12 @@ ALTER TABLE runs ADD COLUMN isolation TEXT NOT NULL DEFAULT 'shared' CHECK (isol
     sql: `ALTER TABLE runs ADD COLUMN closed_at INTEGER;
 `,
   },
+  {
+    version: 20,
+    sql: `ALTER TABLE watches ADD COLUMN precheck_instructions TEXT;
+ALTER TABLE watches ADD COLUMN precheck_script TEXT;
+ALTER TABLE watches ADD COLUMN precheck_output TEXT;
+ALTER TABLE watches ADD COLUMN precheck_problem TEXT;
+`,
+  },
 ];

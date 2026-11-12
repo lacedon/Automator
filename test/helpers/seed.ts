@@ -15,7 +15,7 @@ export function writeSeedConfig(root: string): string {
     `${JSON.stringify(
       {
         dataDir: '.',
-        copilotBin: 'copilot',
+        copilotBin: fileURLToPath(new URL('../fixtures/fake-copilot.mjs', import.meta.url)),
         schedule: {
           intervals: { mr: '15m', default: '2h' },
           workingHours: { days: [1, 2, 3, 4, 5], start: '08:00', end: '19:00' },

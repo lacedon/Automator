@@ -36,6 +36,9 @@ export interface CreateWatchInput {
   agentId?: number;
   initialReview?: InitialReview;
   title?: string;
+  // The script is generated from the instructions beforehand (see PrecheckScriptService).
+  precheckInstructions?: string;
+  precheckScript?: string;
 }
 
 export interface UpdateWatchInput {
@@ -43,6 +46,9 @@ export interface UpdateWatchInput {
   intervalMs?: number | null;
   model?: string | null;
   initialReview?: InitialReview | null;
+  // Blank clears the pre-check; changed instructions need the script generated from them.
+  precheckInstructions?: string | null;
+  precheckScript?: string;
 }
 
 export type PreviewTargetResult = {
@@ -76,6 +82,14 @@ function invalidModel(config: Config, model: string | null | undefined): AppErro
     field: 'model',
     message: `Model "${selected}" is not configured for ${config.provider}`,
   };
+}
+
+function invalidPrecheck(kind: WatchKind, instructions: string | null, script: string | undefined): AppError | null {
+  if (instructions === null) return null;
+  const invalid = (message: string): AppError => ({ code: 'INVALID_INPUT', field: 'precheckInstructions', message });
+  if (kind !== 'free') return invalid('Pre-check scripts are only available for free-form Automations');
+  if (script === undefined) return invalid('The pre-check script has not been generated');
+  return null;
 }
 
 function isUniqueViolation(e: unknown): boolean {
@@ -117,6 +131,9 @@ export class WatchService {
     const target = parsed.value;
     const instructions = blankToNull(input.instructions);
     if (target.kind === 'free' && instructions === null) return err({ code: 'MISSING_INSTRUCTIONS' });
+    const precheckInstructions = blankToNull(input.precheckInstructions);
+    const badPrecheck = invalidPrecheck(target.kind, precheckInstructions, input.precheckScript);
+    if (badPrecheck) return err(badPrecheck);
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
     const badModel = invalidModel(this.configFor(repository.name), input.model);
@@ -134,8 +151,9 @@ export class WatchService {
           const row = this.deps.db
             .prepare(
               `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, instructions,
-                 interval_ms, model, initial_review, agent_id, next_check_at, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
+                 interval_ms, model, initial_review, agent_id, precheck_instructions, precheck_script,
+                 next_check_at, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                RETURNING *`,
             )
             .get(
@@ -149,6 +167,8 @@ export class WatchService {
               blankToNull(input.model),
               input.initialReview ?? null,
               input.agentId ?? null,
+              precheckInstructions,
+              precheckInstructions === null ? null : (input.precheckScript ?? null),
               now,
               now,
               now,
@@ -189,6 +209,22 @@ export class WatchService {
         if (input.initialReview !== undefined) {
           sets.push('initial_review = @initialReview');
           params.initialReview = input.initialReview;
+        }
+        if (input.precheckInstructions !== undefined) {
+          const precheckInstructions = blankToNull(input.precheckInstructions);
+          if (precheckInstructions !== watch.precheckInstructions) {
+            const badPrecheck = invalidPrecheck(watch.kind, precheckInstructions, input.precheckScript);
+            if (badPrecheck) return err(badPrecheck);
+            // A new script starts without memory of the old one's output.
+            sets.push(
+              'precheck_instructions = @precheckInstructions',
+              'precheck_script = @precheckScript',
+              'precheck_output = NULL',
+              'precheck_problem = NULL',
+            );
+            params.precheckInstructions = precheckInstructions;
+            params.precheckScript = precheckInstructions === null ? null : (input.precheckScript ?? null);
+          }
         }
         sets.push('updated_at = @now');
         return ok(

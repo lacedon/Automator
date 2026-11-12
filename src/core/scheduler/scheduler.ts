@@ -9,6 +9,7 @@ import type { Clock, NeedsYouEvent, Watch } from '../domain/types';
 import { writeAttemptError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 import { precheckFor, type Prechecks } from '../prechecks/index';
+import { SCRIPT_TIMEOUT_MS } from '../prechecks/script';
 import type { PrecheckResult } from '../prechecks/types';
 import type { QueueService } from '../queue/queueService';
 import { closeWatch, enterNeedsYou } from '../watches/needsYou';
@@ -17,6 +18,8 @@ import type { RepositoryService } from '../repositories/repositoryService';
 const MAX_CHECK_FAILURES = 3;
 const CHECK_CONCURRENCY = 5;
 const CHECK_TIMEOUT_MS = 90_000;
+// A pre-check script has its own 15 min limit; this only guards against a hung runner.
+const SCRIPT_CHECK_TIMEOUT_MS = SCRIPT_TIMEOUT_MS + 30_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: NodeJS.Timeout;
@@ -65,11 +68,8 @@ export class Scheduler {
     if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) return;
     if (watch.kind === 'jira' && !config.jira.enabled) return;
     try {
-      const result = await withTimeout(
-        this.check(watch),
-        CHECK_TIMEOUT_MS,
-        `Pre-check timed out after ${CHECK_TIMEOUT_MS / 1000}s`,
-      );
+      const timeoutMs = watch.precheckScript === null ? CHECK_TIMEOUT_MS : SCRIPT_CHECK_TIMEOUT_MS;
+      const result = await withTimeout(this.check(watch), timeoutMs, `Pre-check timed out after ${timeoutMs / 1000}s`);
       const enqueued = this.apply(watch.id, result);
       totals.checked += 1;
       if (enqueued) totals.enqueued += 1;
@@ -192,6 +192,12 @@ export class Scheduler {
           now,
           watchId,
         );
+        if ((result.kind === 'changed' || result.kind === 'unchanged') && result.script !== undefined) {
+          // A failed script keeps the last good output so a later success is still compared against it.
+          db.prepare(
+            'UPDATE watches SET precheck_output = coalesce(?, precheck_output), precheck_problem = ? WHERE id = ?',
+          ).run(result.script.output, result.script.problem, watchId);
+        }
         return result.kind === 'changed';
       })
       .immediate();

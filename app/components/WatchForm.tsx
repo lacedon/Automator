@@ -14,7 +14,15 @@ import { KindBadge } from './KindBadge';
 
 export type EditableWatch = Pick<
   Watch,
-  'id' | 'kind' | 'targetUrl' | 'repository' | 'instructions' | 'intervalMs' | 'model' | 'initialReview'
+  | 'id'
+  | 'kind'
+  | 'targetUrl'
+  | 'repository'
+  | 'instructions'
+  | 'precheckInstructions'
+  | 'intervalMs'
+  | 'model'
+  | 'initialReview'
 >;
 
 type Props = { options: FormOptions } & (
@@ -107,6 +115,7 @@ export function WatchForm(props: Props) {
   const [target, setTarget] = useState(mode === 'create' ? props.initial.target : '');
   const [repository, setRepository] = useState(mode === 'create' ? props.initial.repository : '');
   const [instructions, setInstructions] = useState(watch?.instructions ?? '');
+  const [precheckInstructions, setPrecheckInstructions] = useState(watch?.precheckInstructions ?? '');
   // Until edited, the interval field shows the effective interval and is not submitted, so defaults stay defaults.
   const [interval, setIntervalText] = useState<string | null>(null);
   const [model, setModel] = useState(watch?.model ?? '');
@@ -215,6 +224,24 @@ export function WatchForm(props: Props) {
           {t.rich('agentSettingsNote', { link: (chunks) => <Link href="/settings/agents">{chunks}</Link> })}
         </div>
       </div>
+
+      {kind === 'free' && (
+        <div className="field">
+          <label htmlFor="wf-precheck">
+            {t('precheck')} <span className="muted">{t('precheckHint')}</span>
+          </label>
+          <textarea
+            id="wf-precheck"
+            name="precheckInstructions"
+            rows={3}
+            className={inputClass('precheckInstructions')}
+            value={precheckInstructions}
+            onChange={(e) => setPrecheckInstructions(e.target.value)}
+            placeholder={t('precheckPlaceholder')}
+          />
+          <div className="field-hint muted">{t('precheckNote')}</div>
+        </div>
+      )}
 
       {watch === null && (
         <AgentSelect

@@ -2,6 +2,7 @@ import type { Secrets } from '../config/load';
 import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
 import type { WatchKind } from '../domain/types';
+import type { DataDir } from '../files/dataDir';
 import { fetchWithRetry, type FetchLike } from '../http/fetchWithRetry';
 import { FreeformPrecheck } from './freeform';
 import { GitLabPrecheck, type GitLabPrecheckDeps } from './gitlab';
@@ -23,6 +24,7 @@ export type PrecheckDeps = {
   configFor?: ConfigFor;
   secretsFor?: (config: Config) => Secrets;
   repositories: RepositoryReader;
+  dataDir?: DataDir;
   fetchImpl?: FetchLike;
   gitlabMeCache?: GitLabPrecheckDeps['meCache'];
   githubMeCache?: GitHubPrecheckDeps['meCache'];
@@ -72,7 +74,7 @@ export function createPrechecks(deps: PrecheckDeps): Prechecks {
         ((conn, repository) =>
           createJiraClient(config.jira.connections[conn]!, secretsFor(repository ?? '').jira[conn] ?? {}, fetchImpl)),
     }),
-    free: new FreeformPrecheck(),
+    free: new FreeformPrecheck(deps.dataDir),
   };
 }
 

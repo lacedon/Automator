@@ -180,3 +180,17 @@ test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
   await expect(panel.getByLabel('Message')).toHaveCount(0);
   await expect(panel.getByText(/^Waiting for Run #\d+ to finish$/)).toBeVisible();
 });
+
+test('free-form form generates a pre-check script and keeps its instructions', async ({ page }) => {
+  await page.goto('/automations/new');
+  await expect(page.getByLabel('Pre-check instructions')).toHaveCount(0);
+  await page.getByLabel('Target URL or Jira key').fill('https://wiki.example.com/precheck');
+  await page.getByLabel('Extra instructions').fill('Summarize the page changes.');
+  await page.getByLabel('Pre-check instructions').fill('Compare the Last-Modified header of the page.');
+  await page.getByRole('button', { name: 'Create Automation' }).click();
+  await expect(page).toHaveURL(/\/automations\/\d+$/);
+  await expect(page.getByText('Compare the Last-Modified header of the page.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Edit' }).first().click();
+  await expect(page.getByLabel('Pre-check instructions')).toHaveValue('Compare the Last-Modified header of the page.');
+});
