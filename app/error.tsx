@@ -1,17 +1,18 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 // Shown when a page or Server Action throws unexpectedly (for example SQLITE_BUSY); details are in the server log.
 export default function ErrorPage({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  const t = useTranslations('Error');
   return (
     <div className="error-box" role="alert">
-      <div className="error-title">Something went wrong</div>
-      <p>{error.message || 'Unexpected error.'}</p>
-      {error.digest !== undefined && (
-        <p className="muted">Error digest {error.digest}: see the dashboard log for details.</p>
-      )}
+      <div className="error-title">{t('title')}</div>
+      <p>{error.message || t('unexpected')}</p>
+      {error.digest !== undefined && <p className="muted">{t('digest', { digest: error.digest })}</p>}
       <p>
         <button type="button" className="btn btn-secondary" onClick={() => retry()}>
-          Try again
+          {t('retry')}
         </button>
       </p>
     </div>

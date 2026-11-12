@@ -18,5 +18,26 @@
     "signOut": "Cerrar sesión",
     "main": "Principal",
     "mainMobile": "Principal móvil"
+  },
+  "Error": {
+    "title": "Algo salió mal",
+    "unexpected": "Error inesperado.",
+    "digest": "Resumen del error {digest}: consulta el registro del panel para más detalles.",
+    "retry": "Reintentar"
+  },
+  "Settings": {
+    "title": "Ajustes",
+    "intro": "Administra tu instalación. Los ajustes se aplican a todos los proyectos.",
+    "needsPermission": "Los ajustes requieren el permiso global de escritura."
+  },
+  "Login": {
+    "username": "Usuario",
+    "password": "Contraseña",
+    "signIn": "Iniciar sesión"
+  },
+  "ProjectSwitcher": {
+    "label": "Proyecto",
+    "all": "Todos los proyectos",
+    "unassigned": "Sin asignar"
   }
 }
