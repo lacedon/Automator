@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { OverrideRow, Project } from '@core/index';
 import {
   createProject,
@@ -17,6 +18,7 @@ import { SettingsTable, SettingsTableRow } from './SettingsTable';
 import { SettingsDialog, SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
 function ProjectEditor({ project, repositories }: { project: Project; repositories: string[] }) {
+  const t = useTranslations('Projects');
   const close = useSettingsDialog();
   const [name, setName] = useState(project.name);
   const [selected, setSelected] = useState<string[]>(project.repositories);
@@ -26,10 +28,10 @@ function ProjectEditor({ project, repositories }: { project: Project; repositori
   return (
     <ActionErrorProvider>
       <div className="project-card-head">
-        <input aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input aria-label={t('projectName')} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <fieldset className="project-repos">
-        <legend className="muted">Repositories</legend>
+        <legend className="muted">{t('repositories')}</legend>
         {repositories.map((repo) => (
           <label key={repo}>
             <input type="checkbox" checked={selected.includes(repo)} onChange={() => toggle(repo)} /> {repo}
@@ -37,29 +39,27 @@ function ProjectEditor({ project, repositories }: { project: Project; repositori
         ))}
       </fieldset>
       <div className="field">
-        <label htmlFor={promptId}>Prompt addition</label>
+        <label htmlFor={promptId}>{t('promptAddition')}</label>
         <textarea id={promptId} rows={4} value={promptAddition} onChange={(e) => setPromptAddition(e.target.value)} />
-        <div className="field-hint muted">
-          Appended to every Automation and Ad-hoc prompt for this Project&apos;s Repositories.
-        </div>
+        <div className="field-hint muted">{t('promptAdditionHint')}</div>
       </div>
       <SettingsDialogActions>
         <ActionButton action={() => renameProject(project.id, name)} onDone={close}>
-          Rename
+          {t('rename')}
         </ActionButton>
         <ActionButton
           className="btn btn-primary"
           action={() => setProjectRepositories(project.id, selected)}
           onDone={close}
         >
-          Save repositories
+          {t('saveRepositories')}
         </ActionButton>
         <ActionButton
           className="btn btn-primary"
           action={() => setProjectPromptAddition(project.id, promptAddition)}
           onDone={close}
         >
-          Save prompt addition
+          {t('savePromptAddition')}
         </ActionButton>
       </SettingsDialogActions>
     </ActionErrorProvider>
@@ -75,12 +75,13 @@ function OverrideInput({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const t = useTranslations('Projects');
   const label = `${row.group}: ${row.label}`;
   if (row.kind === 'select' || row.kind === 'boolean') {
     const options = row.kind === 'boolean' ? ['true', 'false'] : (row.options ?? []);
     return (
       <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">inherit ({row.inherited})</option>
+        <option value="">{t('inheritOption', { value: row.inherited })}</option>
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
@@ -93,7 +94,9 @@ function OverrideInput({
     <input
       aria-label={label}
       value={value}
-      placeholder={row.inherited === '' ? 'inherit' : `inherit (${row.inherited})`}
+      placeholder={
+        row.inherited === '' ? t('inheritPlaceholder') : t('inheritPlaceholderValue', { value: row.inherited })
+      }
       inputMode={row.kind === 'number' ? 'numeric' : undefined}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -101,6 +104,7 @@ function OverrideInput({
 }
 
 function ProjectConfigEditor({ project, rows }: { project: Project; rows: OverrideRow[] }) {
+  const t = useTranslations('Projects');
   const close = useSettingsDialog();
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(rows.map((row) => [row.id, row.override])),
@@ -108,10 +112,7 @@ function ProjectConfigEditor({ project, rows }: { project: Project; rows: Overri
   const groups = [...new Set(rows.map((row) => row.group))];
   return (
     <ActionErrorProvider>
-      <p className="muted">
-        Blank settings inherit the global value, including later global changes. Overrides apply to this Project&apos;s
-        Repositories for work started after saving.
-      </p>
+      <p className="muted">{t('configIntro')}</p>
       {groups.map((group) => (
         <fieldset key={group} className="project-config-group">
           <legend>{group}</legend>
@@ -121,7 +122,7 @@ function ProjectConfigEditor({ project, rows }: { project: Project; rows: Overri
               <div className="field" key={row.id}>
                 <label>
                   {row.label}{' '}
-                  <span className="muted">{(values[row.id] ?? '') === '' ? '(inherited)' : '(overridden)'}</span>
+                  <span className="muted">{(values[row.id] ?? '') === '' ? t('inherited') : t('overridden')}</span>
                   <OverrideInput
                     row={row}
                     value={values[row.id] ?? ''}
@@ -135,7 +136,7 @@ function ProjectConfigEditor({ project, rows }: { project: Project; rows: Overri
                     className="btn btn-secondary"
                     onClick={() => setValues((current) => ({ ...current, [row.id]: '' }))}
                   >
-                    Use global value
+                    {t('useGlobal')}
                   </button>
                 )}
               </div>
@@ -150,10 +151,10 @@ function ProjectConfigEditor({ project, rows }: { project: Project; rows: Overri
             close?.();
           }}
         >
-          Reset all to global
+          {t('resetAll')}
         </ActionButton>
         <ActionButton className="btn btn-primary" action={() => setProjectConfig(project.id, values)} onDone={close}>
-          Save settings
+          {t('saveSettings')}
         </ActionButton>
       </SettingsDialogActions>
     </ActionErrorProvider>
@@ -161,6 +162,7 @@ function ProjectConfigEditor({ project, rows }: { project: Project; rows: Overri
 }
 
 function NewProjectForm() {
+  const t = useTranslations('Projects');
   const formId = useId();
   const close = useSettingsDialog();
   const [state, formAction, pending] = useActionState(
@@ -176,14 +178,14 @@ function NewProjectForm() {
     <form id={formId} action={formAction} className="project-create">
       <input
         name="name"
-        aria-label="Project name"
-        placeholder="New project name"
+        aria-label={t('projectName')}
+        placeholder={t('newProjectName')}
         defaultValue={state?.values.name}
         required
       />
       <SettingsDialogActions>
         <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
-          Create project
+          {t('createProject')}
         </button>
       </SettingsDialogActions>
       {state !== null && <ErrorBox error={state.error} />}
@@ -200,39 +202,40 @@ export function ProjectsManager({
   repositories: string[];
   projectConfigs: Record<number, OverrideRow[]>;
 }) {
+  const t = useTranslations('Projects');
   return (
     <>
       <div className="settings-toolbar">
-        <SettingsDialog title="New Project" trigger="New project">
+        <SettingsDialog title={t('newProjectTitle')} trigger={t('newProject')}>
           <NewProjectForm />
         </SettingsDialog>
       </div>
-      <p className="muted">A repository belongs to at most one Project; saving moves it from its previous Project.</p>
+      <p className="muted">{t('belongsToOne')}</p>
       {projects.length > 0 && (
-        <SettingsTable label="Projects" headers={['Project', 'Repositories', 'Actions']}>
+        <SettingsTable label={t('title')} headers={[t('projectCol'), t('repositories'), t('actionsCol')]}>
           {projects.map((p) => (
             <SettingsTableRow
               key={p.id}
               name={p.name}
               actions={
                 <>
-                  <SettingsDialog title={`Edit Project: ${p.name}`}>
+                  <SettingsDialog title={t('editTitle', { name: p.name })}>
                     <ProjectEditor project={p} repositories={repositories} />
                   </SettingsDialog>
-                  <SettingsDialog title={`Settings: ${p.name}`} trigger="Settings" wide>
+                  <SettingsDialog title={t('settingsTitle', { name: p.name })} trigger={t('settings')} wide>
                     <ProjectConfigEditor project={p} rows={projectConfigs[p.id] ?? []} />
                   </SettingsDialog>
                   <ConfirmDialog
-                    label="Delete"
-                    message={`Delete ${p.name}? Its repositories become unassigned; no Automations or Runs are removed.`}
-                    confirmLabel="Delete"
+                    label={t('delete')}
+                    message={t('deleteMessage', { name: p.name })}
+                    confirmLabel={t('delete')}
                     danger
                     action={() => deleteProject(p.id)}
                   />
                 </>
               }
             >
-              <span className="muted">{p.repositories.join(' · ') || 'No Repositories assigned.'}</span>
+              <span className="muted">{p.repositories.join(' · ') || t('noRepositories')}</span>
             </SettingsTableRow>
           ))}
         </SettingsTable>
