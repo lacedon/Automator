@@ -17,7 +17,8 @@
     "signedInAs": "Sesión iniciada como {username}",
     "signOut": "Cerrar sesión",
     "main": "Principal",
-    "mainMobile": "Principal móvil"
+    "mainMobile": "Principal móvil",
+    "chatFallback": "Chat #{id}"
   },
   "Error": {
     "title": "Algo salió mal",

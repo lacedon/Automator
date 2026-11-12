@@ -17,7 +17,8 @@
     "signedInAs": "Вы вошли как {username}",
     "signOut": "Выйти",
     "main": "Основная",
-    "mainMobile": "Основная (мобильная)"
+    "mainMobile": "Основная (мобильная)",
+    "chatFallback": "Чат #{id}"
   },
   "Error": {
     "title": "Что-то пошло не так",

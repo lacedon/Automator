@@ -17,7 +17,8 @@
     "signedInAs": "已登录为 {username}",
     "signOut": "退出登录",
     "main": "主导航",
-    "mainMobile": "移动端主导航"
+    "mainMobile": "移动端主导航",
+    "chatFallback": "聊天 #{id}"
   },
   "Error": {
     "title": "出了点问题",
