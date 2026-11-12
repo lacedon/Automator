@@ -46,6 +46,7 @@ export function createConfigSchema(configDir: string) {
     .object({
       dataDir: pathField.prefault('~/.automator'),
       copilotBin: nonEmpty.default('copilot'),
+      locale: z.enum(['en', 'es', 'zh', 'ru']).default('en'),
       provider: providerName.default('copilot'),
       providers: z
         .object({
