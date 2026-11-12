@@ -19,22 +19,26 @@ test('formats elapsed time with a limit', () => {
 
 test('formats relative time', () => {
   const now = Date.parse('2026-10-21T12:00:00');
-  expect(formatRelative(now - 20 * S, now)).toBe('just now');
-  expect(formatRelative(now - 3 * M, now)).toBe('3m ago');
-  expect(formatRelative(now - 2 * H - 5 * M, now)).toBe('2h ago');
-  expect(formatRelative(now - 30 * H, now)).toBe('yesterday');
-  expect(formatRelative(now - 5 * 24 * H, now)).toBe('5d ago');
-  expect(formatRelative(now + 10 * S, now)).toBe('just now');
+  expect(formatRelative(now - 20 * S, now, 'en')).toBe('now');
+  expect(formatRelative(now - 3 * M, now, 'en')).toBe('3m ago');
+  expect(formatRelative(now - 2 * H - 5 * M, now, 'en')).toBe('2h ago');
+  expect(formatRelative(now - 30 * H, now, 'en')).toBe('yesterday');
+  expect(formatRelative(now - 5 * 24 * H, now, 'en')).toBe('5d ago');
+  expect(formatRelative(now + 10 * S, now, 'en')).toBe('now');
+  expect(formatRelative(now - 3 * M, now, 'ru')).toBe('3 мин. назад');
+  expect(formatRelative(now - 3 * M, now, 'zh')).toBe('3分钟前');
 });
 
 test('formats how long a Run took', () => {
-  expect(formatTook(42 * S)).toBe('42s');
-  expect(formatTook(14 * M + 30 * S)).toBe('14m');
-  expect(formatTook(2 * H + 5 * M)).toBe('2h 5m');
+  expect(formatTook(42 * S, 'en')).toBe('42s');
+  expect(formatTook(42 * S, 'ru')).toBe('42 с');
+  expect(formatTook(14 * M + 30 * S, 'en')).toBe('14m');
+  expect(formatTook(2 * H + 5 * M, 'en')).toBe('2h 5m');
 });
 
 test('formats a date with time of day', () => {
-  expect(formatDateTime(Date.parse('2026-10-18T09:12:00'))).toBe('Oct 18, 09:12');
+  expect(formatDateTime(Date.parse('2026-10-18T09:12:00'), 'en')).toBe('Oct 18, 09:12');
+  expect(formatDateTime(Date.parse('2026-10-18T09:12:00'), 'es')).toBe('18 oct, 09:12');
 });
 
 test('formats intervals exactly like the core duration formatter', () => {
