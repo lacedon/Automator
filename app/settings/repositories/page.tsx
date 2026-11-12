@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { RepositoriesManager } from '../../components/RepositoriesManager';
 import { getCore } from '../../lib/core';
 
 export const dynamic = 'force-dynamic';
 
 export default function RepositorySettingsPage() {
+  const t = useTranslations('Repositories');
   const core = getCore();
   const projects = core.projects.list();
   const repositories = core.repositories.list().map((repository) => ({
@@ -20,13 +22,10 @@ export default function RepositorySettingsPage() {
 
   return (
     <>
-      <h1 className="page-title">Repositories</h1>
-      <p className="muted">
-        Manage Repository folders and connection references. Credentials remain in the application configuration and
-        environment.
-      </p>
+      <h1 className="page-title">{t('title')}</h1>
+      <p className="muted">{t('intro')}</p>
       <p>
-        <Link href="/settings/config">Open Configuration →</Link>
+        <Link href="/settings/config">{t('openConfig')}</Link>
       </p>
       <RepositoriesManager repositories={repositories} connections={connections} />
     </>

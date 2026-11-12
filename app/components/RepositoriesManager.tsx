@@ -2,6 +2,7 @@
 
 import { unstable_rethrow } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { AppError, Repository } from '@core/index';
 import { createRepository, deleteRepository, updateRepository } from '../actions/repositories';
@@ -27,12 +28,13 @@ function ConnectionSelect({
   connections: Connections;
   id: string;
 }) {
+  const t = useTranslations('Repositories');
   const options = connections[group];
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <select id={id} name={group} defaultValue={value}>
-        <option value="">None</option>
+        <option value="">{t('none')}</option>
         {options.map((name) => (
           <option key={name} value={name}>
             {name}
@@ -52,57 +54,59 @@ function RepositoryFields({
   repository?: Repository;
   connections: Connections;
 }) {
+  const t = useTranslations('Repositories');
   return (
     <>
       <div className="field">
-        <label htmlFor={`${id}-name`}>Name</label>
+        <label htmlFor={`${id}-name`}>{t('name')}</label>
         <input id={`${id}-name`} name="name" defaultValue={repository?.name ?? ''} required />
       </div>
       <div className="field">
-        <label htmlFor={`${id}-folder`}>Local folder</label>
+        <label htmlFor={`${id}-folder`}>{t('folder')}</label>
         <input id={`${id}-folder`} name="folder" defaultValue={repository?.folder ?? ''} required />
       </div>
       <ConnectionSelect
         group="gitlab"
-        label="GitLab connection"
+        label={t('gitlabConnection')}
         id={`${id}-gitlab`}
         value={repository?.gitlab ?? ''}
         connections={connections}
       />
       <ConnectionSelect
         group="github"
-        label="GitHub connection"
+        label={t('githubConnection')}
         id={`${id}-github`}
         value={repository?.github ?? ''}
         connections={connections}
       />
       <ConnectionSelect
         group="jira"
-        label="Jira connection"
+        label={t('jiraConnection')}
         id={`${id}-jira`}
         value={repository?.jira ?? ''}
         connections={connections}
       />
       <div className="field">
-        <label htmlFor={`${id}-validate`}>Validation commands</label>
+        <label htmlFor={`${id}-validate`}>{t('validate')}</label>
         <textarea id={`${id}-validate`} name="validate" rows={3} defaultValue={repository?.validate.join('\n') ?? ''} />
-        <div className="field-hint muted">One command per line. Leave blank for no validation commands.</div>
+        <div className="field-hint muted">{t('validateHint')}</div>
       </div>
       <div className="field">
-        <label htmlFor={`${id}-prompt-addition`}>Prompt addition</label>
+        <label htmlFor={`${id}-prompt-addition`}>{t('promptAddition')}</label>
         <textarea
           id={`${id}-prompt-addition`}
           name="promptAddition"
           rows={3}
           defaultValue={repository?.promptAddition ?? ''}
         />
-        <div className="field-hint muted">Appended to every Automation and Ad-hoc prompt for this Repository.</div>
+        <div className="field-hint muted">{t('promptAdditionHint')}</div>
       </div>
     </>
   );
 }
 
 function CreateRepository({ connections }: { connections: Connections }) {
+  const t = useTranslations('Repositories');
   const formId = useId();
   const close = useSettingsDialog();
   const [state, formAction, pending] = useActionState(
@@ -136,7 +140,7 @@ function CreateRepository({ connections }: { connections: Connections }) {
       <RepositoryFields id="new-repository" repository={values} connections={connections} />
       <SettingsDialogActions>
         <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
-          Add Repository
+          {t('add')}
         </button>
       </SettingsDialogActions>
     </form>
@@ -152,6 +156,7 @@ function RepositoryEditForm({
   connections: Connections;
   index: number;
 }) {
+  const t = useTranslations('Repositories');
   const formId = useId();
   const [error, setError] = useState<AppError | string | null>(null);
   const [pending, setPending] = useState(false);
@@ -181,7 +186,7 @@ function RepositoryEditForm({
       <RepositoryFields id={id} repository={repository} connections={connections} />
       <SettingsDialogActions>
         <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
-          Save Repository
+          {t('save')}
         </button>
       </SettingsDialogActions>
     </form>
@@ -195,19 +200,20 @@ function RepositoryCard({
   connections,
   index,
 }: RepositoryRow & { connections: Connections; index: number }) {
+  const t = useTranslations('Repositories');
   return (
     <SettingsTableRow
       name={repository.name}
       actions={
         <>
-          <SettingsDialog title={`Edit Repository: ${repository.name}`}>
+          <SettingsDialog title={t('editTitle', { name: repository.name })}>
             <RepositoryEditForm repository={repository} connections={connections} index={index} />
           </SettingsDialog>
           <ConfirmDialog
             danger
-            label="Delete Repository"
-            confirmLabel="Delete Repository"
-            message={`Delete Repository "${repository.name}"? A Repository with Automations cannot be deleted. This removes only its settings. Local files are never deleted.`}
+            label={t('delete')}
+            confirmLabel={t('delete')}
+            message={t('deleteMessage', { name: repository.name })}
             action={() => deleteRepository(repository.name)}
           />
         </>
@@ -215,7 +221,8 @@ function RepositoryCard({
     >
       <p className="muted">{repository.folder}</p>
       <p className="muted">
-        Project: {projectName ?? 'Unassigned'} · <Link href="/settings/projects">Manage project membership</Link>
+        {t('project', { name: projectName ?? t('unassigned') })} ·{' '}
+        <Link href="/settings/projects">{t('manageMembership')}</Link>
       </p>
       <p className="muted">
         {[
@@ -224,11 +231,11 @@ function RepositoryCard({
           repository.jira && `Jira: ${repository.jira}`,
         ]
           .filter(Boolean)
-          .join(' · ') || 'No service connections.'}
+          .join(' · ') || t('noConnections')}
       </p>
       {status.length > 0 && (
         <p className="field-hint" role="status">
-          Repository setup needs attention: {status.join('; ')}
+          {t('needsAttention', { status: status.join('; ') })}
         </p>
       )}
     </SettingsTableRow>
@@ -242,16 +249,17 @@ export function RepositoriesManager({
   repositories: RepositoryRow[];
   connections: Connections;
 }) {
+  const t = useTranslations('Repositories');
   return (
     <>
       <div className="settings-toolbar">
-        <SettingsDialog title="Add Repository" trigger="Add Repository">
+        <SettingsDialog title={t('add')} trigger={t('add')}>
           <CreateRepository connections={connections} />
         </SettingsDialog>
       </div>
-      {repositories.length === 0 && <p className="muted">No Repositories configured.</p>}
+      {repositories.length === 0 && <p className="muted">{t('empty')}</p>}
       {repositories.length > 0 && (
-        <SettingsTable label="Repositories" headers={['Repository', 'Details', 'Actions']}>
+        <SettingsTable label={t('title')} headers={[t('repositoryCol'), t('detailsCol'), t('actionsCol')]}>
           {repositories.map((row, index) => (
             <RepositoryCard key={row.repository.name} {...row} connections={connections} index={index} />
           ))}
