@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import path from 'node:path';
+import { getTranslations } from 'next-intl/server';
 import { readEditableConfig } from '@core/index';
 import { ConfigForm } from '../../components/ConfigForm';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -15,7 +16,8 @@ function configPath(): string {
   return path.resolve(process.env.AUTOMATOR_CONFIG ?? 'automator.config.json');
 }
 
-export default function ConfigurationSettingsPage() {
+export default async function ConfigurationSettingsPage() {
+  const t = await getTranslations('ConfigPage');
   let loadedConfig: ReturnType<typeof readEditableConfig> | undefined;
   let error: string | null = null;
   try {
@@ -27,15 +29,13 @@ export default function ConfigurationSettingsPage() {
   const config = loadedConfig;
   return (
     <>
-      <h1 className="page-title">Configuration</h1>
-      <p className="muted">
-        Edit non-secret application settings. Credential values and environment bindings are managed outside this form.
+      <h1 className="page-title">{t('title')}</h1>
+      <p className="muted">{t('intro')}</p>
+      <p>
+        <Link href="/settings/agents">{t('agentSettings')}</Link>
       </p>
       <p>
-        <Link href="/settings/agents">Open Agent Settings →</Link>
-      </p>
-      <p>
-        <Link href="/settings/repositories">Open Repository Settings →</Link>
+        <Link href="/settings/repositories">{t('repositorySettings')}</Link>
       </p>
       {error !== null ? (
         <ErrorBox error={error} />
@@ -43,12 +43,12 @@ export default function ConfigurationSettingsPage() {
         config !== undefined && (
           <>
             <div className="settings-toolbar">
-              <SettingsDialog title="Edit Configuration" trigger="Open configuration" wide>
-                <p className="muted">Saved application settings take effect after a restart.</p>
+              <SettingsDialog title={t('editTitle')} trigger={t('open')} wide>
+                <p className="muted">{t('restartNote')}</p>
                 <ConfigForm initial={config} />
               </SettingsDialog>
             </div>
-            <SettingsTable label="Configuration" headers={['Setting', 'Value']}>
+            <SettingsTable label={t('tableLabel')} headers={[t('setting'), t('value')]}>
               {Object.entries(config).map(([key, value]) => (
                 <SettingsTableRow
                   key={key}
@@ -58,7 +58,7 @@ export default function ConfigurationSettingsPage() {
                     {key === 'provider'
                       ? providerLabel(config.provider)
                       : typeof value === 'object' && value !== null
-                        ? `${Object.keys(value).length} configured settings`
+                        ? t('configured', { count: Object.keys(value).length })
                         : String(value)}
                   </span>
                 </SettingsTableRow>
@@ -69,19 +69,16 @@ export default function ConfigurationSettingsPage() {
       )}
       <section aria-labelledby="restart-application-heading">
         <h2 id="restart-application-heading" className="section-h">
-          Restart application
+          {t('restartHeading')}
         </h2>
-        <p className="muted">Saved settings take effect after a restart. Active work will drain first.</p>
+        <p className="muted">{t('restartText')}</p>
         <RestartApplicationButton />
       </section>
       <section aria-labelledby="upgrade-application-heading">
         <h2 id="upgrade-application-heading" className="section-h">
-          Upgrade application
+          {t('upgradeHeading')}
         </h2>
-        <p className="muted">
-          Runs <code>npm run upgrade-and-restart</code> in the Automator checkout. Not available while Runs are active
-          or queued.
-        </p>
+        <p className="muted">{t.rich('upgradeText', { code: (chunks) => <code>{chunks}</code> })}</p>
         <UpgradeAndRestartButton />
       </section>
     </>

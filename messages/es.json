@@ -386,5 +386,85 @@
     "notePlaceholder": "Nota de resolución para la próxima ejecución (opcional)…",
     "resume": "Reanudar",
     "resumeRunNow": "Reanudar y ejecutar ahora"
+  },
+  "SettingsNav": {
+    "label": "Ajustes",
+    "projects": "Proyectos",
+    "repositories": "Repositorios",
+    "agents": "Agentes",
+    "access": "Usuarios y roles",
+    "config": "Configuración"
+  },
+  "SettingsDialog": {
+    "open": "Abrir",
+    "cancel": "Cancelar"
+  },
+  "ConfigPage": {
+    "title": "Configuración",
+    "intro": "Edita los ajustes no secretos de la aplicación. Los valores de credenciales y las variables de entorno se gestionan fuera de este formulario.",
+    "agentSettings": "Abrir ajustes de agentes →",
+    "repositorySettings": "Abrir ajustes de repositorios →",
+    "editTitle": "Editar configuración",
+    "open": "Abrir configuración",
+    "restartNote": "Los ajustes guardados de la aplicación surten efecto tras reiniciar.",
+    "tableLabel": "Configuración",
+    "setting": "Ajuste",
+    "value": "Valor",
+    "configured": "{count, plural, one {# ajuste configurado} other {# ajustes configurados}}",
+    "restartHeading": "Reiniciar la aplicación",
+    "restartText": "Los ajustes guardados surten efecto tras reiniciar. El trabajo activo se terminará primero.",
+    "upgradeHeading": "Actualizar la aplicación",
+    "upgradeText": "Ejecuta <code>npm run upgrade-and-restart</code> en el checkout de Automator. No disponible mientras haya ejecuciones activas o en cola."
+  },
+  "ConfigForm": {
+    "provider": "Proveedor",
+    "onePerLine": "{field} (uno por línea)",
+    "saving": "Guardando…",
+    "save": "Guardar configuración"
+  },
+  "Restart": {
+    "label": "Reiniciar aplicación",
+    "message": "¿Reiniciar la aplicación? El trabajo activo se terminará antes de volver a arrancar.",
+    "confirm": "Reiniciar",
+    "accepted": "Reinicio aceptado. El trabajo activo se está terminando antes de reiniciar la aplicación."
+  },
+  "Upgrade": {
+    "upgrading": "Actualizando y reiniciando… Esta página se recargará cuando la aplicación vuelva a estar en línea.",
+    "label": "Actualizar y reiniciar",
+    "message": "¿Actualizar y reiniciar? Esto hace checkout de master, descarga los últimos cambios, ejecuta npm ci, compila y reinicia la aplicación. Se rechaza mientras haya ejecuciones activas o en cola."
+  },
+  "Tokens": {
+    "never": "nunca",
+    "copy": "Copia este token ahora; no se volverá a mostrar:",
+    "nameLabel": "Nombre del token",
+    "name": "Nombre",
+    "expiresLabel": "Caduca en días",
+    "expiresPlaceholder": "Caduca en días (vacío: nunca)",
+    "create": "Crear token",
+    "tableLabel": "Tokens de acceso",
+    "token": "Token",
+    "usage": "Uso",
+    "actions": "Acciones",
+    "regenerate": "Regenerar",
+    "revoke": "Revocar",
+    "usageText": "Caduca: {expires} · Último uso: {lastUsed}"
+  },
+  "Credentials": {
+    "nameLabel": "Nombre de la credencial",
+    "valueLabel": "Valor de la credencial",
+    "value": "Valor",
+    "enterValue": "Introduce un valor",
+    "save": "Guardar credencial",
+    "tableLabel": "Credenciales",
+    "name": "Nombre",
+    "updated": "Actualizada",
+    "actions": "Acciones",
+    "remove": "Eliminar"
+  },
+  "Account": {
+    "title": "Tokens de acceso",
+    "intro": "Los tokens permiten que la CLI y los clientes de API actúen como {username} con tus permisos. Envía uno como <code>{header}</code>. Un token se muestra una sola vez; regenéralo si lo pierdes.",
+    "credentials": "Credenciales",
+    "credentialsIntro": "Tus propios secretos para las ejecuciones que posees, como el token con el que inicia sesión el agente. Se almacenan cifrados, no se vuelven a mostrar y se usan en lugar del valor del servidor; sin uno se aplica el valor del servidor."
   }
 }

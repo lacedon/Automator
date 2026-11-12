@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import type { EditableConfig, ProviderName } from '@core/index';
 import { saveConfig } from '../actions/config';
@@ -51,12 +52,13 @@ function LinesField({
   path: string[];
   onChange: (path: string[], value: unknown) => void;
 }) {
+  const t = useTranslations('ConfigForm');
   const numeric = field === 'days';
   const [text, setText] = useState(value.join('\n'));
   if (JSON.stringify(parseLines(text, numeric)) !== JSON.stringify(value)) setText(value.join('\n'));
   return (
     <div className="field">
-      <label htmlFor={id}>{label(field)} (one per line)</label>
+      <label htmlFor={id}>{t('onePerLine', { field: label(field) })}</label>
       <textarea
         id={id}
         rows={Math.min(Math.max(value.length, 2), 8)}
@@ -79,13 +81,14 @@ function ConfigValue({
   path: string[];
   onChange: (path: string[], value: unknown) => void;
 }) {
+  const t = useTranslations('ConfigForm');
   const field = path.at(-1) ?? '';
   const id = inputId(path);
 
   if (path.length === 1 && path[0] === 'provider') {
     return (
       <div className="field">
-        <label htmlFor={id}>Provider</label>
+        <label htmlFor={id}>{t('provider')}</label>
         <select id={id} value={String(value)} onChange={(event) => onChange(path, event.target.value)}>
           {PROVIDERS.map((provider) => (
             <option key={provider} value={provider}>
@@ -139,6 +142,7 @@ function ConfigValue({
 }
 
 export function ConfigForm({ initial }: { initial: EditableConfig }) {
+  const t = useTranslations('ConfigForm');
   const formId = useId();
   const [config, setConfig] = useState(initial);
   const close = useSettingsDialog();
@@ -173,7 +177,7 @@ export function ConfigForm({ initial }: { initial: EditableConfig }) {
         ))}
       <SettingsDialogActions>
         <button type="submit" form={formId} className="btn btn-primary" disabled={pending}>
-          {pending ? 'Saving…' : 'Save Configuration'}
+          {pending ? t('saving') : t('save')}
         </button>
       </SettingsDialogActions>
     </form>

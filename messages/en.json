@@ -386,5 +386,85 @@
     "notePlaceholder": "Resolution note for the next run (optional)…",
     "resume": "Resume",
     "resumeRunNow": "Resume & run now"
+  },
+  "SettingsNav": {
+    "label": "Settings",
+    "projects": "Projects",
+    "repositories": "Repositories",
+    "agents": "Agents",
+    "access": "Users & roles",
+    "config": "Configuration"
+  },
+  "SettingsDialog": {
+    "open": "Open",
+    "cancel": "Cancel"
+  },
+  "ConfigPage": {
+    "title": "Configuration",
+    "intro": "Edit non-secret application settings. Credential values and environment bindings are managed outside this form.",
+    "agentSettings": "Open Agent Settings →",
+    "repositorySettings": "Open Repository Settings →",
+    "editTitle": "Edit Configuration",
+    "open": "Open configuration",
+    "restartNote": "Saved application settings take effect after a restart.",
+    "tableLabel": "Configuration",
+    "setting": "Setting",
+    "value": "Value",
+    "configured": "{count, plural, one {# configured setting} other {# configured settings}}",
+    "restartHeading": "Restart application",
+    "restartText": "Saved settings take effect after a restart. Active work will drain first.",
+    "upgradeHeading": "Upgrade application",
+    "upgradeText": "Runs <code>npm run upgrade-and-restart</code> in the Automator checkout. Not available while Runs are active or queued."
+  },
+  "ConfigForm": {
+    "provider": "Provider",
+    "onePerLine": "{field} (one per line)",
+    "saving": "Saving…",
+    "save": "Save Configuration"
+  },
+  "Restart": {
+    "label": "Restart Application",
+    "message": "Restart the application? Active work will drain before it starts again.",
+    "confirm": "Restart",
+    "accepted": "Restart accepted. Active work is draining before the application restarts."
+  },
+  "Upgrade": {
+    "upgrading": "Upgrading and restarting… This page reloads once the application is back online.",
+    "label": "Upgrade and restart",
+    "message": "Upgrade and restart? This checks out master, pulls the latest changes, runs npm ci, builds and restarts the application. It is rejected while Runs are active or queued."
+  },
+  "Tokens": {
+    "never": "never",
+    "copy": "Copy this token now; it will not be shown again:",
+    "nameLabel": "Token name",
+    "name": "Name",
+    "expiresLabel": "Expires in days",
+    "expiresPlaceholder": "Expires in days (blank: never)",
+    "create": "Create token",
+    "tableLabel": "Access tokens",
+    "token": "Token",
+    "usage": "Usage",
+    "actions": "Actions",
+    "regenerate": "Regenerate",
+    "revoke": "Revoke",
+    "usageText": "Expires: {expires} · Last used: {lastUsed}"
+  },
+  "Credentials": {
+    "nameLabel": "Credential name",
+    "valueLabel": "Credential value",
+    "value": "Value",
+    "enterValue": "Enter a value",
+    "save": "Save credential",
+    "tableLabel": "Credentials",
+    "name": "Name",
+    "updated": "Updated",
+    "actions": "Actions",
+    "remove": "Remove"
+  },
+  "Account": {
+    "title": "Access tokens",
+    "intro": "Tokens let the CLI and API clients act as {username} with your permissions. Send one as <code>{header}</code>. A token is shown only once; regenerate it if you lose it.",
+    "credentials": "Credentials",
+    "credentialsIntro": "Your own secrets for the Runs you own, such as the token the agent signs in with. They are stored encrypted, never shown again, and used instead of the server's value; without one the server's value applies."
   }
 }
