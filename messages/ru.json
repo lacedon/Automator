@@ -39,5 +39,54 @@
     "label": "Проект",
     "all": "Все проекты",
     "unassigned": "Не назначены"
+  },
+  "ErrorBox": {
+    "somethingWrong": "Что-то пошло не так: {message}",
+    "instructionsRequired": "Требуются инструкции.",
+    "invalidInput": "{field}: {message}",
+    "invalidState": "Нельзя выполнить «{action}» в состоянии {state}.",
+    "runInProgress": "Запуск #{runId} выполняется.",
+    "jiraDisabled": "Jira отключена в конфигурации.",
+    "forbidden": "У вас нет прав на это действие.",
+    "notFound": "Его больше не существует.",
+    "unknownRepository": "Неизвестный репозиторий «{name}»",
+    "knownRepositories": "{outcome} Известные репозитории: {known}.",
+    "noAutomationCreated": "Автоматизация не создана.",
+    "resultFile": "Файл результата:",
+    "open": "открыть",
+    "resultFileFailed": "Не удалось записать файл результата: {error}",
+    "alreadyAutomated": "Уже автоматизировано",
+    "existingAutomation": "Для этой цели уже есть автоматизация:",
+    "every": "каждые {interval}",
+    "openExisting": "Открыть существующую автоматизацию →"
+  },
+  "NeedsYouCard": {
+    "sent": "отправлено ✓",
+    "failed": "сбой: {error}",
+    "unknownError": "неизвестная ошибка",
+    "pending": "ожидает",
+    "off": "выкл.",
+    "why": "Почему нужно ваше действие",
+    "since": " · с ",
+    "run": "Запуск #{id}",
+    "viewError": "Посмотреть результат ошибки",
+    "teams": "Уведомление Teams:"
+  },
+  "RunsTable": {
+    "empty": "Запусков пока нет.",
+    "trigger": "Триггер",
+    "provider": "Провайдер",
+    "started": "Начало",
+    "took": "Длительность",
+    "outcome": "Итог",
+    "summary": "Сводка",
+    "transcript": "транскрипт",
+    "result": "результат"
+  },
+  "RunNow": {
+    "runNow": "Запустить ▾",
+    "extra": "Дополнительные инструкции для этого запуска (необязательно)",
+    "reviewUnresolved": "Проверить существующие нерешённые обсуждения",
+    "queue": "Поставить в очередь"
   }
 }

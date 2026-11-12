@@ -39,5 +39,54 @@
     "label": "Proyecto",
     "all": "Todos los proyectos",
     "unassigned": "Sin asignar"
+  },
+  "ErrorBox": {
+    "somethingWrong": "Algo salió mal: {message}",
+    "instructionsRequired": "Las instrucciones son obligatorias.",
+    "invalidInput": "{field}: {message}",
+    "invalidState": "No se puede {action} mientras está {state}.",
+    "runInProgress": "La ejecución #{runId} está en curso.",
+    "jiraDisabled": "Jira está desactivado en la configuración.",
+    "forbidden": "No tienes permiso para hacerlo.",
+    "notFound": "Ya no existe.",
+    "unknownRepository": "Repositorio desconocido \"{name}\"",
+    "knownRepositories": "{outcome} Repositorios conocidos: {known}.",
+    "noAutomationCreated": "No se creó ninguna automatización.",
+    "resultFile": "Archivo de resultado:",
+    "open": "abrir",
+    "resultFileFailed": "No se pudo escribir el archivo de resultado: {error}",
+    "alreadyAutomated": "Ya automatizado",
+    "existingAutomation": "Este destino ya tiene una automatización:",
+    "every": "cada {interval}",
+    "openExisting": "Abrir la automatización existente →"
+  },
+  "NeedsYouCard": {
+    "sent": "enviado ✓",
+    "failed": "falló: {error}",
+    "unknownError": "error desconocido",
+    "pending": "pendiente",
+    "off": "desactivado",
+    "why": "Por qué requiere tu acción",
+    "since": " · desde ",
+    "run": "Ejecución #{id}",
+    "viewError": "Ver resultado del error",
+    "teams": "Notificación de Teams:"
+  },
+  "RunsTable": {
+    "empty": "Aún no hay ejecuciones.",
+    "trigger": "Disparador",
+    "provider": "Proveedor",
+    "started": "Inicio",
+    "took": "Duración",
+    "outcome": "Resultado",
+    "summary": "Resumen",
+    "transcript": "transcripción",
+    "result": "resultado"
+  },
+  "RunNow": {
+    "runNow": "Ejecutar ahora ▾",
+    "extra": "Instrucciones adicionales para esta ejecución (opcional)",
+    "reviewUnresolved": "Revisar las discusiones sin resolver existentes",
+    "queue": "Poner en cola"
   }
 }

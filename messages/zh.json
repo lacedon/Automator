@@ -39,5 +39,54 @@
     "label": "项目",
     "all": "所有项目",
     "unassigned": "未分配"
+  },
+  "ErrorBox": {
+    "somethingWrong": "出了点问题：{message}",
+    "instructionsRequired": "必须填写指令。",
+    "invalidInput": "{field}：{message}",
+    "invalidState": "在{state}时无法{action}。",
+    "runInProgress": "运行 #{runId} 正在进行中。",
+    "jiraDisabled": "配置中已禁用 Jira。",
+    "forbidden": "你没有执行此操作的权限。",
+    "notFound": "它已不存在。",
+    "unknownRepository": "未知仓库“{name}”",
+    "knownRepositories": "{outcome}已知仓库：{known}。",
+    "noAutomationCreated": "未创建自动化。",
+    "resultFile": "结果文件：",
+    "open": "打开",
+    "resultFileFailed": "无法写入结果文件：{error}",
+    "alreadyAutomated": "已有自动化",
+    "existingAutomation": "此目标已有自动化：",
+    "every": "每 {interval}",
+    "openExisting": "打开现有自动化 →"
+  },
+  "NeedsYouCard": {
+    "sent": "已发送 ✓",
+    "failed": "失败：{error}",
+    "unknownError": "未知错误",
+    "pending": "待处理",
+    "off": "关闭",
+    "why": "为何需要你处理",
+    "since": " · 自 ",
+    "run": "运行 #{id}",
+    "viewError": "查看错误结果",
+    "teams": "Teams 通知："
+  },
+  "RunsTable": {
+    "empty": "暂无运行。",
+    "trigger": "触发方式",
+    "provider": "提供方",
+    "started": "开始时间",
+    "took": "耗时",
+    "outcome": "结果",
+    "summary": "摘要",
+    "transcript": "记录",
+    "result": "结果文件"
+  },
+  "RunNow": {
+    "runNow": "立即运行 ▾",
+    "extra": "本次运行的额外指令（可选）",
+    "reviewUnresolved": "审查现有未解决的讨论",
+    "queue": "加入队列"
   }
 }

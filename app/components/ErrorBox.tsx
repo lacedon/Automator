@@ -1,31 +1,34 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import type { AppError } from '@core/index';
 import { formatInterval } from '../lib/format';
 import { WatchStatePill } from './Pill';
 
 type SimpleError = Exclude<AppError, { code: 'UNKNOWN_REPOSITORY' | 'DUPLICATE_WATCH' }>;
 
-function describe(error: SimpleError): string {
+type T = ReturnType<typeof useTranslations<'ErrorBox'>>;
+
+function describe(error: SimpleError, t: T): string {
   switch (error.code) {
     case 'INVALID_TARGET':
       return error.message;
     case 'MISSING_INSTRUCTIONS':
-      return 'Instructions are required.';
+      return t('instructionsRequired');
     case 'INVALID_INPUT':
-      return `${error.field}: ${error.message}`;
+      return t('invalidInput', { field: error.field, message: error.message });
     case 'RESTART_FAILED':
     case 'UPGRADE_FAILED':
       return error.message;
     case 'INVALID_STATE':
-      return `Can't ${error.action} while ${error.state.replace('_', ' ')}.`;
+      return t('invalidState', { action: error.action, state: error.state.replace('_', ' ') });
     case 'RUN_IN_PROGRESS':
-      return `Run #${error.runId} is in progress.`;
+      return t('runInProgress', { runId: error.runId });
     case 'JIRA_DISABLED':
-      return 'Jira is disabled in the config.';
+      return t('jiraDisabled');
     case 'FORBIDDEN':
-      return 'You do not have permission to do that.';
+      return t('forbidden');
     case 'NOT_FOUND':
-      return 'It no longer exists.';
+      return t('notFound');
   }
 }
 
@@ -36,39 +39,40 @@ function basename(file: string): string {
 type UnknownRepositoryProps = { error: Extract<AppError, { code: 'UNKNOWN_REPOSITORY' }>; outcome: string };
 
 function UnknownRepository({ error, outcome }: UnknownRepositoryProps) {
+  const t = useTranslations('ErrorBox');
   return (
     <>
-      <div className="error-title">Unknown Repository &quot;{error.name}&quot;</div>
-      <p>
-        {outcome} Known Repositories: {error.known.join(', ')}.
-      </p>
+      <div className="error-title">{t('unknownRepository', { name: error.name })}</div>
+      <p>{t('knownRepositories', { outcome, known: error.known.join(', ') })}</p>
       {error.attemptFile !== null && (
         <p className="muted">
-          Result file: <code>{error.attemptFile}</code>{' '}
+          {t('resultFile')} <code>{error.attemptFile}</code>{' '}
           <a
             href={`/files/attempt/${encodeURIComponent(basename(error.attemptFile))}`}
             target="_blank"
             rel="noreferrer"
           >
-            open
+            {t('open')}
           </a>
         </p>
       )}
-      {error.attemptFileError !== undefined && <p>The result file could not be written: {error.attemptFileError}</p>}
+      {error.attemptFileError !== undefined && <p>{t('resultFileFailed', { error: error.attemptFileError })}</p>}
     </>
   );
 }
 
 function Duplicate({ error }: { error: Extract<AppError, { code: 'DUPLICATE_WATCH' }> }) {
+  const t = useTranslations('ErrorBox');
   const { id, state, intervalMs } = error.existing;
   return (
     <>
-      <div className="error-title">Already automated</div>
+      <div className="error-title">{t('alreadyAutomated')}</div>
       <p>
-        This target already has an Automation: <WatchStatePill state={state} /> every {formatInterval(intervalMs)}.
+        {t('existingAutomation')} <WatchStatePill state={state} />{' '}
+        {t('every', { interval: formatInterval(intervalMs) })}.
       </p>
       <p>
-        <Link href={`/automations/${id}`}>Open existing Automation →</Link>
+        <Link href={`/automations/${id}`}>{t('openExisting')}</Link>
       </p>
     </>
   );
@@ -81,18 +85,19 @@ type Props = {
 };
 
 // One red box for every action failure: a domain error, or the message of an unexpected throw.
-export function ErrorBox({ error, unknownRepositoryOutcome = 'No Automation was created.' }: Props) {
+export function ErrorBox({ error, unknownRepositoryOutcome }: Props) {
+  const t = useTranslations('ErrorBox');
   return (
     <div className="error-box" role="alert">
       {typeof error === 'string' ? (
-        <>Something went wrong: {error}</>
+        <>{t('somethingWrong', { message: error })}</>
       ) : error.code === 'UNKNOWN_REPOSITORY' ? (
-        <UnknownRepository error={error} outcome={unknownRepositoryOutcome} />
+        <UnknownRepository error={error} outcome={unknownRepositoryOutcome ?? t('noAutomationCreated')} />
       ) : error.code === 'DUPLICATE_WATCH' ? (
         <Duplicate error={error} />
       ) : (
         <>
-          <code>{error.code}</code> {describe(error)}
+          <code>{error.code}</code> {describe(error, t)}
         </>
       )}
     </div>

@@ -1,22 +1,25 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import type { NeedsYouEvent, Watch } from '@core/index';
 import { RelativeTime } from './RelativeTime';
 import { ResumeForm } from './ResumeForm';
 
 function TeamsStatus({ event }: { event: NeedsYouEvent }) {
+  const t = useTranslations('NeedsYouCard');
   switch (event.teamsStatus) {
     case 'sent':
-      return <>sent ✓</>;
+      return <>{t('sent')}</>;
     case 'failed':
-      return <span className="danger-text">failed: {event.teamsError ?? 'unknown error'}</span>;
+      return <span className="danger-text">{t('failed', { error: event.teamsError ?? t('unknownError') })}</span>;
     case 'pending':
-      return <>pending</>;
+      return <>{t('pending')}</>;
     case 'disabled':
-      return <>off</>;
+      return <>{t('off')}</>;
   }
 }
 
 export function NeedsYouCard({ watch, event }: { watch: Watch; event: NeedsYouEvent | null }) {
+  const t = useTranslations('NeedsYouCard');
   const reason = watch.needsYouReason ?? event?.reason ?? null;
   const errorResult = reason?.match(/\n\nError result: (\/files\/attempt\/[A-Za-z0-9._-]+)$/) ?? null;
   const since = watch.needsYouSince ?? event?.createdAt ?? null;
@@ -24,17 +27,17 @@ export function NeedsYouCard({ watch, event }: { watch: Watch; event: NeedsYouEv
   return (
     <div className="card card-needs">
       <div>
-        <b>Why it needs you</b>
+        <b>{t('why')}</b>
         {since !== null && (
           <span className="muted">
-            {' · since '}
+            {t('since')}
             <RelativeTime at={since} />
           </span>
         )}
         {runId !== null && (
           <span className="muted">
             {' · '}
-            <Link href={`/runs/${runId}`}>Run #{runId}</Link>
+            <Link href={`/runs/${runId}`}>{t('run', { id: runId })}</Link>
           </span>
         )}
       </div>
@@ -44,14 +47,14 @@ export function NeedsYouCard({ watch, event }: { watch: Watch; event: NeedsYouEv
           {errorResult !== null && (
             <>
               {' '}
-              <Link href={errorResult[1]!}>View error result</Link>
+              <Link href={errorResult[1]!}>{t('viewError')}</Link>
             </>
           )}
         </p>
       )}
       {event !== null && (
         <div className="muted">
-          Teams notification: <TeamsStatus event={event} />
+          {t('teams')} <TeamsStatus event={event} />
         </div>
       )}
       <ResumeForm watchId={watch.id} withNote />

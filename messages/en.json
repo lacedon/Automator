@@ -39,5 +39,54 @@
     "label": "Project",
     "all": "All projects",
     "unassigned": "Unassigned"
+  },
+  "ErrorBox": {
+    "somethingWrong": "Something went wrong: {message}",
+    "instructionsRequired": "Instructions are required.",
+    "invalidInput": "{field}: {message}",
+    "invalidState": "Can't {action} while {state}.",
+    "runInProgress": "Run #{runId} is in progress.",
+    "jiraDisabled": "Jira is disabled in the config.",
+    "forbidden": "You do not have permission to do that.",
+    "notFound": "It no longer exists.",
+    "unknownRepository": "Unknown Repository \"{name}\"",
+    "knownRepositories": "{outcome} Known Repositories: {known}.",
+    "noAutomationCreated": "No Automation was created.",
+    "resultFile": "Result file:",
+    "open": "open",
+    "resultFileFailed": "The result file could not be written: {error}",
+    "alreadyAutomated": "Already automated",
+    "existingAutomation": "This target already has an Automation:",
+    "every": "every {interval}",
+    "openExisting": "Open existing Automation →"
+  },
+  "NeedsYouCard": {
+    "sent": "sent ✓",
+    "failed": "failed: {error}",
+    "unknownError": "unknown error",
+    "pending": "pending",
+    "off": "off",
+    "why": "Why it needs you",
+    "since": " · since ",
+    "run": "Run #{id}",
+    "viewError": "View error result",
+    "teams": "Teams notification:"
+  },
+  "RunsTable": {
+    "empty": "No Runs yet.",
+    "trigger": "Trigger",
+    "provider": "Provider",
+    "started": "Started",
+    "took": "Took",
+    "outcome": "Outcome",
+    "summary": "Summary",
+    "transcript": "transcript",
+    "result": "result"
+  },
+  "RunNow": {
+    "runNow": "Run now ▾",
+    "extra": "Extra instructions for this Run (optional)",
+    "reviewUnresolved": "Review existing unresolved discussions",
+    "queue": "Queue Run"
   }
 }
