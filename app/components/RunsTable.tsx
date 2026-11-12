@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import type { RunRow } from '@core/index';
 import { formatDateTime, formatTook } from '../lib/format';
 import { providerLabel } from '../lib/providerLabel';
@@ -6,18 +7,19 @@ import { EmptyState } from './EmptyState';
 import { RunPill } from './Pill';
 
 export function RunsTable({ runs }: { runs: RunRow[] }) {
-  if (runs.length === 0) return <EmptyState>No Runs yet.</EmptyState>;
+  const t = useTranslations('RunsTable');
+  if (runs.length === 0) return <EmptyState>{t('empty')}</EmptyState>;
   return (
     <table className="table">
       <thead>
         <tr>
           <th>#</th>
-          <th>Trigger</th>
-          <th>Provider</th>
-          <th>Started</th>
-          <th>Took</th>
-          <th>Outcome</th>
-          <th>Summary</th>
+          <th>{t('trigger')}</th>
+          <th>{t('provider')}</th>
+          <th>{t('started')}</th>
+          <th>{t('took')}</th>
+          <th>{t('outcome')}</th>
+          <th>{t('summary')}</th>
           <th />
         </tr>
       </thead>
@@ -42,13 +44,13 @@ export function RunsTable({ runs }: { runs: RunRow[] }) {
             <td className="nowrap">
               {run.transcriptPath !== null && (
                 <a href={`/files/run/${run.id}/transcript.md`} target="_blank" rel="noreferrer">
-                  transcript
+                  {t('transcript')}
                 </a>
               )}
               {run.transcriptPath !== null && run.resultPath !== null && ' · '}
               {run.resultPath !== null && (
                 <a href={`/files/run/${run.id}/result.json`} target="_blank" rel="noreferrer">
-                  result
+                  {t('result')}
                 </a>
               )}
             </td>

@@ -1,7 +1,9 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { NextIntlClientProvider } from 'next-intl';
 import { expect, test, vi } from 'vitest';
 import type { Watch } from '@core/index';
+import en from '../../messages/en.json';
 import { NeedsYouCard } from './NeedsYouCard';
 
 vi.mock('../actions/watches', () => ({ resumeWatch: async () => null }));
@@ -35,7 +37,14 @@ test('links the scheduled Repository error result from the Needs you card', () =
     updatedAt: 1,
   };
 
-  const markup = renderToStaticMarkup(createElement(NeedsYouCard, { watch, event: null }));
+  const markup = renderToStaticMarkup(
+    // eslint-disable-next-line react/no-children-prop -- the provider's props type requires children
+    createElement(NextIntlClientProvider, {
+      locale: 'en',
+      messages: en,
+      children: createElement(NeedsYouCard, { watch, event: null }),
+    }),
+  );
 
   expect(markup).toContain('Folder does not exist: /work/app');
   expect(markup).toContain('href="/files/attempt/2026-11-03T20-00-00.000Z-123.json"');
