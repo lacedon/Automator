@@ -74,6 +74,7 @@ export interface Run {
   summary: string | null;
   error: RunError | null;
   interrupted: Interrupted | null;
+  closedAt: number | null;
   cursorCandidate: Cursor | null;
   branch: string | null;
   promptPath: string | null;

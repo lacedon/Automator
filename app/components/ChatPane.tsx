@@ -5,9 +5,15 @@ import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import type { ThreadRun, ThreadView } from '@core/index';
 import { sendRunMessage, type ChatFormState } from '../actions/chat';
+import { closeRun } from '../actions/runs';
+import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
 import { RunPill } from './Pill';
 import { RunFileLinks } from './RunFileLinks';
+
+export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | 'closedAt'>): boolean {
+  return run.status === 'finished' && run.closedAt === null && (run.outcome === 'needs-you' || run.error !== null);
+}
 
 // All text is rendered as React text nodes: no HTML, no Markdown.
 function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
@@ -17,6 +23,7 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
     outcome: run.outcome,
     resultStatus: run.error === null ? null : ('error' as const),
     interrupted: null,
+    closedAt: run.closedAt,
   };
   return (
     <div className="chat-run">
@@ -38,6 +45,16 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
       <div className="chat-run-files muted">
         <RunFileLinks runId={run.id} />
       </div>
+      {current && canClose(run) && (
+        <div className="actions">
+          <ConfirmDialog
+            label={t('close')}
+            message={t('closeMessage')}
+            confirmLabel={t('closeConfirm')}
+            action={() => closeRun(run.id)}
+          />
+        </div>
+      )}
     </div>
   );
 }

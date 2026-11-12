@@ -10,7 +10,7 @@ vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
 vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
 vi.mock('next/cache', () => ({ revalidatePath }));
 
-const { cancelQueued, closeWatchFromQueue } = await import('./runs');
+const { cancelQueued, closeRun, closeWatchFromQueue } = await import('./runs');
 
 let core: Core;
 
@@ -59,4 +59,14 @@ test('closeWatchFromQueue closes the Automation and removes its queued request',
     ok: false,
     error: { code: 'INVALID_STATE', state: 'closed', action: 'close' },
   });
+});
+
+test('closeRun marks a Needs you Run Done and refuses a second close', async () => {
+  const run = core.queue.enqueueAdhoc({ repository: 'pages', prompt: 'a', model: 'm' });
+  core.db.prepare("UPDATE runs SET status = 'finished', outcome = 'needs-you' WHERE id = ?").run(run.id);
+
+  expect(await closeRun(run.id)).toEqual({ ok: true });
+  expect((await core.read.runDetail(run.id))?.run.closedAt).not.toBeNull();
+  expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+  expect(await closeRun(run.id)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
 });

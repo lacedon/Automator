@@ -96,6 +96,7 @@ function run(partial: Partial<Run> = {}): Run {
     summary: null,
     error: null,
     interrupted: null,
+    closedAt: null,
     cursorCandidate: null,
     branch: null,
     promptPath: null,

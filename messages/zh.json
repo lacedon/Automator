@@ -153,6 +153,7 @@
     "adhoc": "临时"
   },
   "Pill": {
+    "done": "已完成",
     "timeout": "已超时",
     "cancelled": "已取消",
     "worker-restart": "工作进程重启",
@@ -221,6 +222,9 @@
     "details": "运行详情"
   },
   "Chat": {
+    "close": "关闭聊天",
+    "closeMessage": "将此聊天标记为已完成？此操作无法撤销。",
+    "closeConfirm": "标记为已完成",
     "run": "运行 #{id}",
     "thisRun": "（本次运行）",
     "message": "消息",

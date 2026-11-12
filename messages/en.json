@@ -153,6 +153,7 @@
     "adhoc": "ad-hoc"
   },
   "Pill": {
+    "done": "Done",
     "timeout": "timed out",
     "cancelled": "cancelled",
     "worker-restart": "worker restart",
@@ -221,6 +222,9 @@
     "details": "Run details"
   },
   "Chat": {
+    "close": "Close chat",
+    "closeMessage": "Mark this chat as Done? This cannot be undone.",
+    "closeConfirm": "Mark as Done",
     "run": "Run #{id}",
     "thisRun": " (this Run)",
     "message": "Message",

@@ -23,6 +23,7 @@ function singleRunThread(run: Run): ThreadView {
         ticketKey: run.ticketKey,
         summary: run.summary,
         error: run.error,
+        closedAt: run.closedAt,
         queuedAt: run.queuedAt,
         endedAt: run.endedAt,
       },

@@ -354,6 +354,32 @@ export class QueueService {
       .immediate();
   }
 
+  // Marks a finished Run that needs the user (Needs you or Error) as Done. Irreversible.
+  closeRun(runId: number): Result<void> {
+    return this.db
+      .transaction((): Result<void> => {
+        const row = this.db
+          .prepare('SELECT status, outcome, result_status, interrupted, closed_at FROM runs WHERE id = ?')
+          .get(runId) as
+          | {
+              status: RunStatus;
+              outcome: string | null;
+              result_status: string | null;
+              interrupted: string | null;
+              closed_at: number | null;
+            }
+          | undefined;
+        if (!row) return err({ code: 'NOT_FOUND' });
+        const needsUser = row.interrupted === null && (row.result_status === 'error' || row.outcome === 'needs-you');
+        if (row.status !== 'finished' || row.closed_at !== null || !needsUser) {
+          return err({ code: 'INVALID_STATE', state: row.status, action: 'closeRun' });
+        }
+        this.db.prepare('UPDATE runs SET closed_at = ? WHERE id = ?').run(this.clock.now(), runId);
+        return ok(undefined);
+      })
+      .immediate();
+  }
+
   deleteAdhoc(runId: number): Result<void> {
     const result = this.db
       .transaction((): Result<void> => {

@@ -10,6 +10,7 @@ export type ThreadRun = {
   ticketKey: string | null;
   summary: string | null;
   error: RunError | null;
+  closedAt: number | null;
   queuedAt: number;
   endedAt: number | null;
 };
@@ -29,6 +30,7 @@ function toThreadRun(run: Run): ThreadRun {
     ticketKey: run.ticketKey,
     summary: run.summary,
     error: run.error,
+    closedAt: run.closedAt,
     queuedAt: run.queuedAt,
     endedAt: run.endedAt,
   };

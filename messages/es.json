@@ -153,6 +153,7 @@
     "adhoc": "ad hoc"
   },
   "Pill": {
+    "done": "Hecho",
     "timeout": "tiempo agotado",
     "cancelled": "cancelada",
     "worker-restart": "reinicio del worker",
@@ -221,6 +222,9 @@
     "details": "Detalles de la ejecución"
   },
   "Chat": {
+    "close": "Cerrar chat",
+    "closeMessage": "¿Marcar este chat como Hecho? No se puede deshacer.",
+    "closeConfirm": "Marcar como Hecho",
     "run": "Ejecución #{id}",
     "thisRun": " (esta ejecución)",
     "message": "Mensaje",
