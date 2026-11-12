@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Permission, Role, RoleAssignment, User } from '@core/index';
 import {
   assignRole,
@@ -25,6 +26,7 @@ type Props = {
 };
 
 function PermissionBoxes({ value, onChange }: { value: Permission[]; onChange: (next: Permission[]) => void }) {
+  const t = useTranslations('Access');
   return (
     <>
       {PERMISSIONS.map((p) => (
@@ -34,7 +36,7 @@ function PermissionBoxes({ value, onChange }: { value: Permission[]; onChange: (
             checked={value.includes(p)}
             onChange={() => onChange(value.includes(p) ? value.filter((x) => x !== p) : [...value, p])}
           />{' '}
-          {p}
+          {p === 'read' ? t('permRead') : t('permWrite')}
         </label>
       ))}
     </>
@@ -42,15 +44,16 @@ function PermissionBoxes({ value, onChange }: { value: Permission[]; onChange: (
 }
 
 function RoleRow({ role }: { role: Role }) {
+  const t = useTranslations('Access');
   const [permissions, setPermissions] = useState<Permission[]>(role.permissions);
   return (
     <SettingsTableRow
       name={role.name}
       actions={
         <>
-          <ActionButton action={() => setRolePermissions(role.id, permissions)}>Save</ActionButton>
+          <ActionButton action={() => setRolePermissions(role.id, permissions)}>{t('save')}</ActionButton>
           <ActionButton className="btn btn-danger" action={() => deleteRole(role.id)}>
-            Delete
+            {t('delete')}
           </ActionButton>
         </>
       }
@@ -61,6 +64,7 @@ function RoleRow({ role }: { role: Role }) {
 }
 
 export function AccessManager({ users, roles, assignments, projects, currentUserId }: Props) {
+  const t = useTranslations('Access');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [roleName, setRoleName] = useState('');
@@ -71,21 +75,21 @@ export function AccessManager({ users, roles, assignments, projects, currentUser
   const userName = (id: number) => users.find((u) => u.id === id)?.username ?? '?';
   const roleLabel = (id: number) => roles.find((r) => r.id === id)?.name ?? '?';
   const scopeLabel = (id: number | null) =>
-    id === null ? 'All projects' : (projects.find((p) => p.id === id)?.name ?? '?');
+    id === null ? t('allProjects') : (projects.find((p) => p.id === id)?.name ?? '?');
   return (
     <ActionErrorProvider>
-      <h2>Users</h2>
+      <h2>{t('users')}</h2>
       <div className="project-create">
         <input
-          aria-label="New username"
-          placeholder="Username"
+          aria-label={t('newUsername')}
+          placeholder={t('username')}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
         <input
-          aria-label="New password"
+          aria-label={t('newPassword')}
           type="password"
-          placeholder="Password"
+          placeholder={t('password')}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -98,10 +102,10 @@ export function AccessManager({ users, roles, assignments, projects, currentUser
             setPassword('');
           }}
         >
-          Create user
+          {t('createUser')}
         </ActionButton>
       </div>
-      <SettingsTable label="Users" headers={['User', 'Status', 'Actions']}>
+      <SettingsTable label={t('users')} headers={[t('userCol'), t('statusCol'), t('actionsCol')]}>
         {users.map((u) => (
           <SettingsTableRow
             key={u.id}
@@ -109,22 +113,22 @@ export function AccessManager({ users, roles, assignments, projects, currentUser
             actions={
               <ActionButton
                 action={() => setUserDisabled(u.id, !u.disabled)}
-                disabledReason={u.id === currentUserId ? 'You cannot disable yourself' : undefined}
+                disabledReason={u.id === currentUserId ? t('cannotDisableSelf') : undefined}
               >
-                {u.disabled ? 'Enable' : 'Disable'}
+                {u.disabled ? t('enable') : t('disable')}
               </ActionButton>
             }
           >
-            <span className="muted">{u.disabled ? 'Disabled' : 'Active'}</span>
+            <span className="muted">{u.disabled ? t('disabled') : t('active')}</span>
           </SettingsTableRow>
         ))}
       </SettingsTable>
 
-      <h2>Roles</h2>
+      <h2>{t('roles')}</h2>
       <div className="project-create">
         <input
-          aria-label="New role name"
-          placeholder="Role name"
+          aria-label={t('newRoleName')}
+          placeholder={t('roleName')}
           value={roleName}
           onChange={(e) => setRoleName(e.target.value)}
         />
@@ -134,35 +138,35 @@ export function AccessManager({ users, roles, assignments, projects, currentUser
           action={() => createRole(roleName, rolePermissions)}
           onDone={() => setRoleName('')}
         >
-          Create role
+          {t('createRole')}
         </ActionButton>
       </div>
-      <SettingsTable label="Roles" headers={['Role', 'Permissions', 'Actions']}>
+      <SettingsTable label={t('roles')} headers={[t('roleCol'), t('permissionsCol'), t('actionsCol')]}>
         {roles.map((r) => (
           <RoleRow key={r.id} role={r} />
         ))}
       </SettingsTable>
 
-      <h2>Assignments</h2>
+      <h2>{t('assignments')}</h2>
       <div className="project-create">
-        <select aria-label="Assign user" value={userId} onChange={(e) => setUserId(e.target.value)}>
-          <option value="">User…</option>
+        <select aria-label={t('assignUser')} value={userId} onChange={(e) => setUserId(e.target.value)}>
+          <option value="">{t('userOption')}</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.username}
             </option>
           ))}
         </select>
-        <select aria-label="Assign role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-          <option value="">Role…</option>
+        <select aria-label={t('assignRole')} value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+          <option value="">{t('roleOption')}</option>
           {roles.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
             </option>
           ))}
         </select>
-        <select aria-label="Assign scope" value={scope} onChange={(e) => setScope(e.target.value)}>
-          <option value="global">All projects</option>
+        <select aria-label={t('assignScope')} value={scope} onChange={(e) => setScope(e.target.value)}>
+          <option value="global">{t('allProjects')}</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -173,15 +177,15 @@ export function AccessManager({ users, roles, assignments, projects, currentUser
           className="btn btn-primary"
           action={() => assignRole(Number(userId), Number(roleId), scope === 'global' ? null : Number(scope))}
         >
-          Assign
+          {t('assign')}
         </ActionButton>
       </div>
-      <SettingsTable label="Assignments" headers={['User', 'Role and scope', 'Actions']}>
+      <SettingsTable label={t('assignments')} headers={[t('userCol'), t('roleScopeCol'), t('actionsCol')]}>
         {assignments.map((a) => (
           <SettingsTableRow
             key={a.id}
             name={userName(a.userId)}
-            actions={<ActionButton action={() => unassignRole(a.id)}>Remove</ActionButton>}
+            actions={<ActionButton action={() => unassignRole(a.id)}>{t('remove')}</ActionButton>}
           >
             <span className="muted">
               {roleLabel(a.roleId)} · {scopeLabel(a.projectId)}
