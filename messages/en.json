@@ -17,7 +17,8 @@
     "signedInAs": "Signed in as {username}",
     "signOut": "Sign out",
     "main": "Main",
-    "mainMobile": "Main mobile"
+    "mainMobile": "Main mobile",
+    "chatFallback": "Chat #{id}"
   },
   "Error": {
     "title": "Something went wrong",

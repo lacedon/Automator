@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
-import { getLocale } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import type { CSSProperties, ReactNode } from 'react';
 import { AutoRefresh } from './components/AutoRefresh';
 import { Sidebar } from './components/Sidebar';
@@ -26,11 +26,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </html>
     );
   const core = getCore();
+  const t = await getTranslations('Navigation');
   const selection = await currentSelection();
   const counts = core.read.navCounts(await currentScope());
   const chats = core.read.runList({ project: await currentScope(), limit: 10 }).map((run) => ({
     id: run.id,
-    title: run.adhocPrompt || (run.ticket?.key ?? `Chat #${run.id}`),
+    title: run.adhocPrompt || (run.ticket?.key ?? t('chatFallback', { id: run.id })),
     needsYou: run.outcome === 'needs-you',
   }));
   const projects = await readableProjects();
