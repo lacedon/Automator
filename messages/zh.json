@@ -18,5 +18,26 @@
     "signOut": "退出登录",
     "main": "主导航",
     "mainMobile": "移动端主导航"
+  },
+  "Error": {
+    "title": "出了点问题",
+    "unexpected": "意外错误。",
+    "digest": "错误摘要 {digest}：详情请查看仪表板日志。",
+    "retry": "重试"
+  },
+  "Settings": {
+    "title": "设置",
+    "intro": "管理你的安装。设置适用于所有项目。",
+    "needsPermission": "设置需要全局写入权限。"
+  },
+  "Login": {
+    "username": "用户名",
+    "password": "密码",
+    "signIn": "登录"
+  },
+  "ProjectSwitcher": {
+    "label": "项目",
+    "all": "所有项目",
+    "unassigned": "未分配"
   }
 }

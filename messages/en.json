@@ -18,5 +18,26 @@
     "signOut": "Sign out",
     "main": "Main",
     "mainMobile": "Main mobile"
+  },
+  "Error": {
+    "title": "Something went wrong",
+    "unexpected": "Unexpected error.",
+    "digest": "Error digest {digest}: see the dashboard log for details.",
+    "retry": "Try again"
+  },
+  "Settings": {
+    "title": "Settings",
+    "intro": "Manage your installation. Settings apply across all projects.",
+    "needsPermission": "Settings need the global write permission."
+  },
+  "Login": {
+    "username": "Username",
+    "password": "Password",
+    "signIn": "Sign in"
+  },
+  "ProjectSwitcher": {
+    "label": "Project",
+    "all": "All projects",
+    "unassigned": "Unassigned"
   }
 }
