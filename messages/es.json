@@ -634,5 +634,14 @@
     "templateConfigured": "Plantilla de operación configurada",
     "noTemplate": "Sin plantilla de operación",
     "backToSettings": "← Volver a Ajustes"
+  },
+  "ColorScheme": {
+    "title": "Apariencia",
+    "intro": "Elige el esquema de color de la aplicación.",
+    "default": "Predeterminado de la aplicación",
+    "defaultIntro": "Lo usa todo el que no haya elegido su propio esquema.",
+    "own": "Tu esquema de color",
+    "ownIntro": "Se aplica solo a ti y sustituye al predeterminado de la aplicación.",
+    "useDefault": "Usar el predeterminado de la aplicación"
   }
 }

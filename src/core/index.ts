@@ -22,6 +22,7 @@ import { RepositoryService } from './repositories/repositoryService';
 import { AccessService } from './access/accessService';
 import { CredentialService } from './users/credentialService';
 import { UserService } from './users/userService';
+import { SettingsService } from './settings/settingsService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
 import { createClaudeCodeLauncher } from './runs/claudeCodeLauncher';
@@ -59,6 +60,15 @@ export {
 } from './access/accessService';
 export { copilotAuthEnvNames } from './runs/childProcess';
 export { CredentialService } from './users/credentialService';
+export { SettingsService } from './settings/settingsService';
+export {
+  COLOR_SCHEMES,
+  DEFAULT_COLOR_SCHEME,
+  isColorSchemeId,
+  resolveColorScheme,
+  type ColorScheme,
+  type ColorSchemeId,
+} from './settings/colorSchemes';
 export { SESSION_TTL_MS, UserService, type ApiToken, type User } from './users/userService';
 export { RepositoryService, type Repository, type RepositoryInput } from './repositories/repositoryService';
 export type { Notifier } from './notify/teamsNotifier';
@@ -118,6 +128,7 @@ export interface Core {
   projects: ProjectService;
   users: UserService;
   credentials: CredentialService;
+  settings: SettingsService;
   access: AccessService;
   configs: ConfigResolver;
   repositories: RepositoryService;
@@ -296,6 +307,7 @@ export function createCore(
     projects: new ProjectService(db, repositories, () => clock.now()),
     users,
     credentials,
+    settings: new SettingsService(db),
     access,
     configs,
     repositories,

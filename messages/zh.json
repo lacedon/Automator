@@ -634,5 +634,14 @@
     "templateConfigured": "已配置操作模板",
     "noTemplate": "没有操作模板",
     "backToSettings": "← 返回设置"
+  },
+  "ColorScheme": {
+    "title": "外观",
+    "intro": "选择应用程序的配色方案。",
+    "default": "应用程序默认",
+    "defaultIntro": "供所有未选择自己方案的用户使用。",
+    "own": "你的配色方案",
+    "ownIntro": "仅对你生效,并覆盖应用程序默认值。",
+    "useDefault": "使用应用程序默认值"
   }
 }

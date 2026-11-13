@@ -273,3 +273,30 @@ test('Upgrade and restart asks for confirmation and Back leaves the application 
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Upgrade and restart', exact: true })).toBeVisible();
 });
+
+test('the application default and a personal color scheme are chosen in settings and applied without a reload', async ({
+  page,
+}) => {
+  const html = page.locator('html');
+  await page.goto('/settings/config');
+  await expect(html).toHaveAttribute('data-scheme', 'dark');
+  const defaults = page.getByRole('group', { name: 'Application default' });
+  await expect(defaults.getByRole('button', { name: 'Light' }).locator('.scheme-swatch')).toHaveCount(3);
+  await defaults.getByRole('button', { name: 'Light' }).click();
+  await expect(html).toHaveAttribute('data-scheme', 'light');
+
+  await page.goto('/account');
+  const own = page.getByRole('group', { name: 'Your color scheme' });
+  await expect(own.getByRole('button', { name: 'Use application default' })).toHaveAttribute('aria-pressed', 'true');
+  await own.getByRole('button', { name: 'Dark' }).click();
+  await expect(html).toHaveAttribute('data-scheme', 'dark');
+  await page.reload();
+  await expect(html).toHaveAttribute('data-scheme', 'dark');
+
+  await own.getByRole('button', { name: 'Use application default' }).click();
+  await expect(html).toHaveAttribute('data-scheme', 'light');
+
+  await page.goto('/settings/config');
+  await page.getByRole('group', { name: 'Application default' }).getByRole('button', { name: 'Dark' }).click();
+  await expect(html).toHaveAttribute('data-scheme', 'dark');
+});

@@ -640,5 +640,14 @@
     "templateConfigured": "Operation template configured",
     "noTemplate": "No operation template",
     "backToSettings": "← Back to Settings"
+  },
+  "ColorScheme": {
+    "title": "Appearance",
+    "intro": "Choose the color scheme of the application.",
+    "default": "Application default",
+    "defaultIntro": "Used by everyone who has not chosen their own scheme.",
+    "own": "Your color scheme",
+    "ownIntro": "Applies to you only and overrides the application default.",
+    "useDefault": "Use application default"
   }
 }
