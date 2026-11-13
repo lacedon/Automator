@@ -770,6 +770,32 @@ describe('requestBranch', () => {
     expect(result.value.run.branchContext).toContain('answer two');
   });
 
+  test('keeps the earlier chat context when branching a branched chat', () => {
+    const ctx = setup();
+    const first = finishedAdhoc(ctx);
+    ctx.db.prepare("UPDATE runs SET adhoc_prompt = 'one', summary = 'answer one' WHERE id = ?").run(first.id);
+    const b = ctx.queue.requestBranch(first.id, 'two');
+    if (!b.ok) throw new Error('setup');
+    ctx.db
+      .prepare("UPDATE runs SET status = 'finished', session_id = 'sess-2', summary = 'answer two' WHERE id = ?")
+      .run(b.value.run.id);
+    const reply = ctx.queue.requestFollowUp(b.value.run.id, 'three');
+    if (!reply.ok) throw new Error('setup');
+    ctx.db
+      .prepare("UPDATE runs SET status = 'finished', summary = 'answer three' WHERE id = ?")
+      .run(reply.value.run.id);
+
+    const result = ctx.queue.requestBranch(reply.value.run.id, 'four');
+    if (!result.ok) throw new Error('branch failed');
+    const context = result.value.run.branchContext ?? '';
+    expect(context).toContain('answer one');
+    expect(context).toContain('answer two');
+    expect(context).toContain('answer three');
+    expect(context).toContain('### Exchange 1');
+    expect(context).toContain('### Exchange 3');
+    expect(context).not.toContain('### Exchange 4');
+  });
+
   test('rejects an unfinished Run, an empty message and an unknown Run', () => {
     const ctx = setup();
     const running = finishedAdhoc(ctx, { status: 'running' });

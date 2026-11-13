@@ -232,13 +232,17 @@ export class QueueService {
           seen.add(cur.id);
           chain.unshift(cur);
         }
-        const context = chain
-          .map((r, i) => {
+        // A branched chat's first Run carries the earlier conversation; keep it and continue its numbering.
+        const earlier = chain[0].branchContext;
+        const offset = earlier === null ? 0 : (earlier.match(/^### Exchange \d+$/gm)?.length ?? 0);
+        const context = [
+          ...(earlier === null ? [] : [earlier]),
+          ...chain.map((r, i) => {
             const request = r.adhocPrompt?.trim() || r.ticketKey || '(none)';
             const response = r.error !== null ? `Error: ${r.error.message}` : (r.summary ?? '(no summary)');
-            return `### Exchange ${i + 1}\n\nUser: ${request}\n\nAgent: ${response}`;
-          })
-          .join('\n\n');
+            return `### Exchange ${offset + i + 1}\n\nUser: ${request}\n\nAgent: ${response}`;
+          }),
+        ].join('\n\n');
         return ok({
           run: this.enqueueAdhoc({
             repository: run.repository,
