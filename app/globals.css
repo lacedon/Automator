@@ -2020,3 +2020,32 @@ dialog.file-dialog::backdrop {
 :root[data-scheme='light'] .file-view {
   color: var(--text);
 }
+
+/* Agent form: generate instruction */
+.additional-instructions {
+  margin-top: 0.5rem;
+}
+.additional-instructions > summary {
+  cursor: pointer;
+}
+.generate-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

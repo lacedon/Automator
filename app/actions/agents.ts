@@ -75,6 +75,19 @@ export async function saveAgent(
   return null;
 }
 
+const generateSchema = z.object({ instructions: z.string(), additional: z.string() });
+
+export async function generateAgentInstructions(
+  instructions: string,
+  additional: string,
+): Promise<ActionResult<string>> {
+  const input = parseInput(generateSchema, { instructions, additional });
+  if (!input.ok) return input;
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+  return getCore().agentInstructions.generate(input.value.instructions, input.value.additional);
+}
+
 const assignSchema = z.object({
   repository: z.string().min(1).nullable(),
   workflowType: workflowSchema,

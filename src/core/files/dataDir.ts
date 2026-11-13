@@ -23,6 +23,10 @@ export class DataDir {
     return path.join(this.root, 'prechecks', 'generation');
   }
 
+  agentInstructionTmpRoot(): string {
+    return path.join(this.root, 'agents', 'generation');
+  }
+
   runDir(id: number): string {
     return path.join(this.root, 'runs', String(id));
   }

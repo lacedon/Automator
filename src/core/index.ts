@@ -9,6 +9,7 @@ import { systemClock, type Clock, type NeedsYouEvent } from './domain/types';
 import { DataDir } from './files/dataDir';
 import { CleanupService } from './cleanup/cleanupService';
 import { AgentService } from './agents/agentService';
+import { AgentInstructionService } from './agents/instructionService';
 import { createTeamsNotifier, type Notifier } from './notify/teamsNotifier';
 import { createGitLabClient, type GitLabClient } from './prechecks/gitlabClient';
 import type { GitLabPrecheckDeps } from './prechecks/gitlab';
@@ -120,6 +121,7 @@ export interface Core {
   executorDeps: RunExecutorDeps;
   watches: WatchService;
   precheckScripts: PrecheckScriptService;
+  agentInstructions: AgentInstructionService;
   queue: QueueService;
   scheduler: Scheduler;
   executor: RunExecutor;
@@ -296,6 +298,14 @@ export function createCore(
       launcherFor: (effective) => launchers[effective.provider],
       scopeFor: (repository) => {
         const effective = configFor(repository);
+        return { config: effective, secrets: configs.secretsFor(effective) };
+      },
+    }),
+    agentInstructions: new AgentInstructionService({
+      dataDir,
+      launcherFor: (effective) => launchers[effective.provider],
+      scope: () => {
+        const effective = configFor(null);
         return { config: effective, secrets: configs.secretsFor(effective) };
       },
     }),
