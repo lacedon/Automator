@@ -3,16 +3,25 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getTranslations } from 'next-intl/server';
 import type { CSSProperties, ReactNode } from 'react';
 import { AutoRefresh } from './components/AutoRefresh';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, type NavChatStatus } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { getCore } from './lib/core';
 import { currentScope, currentSelection, projectHue, readableProjects } from './lib/scope';
 import { currentUser } from './lib/session';
+import type { RunRow } from '@core/index';
 import './globals.css';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Automator' };
+
+function chatStatus(run: RunRow): NavChatStatus | null {
+  if (run.closedAt !== null || run.interrupted !== null) return null;
+  if (run.outcome === 'needs-you') return 'needs-you';
+  if (run.resultStatus === 'error') return 'error';
+  if (run.outcome !== null) return null;
+  return run.status === 'running' || run.status === 'queued' ? run.status : null;
+}
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await currentUser();
@@ -32,7 +41,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const chats = core.read.runList({ project: await currentScope(), limit: 10 }).map((run) => ({
     id: run.id,
     title: run.adhocPrompt || (run.ticket?.key ?? t('chatFallback', { id: run.id })),
-    needsYou: run.outcome === 'needs-you' && run.closedAt === null,
+    status: chatStatus(run),
   }));
   const projects = await readableProjects();
   const active = typeof selection === 'number' ? projects.find((p) => p.id === selection) : undefined;
