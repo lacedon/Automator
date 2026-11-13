@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
-import type { Agent, AgentAssignment, OperationTemplate, WorkflowType } from '@core/index';
+import { startTransition, useActionState, useId, useRef, useState, type FormEvent } from 'react';
+import type { Agent, AgentAssignment, AppError, OperationTemplate, WorkflowType } from '@core/index';
 import {
   assignAgent,
   agentDeletionImpact,
   clearRepositoryAgent,
   deleteAgent,
+  generateAgentInstructions,
   saveAgent,
   saveTemplate,
   type AgentFormValues,
@@ -64,7 +65,28 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
   useSettingsDialog(pending);
   const idPrefix = `agent-${agent?.id ?? 'new'}`;
   const invalid = state?.error.code === 'INVALID_INPUT' ? state.error.field : null;
+  const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const additionalRef = useRef<HTMLTextAreaElement>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<AppError | null>(null);
   const echoed = (field: keyof AgentFormValues, fallback: string) => state?.values[field] ?? fallback;
+
+  const generate = async () => {
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const result = await generateAgentInstructions(
+        instructionsRef.current?.value ?? '',
+        additionalRef.current?.value ?? '',
+      );
+      if (!result.ok) setGenerateError(result.error);
+      else if (instructionsRef.current && result.value !== undefined) instructionsRef.current.value = result.value;
+    } catch (error) {
+      setGenerateError({ code: 'INVALID_INPUT', field: 'instructions', message: String(error) });
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   // React resets a form after its action runs; submitting manually keeps entered values after a failed save.
   const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -90,6 +112,7 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
       <div className="field">
         <label htmlFor={`${idPrefix}-instructions`}>{t('instructions')}</label>
         <textarea
+          ref={instructionsRef}
           id={`${idPrefix}-instructions`}
           name="instructions"
           rows={rows ?? (agent ? 5 : 4)}
@@ -98,6 +121,28 @@ export function AgentForm({ agent, rows }: { agent?: Agent; rows?: number }) {
         {agent && agent.instructions.trim() === '' && (
           <div className="field-hint muted">{t('emptyInstructionsHint')}</div>
         )}
+        <details className="additional-instructions">
+          <summary>{t('additionalInstructions')}</summary>
+          <textarea
+            ref={additionalRef}
+            id={`${idPrefix}-additional-instructions`}
+            aria-label={t('additionalInstructions')}
+            rows={3}
+            placeholder={t('additionalInstructionsPlaceholder')}
+          />
+          <div className="field-hint muted">{t('additionalInstructionsHint')}</div>
+        </details>
+        <div className="generate-row">
+          <button type="button" className="btn" onClick={generate} disabled={generating}>
+            {t('generateInstructions')}
+          </button>
+          {generating && (
+            <span className="muted" role="status" aria-busy="true">
+              <span className="spinner" aria-hidden="true" /> {t('generating')}
+            </span>
+          )}
+        </div>
+        {generateError !== null && <ErrorBox error={generateError} />}
       </div>
       <div className="field">
         <label htmlFor={`${idPrefix}-allow-all`}>

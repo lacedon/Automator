@@ -1,13 +1,11 @@
 import { err, ok, type Result } from '../domain/result';
+import type { AgentTask } from '../runs/agentTask';
 import { denyListViolations } from './script';
 
 export const MAX_GENERATION_ATTEMPTS = 3;
 
 export const SCRIPT_FILE = 'script.sh';
 export const REVIEW_FILE = 'review.json';
-
-// Asks the agent for one task in a fresh folder and returns the content of the file it was told to write, or null.
-export type AgentTask = (prompt: string, file: string) => Promise<string | null>;
 
 const RULES = `The script must:
 - be a bash script that only reads: no writes, deletes, POST/PUT/PATCH/DELETE requests or other state changes;

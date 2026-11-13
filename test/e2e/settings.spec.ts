@@ -300,3 +300,26 @@ test('the application default and a personal color scheme are chosen in settings
   await page.getByRole('group', { name: 'Application default' }).getByRole('button', { name: 'Dark' }).click();
   await expect(html).toHaveAttribute('data-scheme', 'dark');
 });
+
+test('Agent form offers collapsible additional instructions and a generate button after them', async ({ page }) => {
+  await page.goto('/settings/agents');
+  await page.getByRole('button', { name: 'New Agent', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'New Agent', exact: true });
+  const block = form.locator('details.additional-instructions');
+  await expect(block).not.toHaveAttribute('open', '');
+  await expect(form.getByLabel('Additional instructions')).toBeHidden();
+  await block.getByText('Additional instructions', { exact: true }).click();
+  await expect(form.getByLabel('Additional instructions')).toBeVisible();
+
+  const generate = form.getByRole('button', { name: "Generate Agent's instruction" });
+  expect(await generate.evaluate((button, el) => !el.contains(button), await block.elementHandle())).toBe(true);
+  expect(
+    await block.evaluate(
+      (el, button) => Boolean(el.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING),
+      await generate.elementHandle(),
+    ),
+  ).toBe(true);
+
+  await generate.click();
+  await expect(form.getByRole('alert')).toContainText('Enter instructions or additional instructions');
+});
