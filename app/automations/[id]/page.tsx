@@ -128,7 +128,7 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
         <Link href={`/automations?repo=${encodeURIComponent(watch.repository)}`}>{watch.repository}</Link>
       </div>
       <div className="detail-head">
-        <h1 className="detail-title">{watch.title}</h1>
+        <h1 className="detail-title">{watch.name ?? watch.title}</h1>
         <WatchStatePill state={watch.state} />
         <span className="spacer" />
         <div className="actions">

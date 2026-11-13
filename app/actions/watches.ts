@@ -94,6 +94,7 @@ const FORM_FIELDS = [
   'id',
   'target',
   'repository',
+  'name',
   'instructions',
   'precheckInstructions',
   'interval',
@@ -138,6 +139,7 @@ const initialReviewField = z
   .transform((value) => (value === '' ? null : value));
 
 const editableFields = {
+  name: z.string().optional(),
   instructions: z.string().optional(),
   precheckInstructions: z.string().optional(),
   interval: intervalField,
@@ -189,7 +191,7 @@ export async function updateWatch(
   const values = formValues(formData);
   const input = parseInput(updateSchema, values);
   if (!input.ok) return { ...input, values };
-  const { id, instructions, precheckInstructions, interval, model, initialReview } = input.value;
+  const { id, name, instructions, precheckInstructions, interval, model, initialReview } = input.value;
   const guard = await requireWriteOnWatch(id);
   if (!guard.ok) return { ...guard, values };
   const watch = getCore().watches.get(id);
@@ -201,6 +203,7 @@ export async function updateWatch(
     precheckScript = generated.value;
   }
   const result = getCore().watches.update(id, {
+    name,
     instructions,
     precheckInstructions,
     precheckScript,

@@ -153,6 +153,7 @@ function watch(partial: Partial<Watch> = {}): Watch {
     normalizedTarget: 'github:github.com/acme/app#7',
     repository: 'pages',
     title: 'Add widgets',
+    name: null,
     state: 'active',
     instructions: null,
     intervalMs: null,

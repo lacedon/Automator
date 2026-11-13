@@ -107,7 +107,7 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
       `SELECT * FROM watches
        WHERE (@kind IS NULL OR kind = @kind)
          AND (@repository IS NULL OR repository = @repository)
-         AND (@q IS NULL OR instr(lower(title), @q) > 0 OR instr(lower(target_url), @q) > 0)`,
+         AND (@q IS NULL OR instr(lower(COALESCE(name, title)), @q) > 0 OR instr(lower(title), @q) > 0 OR instr(lower(target_url), @q) > 0)`,
     )
     .all({ kind: f.kind ?? null, repository: f.repository ?? null, q })
     .map(toWatch)
@@ -126,12 +126,17 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
   const last = lastRuns(deps);
   const rows = watches
     .filter((w) => f.state === undefined || w.state === f.state)
-    .sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.title.localeCompare(b.title) || a.id - b.id)
+    .sort(
+      (a, b) =>
+        STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
+        (a.name ?? a.title).localeCompare(b.name ?? b.title) ||
+        a.id - b.id,
+    )
     .map((w) => ({
       id: w.id,
       state: w.state,
       kind: w.kind,
-      title: w.title,
+      title: w.name ?? w.title,
       targetUrl: w.targetUrl,
       repository: w.repository,
       everyMs: intervalFor(w, configOf(deps, w.repository)),

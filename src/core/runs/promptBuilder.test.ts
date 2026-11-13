@@ -43,6 +43,7 @@ function watch(partial: Partial<Watch> = {}): Watch {
     normalizedTarget: 'mr:gitlab.example.com/group/pages!12',
     repository: 'pages',
     title: 'Fix login',
+    name: null,
     state: 'active',
     instructions: null,
     intervalMs: null,

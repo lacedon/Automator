@@ -21,15 +21,16 @@ export default async function EditWatchPage({ params }: { params: Promise<{ id: 
     <>
       <div className="muted">
         <Link href="/automations">{tNew('automations')}</Link> /{' '}
-        <Link href={`/automations/${watch.id}`}>{watch.title}</Link> / {t('edit')}
+        <Link href={`/automations/${watch.id}`}>{watch.name ?? watch.title}</Link> / {t('edit')}
       </div>
-      <h1 className="page-title">{t('title', { title: watch.title })}</h1>
+      <h1 className="page-title">{t('title', { title: watch.name ?? watch.title })}</h1>
       <WatchForm
         mode="edit"
         options={core.read.formOptions(await currentScope())}
         watch={{
           id: watch.id,
           kind,
+          name: watch.name,
           targetUrl,
           repository,
           instructions,

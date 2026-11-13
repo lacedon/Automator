@@ -342,6 +342,8 @@
     "free": "Free"
   },
   "WatchForm": {
+    "name": "Name",
+    "nameHint": "(optional, max 120 characters; shown instead of the title)",
     "target": "Target URL or Jira key",
     "targetPlaceholder": "GitLab MR or GitHub PR URL, PROJ-123 or any URL",
     "repository": "Repository",

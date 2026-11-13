@@ -315,6 +315,34 @@ describe('WatchService.list', () => {
   });
 });
 
+describe('WatchService names', () => {
+  test('create stores a trimmed name, and blank or missing is null', () => {
+    const { service } = setup();
+    expect(value(service.create({ target: MR, repository: 'pages', name: '  Release MR  ' })).name).toBe('Release MR');
+    expect(value(service.create({ target: `${MR}1`, repository: 'pages', name: '   ' })).name).toBeNull();
+    expect(value(service.create({ target: `${MR}2`, repository: 'pages' })).name).toBeNull();
+  });
+
+  test('rejects a name over 120 characters but accepts exactly 120', () => {
+    const { db, service } = setup();
+    const r = service.create({ target: MR, repository: 'pages', name: 'x'.repeat(121) });
+    expect(r).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'name' } });
+    expect(count(db, 'watches')).toBe(0);
+    const watch = value(service.create({ target: MR, repository: 'pages', name: ` ${'x'.repeat(120)} ` }));
+    expect(watch.name).toHaveLength(120);
+    expect(service.update(watch.id, { name: 'y'.repeat(121) })).toMatchObject({ ok: false, error: { field: 'name' } });
+    expect(service.get(watch.id)?.name).toHaveLength(120);
+  });
+
+  test('update sets, trims and clears the name, and leaves it alone when omitted', () => {
+    const { service } = setup();
+    const watch = value(service.create({ target: MR, repository: 'pages' }));
+    expect(value(service.update(watch.id, { name: ' Nightly ' })).name).toBe('Nightly');
+    expect(value(service.update(watch.id, { instructions: 'x' })).name).toBe('Nightly');
+    expect(value(service.update(watch.id, { name: '  ' })).name).toBeNull();
+  });
+});
+
 describe('WatchService.update', () => {
   test('rejects models not configured for the selected provider', () => {
     const { service } = setup();

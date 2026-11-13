@@ -33,6 +33,7 @@ function watch(partial: Partial<Watch> = {}): Watch {
     normalizedTarget: 'gitlab:gitlab.example.com/team/app!42',
     repository: 'pages',
     title: 'Add widgets',
+    name: null,
     state: 'active',
     instructions: null,
     intervalMs: null,

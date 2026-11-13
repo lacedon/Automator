@@ -24,6 +24,8 @@ export interface Watch {
   normalizedTarget: string;
   repository: string;
   title: string;
+  // Optional user-given name; shown instead of the title wherever the Automation is listed.
+  name: string | null;
   state: WatchState;
   instructions: string | null;
   intervalMs: number | null;
