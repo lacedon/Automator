@@ -365,4 +365,10 @@ CREATE TABLE user_settings (
 );
 `,
   },
+  {
+    version: 23,
+    sql: `ALTER TABLE runs ADD COLUMN branched_from_run_id INTEGER REFERENCES runs(id) ON DELETE SET NULL;
+ALTER TABLE runs ADD COLUMN branch_context TEXT;
+`,
+  },
 ];

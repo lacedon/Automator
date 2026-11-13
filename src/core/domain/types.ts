@@ -66,6 +66,8 @@ export interface Run {
   extraInstructions: string | null;
   sessionId: string | null;
   parentRunId: number | null;
+  branchedFromRunId: number | null;
+  branchContext: string | null;
   reviewUnresolved: boolean;
   model: string;
   agentId: number | null;

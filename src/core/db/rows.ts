@@ -77,6 +77,8 @@ export function toRun(row: unknown): Run {
     extraInstructions: r.extra_instructions as string | null,
     sessionId: r.session_id as string | null,
     parentRunId: r.parent_run_id as number | null,
+    branchedFromRunId: r.branched_from_run_id as number | null,
+    branchContext: r.branch_context as string | null,
     reviewUnresolved: r.review_unresolved === 1,
     model: r.model as string,
     agentId: r.agent_id as number | null,

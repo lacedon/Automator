@@ -31,6 +31,7 @@ function singleRunThread(run: Run): ThreadView {
     ],
     replyToRunId: null,
     replyBlockedReason: null,
+    branchedFromRunId: run.branchedFromRunId,
   };
 }
 

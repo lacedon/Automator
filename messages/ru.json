@@ -230,7 +230,14 @@
     "message": "Сообщение",
     "placeholder": "Продолжить в той же сессии Copilot…",
     "send": "Отправить",
-    "queued": "Запуск #{id} поставлен в очередь"
+    "queued": "Запуск #{id} поставлен в очередь",
+    "branch": "Ответвить",
+    "branchTitle": "Начать новый чат с этого ответа",
+    "branchMessage": "Сообщение нового чата",
+    "branchPlaceholder": "Продолжить с этого ответа в новом чате…",
+    "branchSubmit": "Создать ветку",
+    "branchCancel": "Отмена",
+    "branchedFrom": "Ответвлено от запуска #{id}"
   },
   "RunFiles": {
     "transcript": "Транскрипт",
