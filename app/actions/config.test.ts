@@ -17,7 +17,7 @@ let configPath: string;
 
 const config = {
   dataDir: './data',
-  copilotBin: 'copilot',
+  providers: { copilot: { bin: 'copilot', defaultModel: 'claude-sonnet-4.5', models: ['claude-sonnet-4.5'] } },
   repositories: {
     pages: { folder: './pages', gitlab: 'corp', jira: 'corp', validate: ['npm test'] },
   },
@@ -39,8 +39,6 @@ const config = {
   },
   runs: {
     timeoutMinutes: 30,
-    defaultModel: 'claude-sonnet-4.5',
-    models: ['claude-sonnet-4.5'],
     initialReview: 'baseline-only',
     denyTools: [],
   },
@@ -76,10 +74,14 @@ afterEach(() => {
 
 test('saveConfig writes valid edits and revalidates the Settings layout', async () => {
   const edited = readEditableConfig(configPath);
-  edited.copilotBin = '/opt/copilot';
+  edited.providers.copilot = { bin: '/opt/copilot', defaultModel: 'copilot-model', models: ['copilot-model'] };
 
   expect(await saveConfig(null, form(edited))).toBeNull();
-  expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).copilotBin).toBe('/opt/copilot');
+  expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).providers.copilot).toEqual({
+    bin: '/opt/copilot',
+    defaultModel: 'copilot-model',
+    models: ['copilot-model'],
+  });
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
 });
 
@@ -112,7 +114,7 @@ test('saveConfig displays schema errors and preserves submitted editable values'
   expect(revalidatePath).not.toHaveBeenCalled();
 
   const injected = readEditableConfig(configPath);
-  Object.assign(injected.runs!, { models: [{ tokenEnv: 'ATTACKER_TOKEN' }] });
+  Object.assign(injected.providers.copilot, { models: [{ tokenEnv: 'ATTACKER_TOKEN' }] });
   const rejected = await saveConfig(null, form(injected));
   expect(rejected).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'config' } });
   expect(JSON.stringify(rejected)).not.toMatch(/tokenEnv|ATTACKER_TOKEN/);

@@ -215,7 +215,7 @@ describe('read models', () => {
       folder: config.repositories.pages!.folder,
       intervalMs: 15 * MIN,
       intervalIsDefault: true,
-      model: config.runs.defaultModel,
+      model: config.providers.copilot.defaultModel,
       modelIsDefault: true,
       initialReview: 'baseline-only',
     });
@@ -461,7 +461,7 @@ describe('read models', () => {
   });
 
   test('form options list repositories with gitlab host', () => {
-    const { db, read, config } = setup({ runs: { models: ['gpt-5', 'claude-sonnet-4.5'] } });
+    const { db, read, config } = setup({ providers: { copilot: { models: ['gpt-5', 'claude-sonnet-4.5'] } } });
     const persistedFolder = '/persisted/repositories/pages';
     db.prepare('UPDATE repositories SET folder = ? WHERE name = ?').run(persistedFolder, 'pages');
 

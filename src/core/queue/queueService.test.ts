@@ -31,7 +31,10 @@ function setup(
   const dataDir = new DataDir(path.dirname(t.file));
   const config = testConfig({
     ...opts.configOverrides,
-    runs: { defaultModel: 'default-model', ...opts.configOverrides?.runs },
+    providers: {
+      ...opts.configOverrides?.providers,
+      copilot: { defaultModel: 'default-model', ...opts.configOverrides?.providers?.copilot },
+    },
     jira: { enabled: opts.jiraEnabled ?? true, ...opts.configOverrides?.jira },
   });
   const repositories = testRepositories(t.db, config);
@@ -385,7 +388,7 @@ describe('QueueService', () => {
   });
 
   test('checked adhoc enqueue uses default model', async () => {
-    const { queue } = setup({ configOverrides: { runs: { models: ['m2'] } } });
+    const { queue } = setup({ configOverrides: { providers: { copilot: { models: ['m2'] } } } });
     const r = await queue.requestAdhoc({ repository: 'pages', prompt: 'p' });
     if (!r.ok) throw new Error('expected ok');
     expect(r.value.run).toMatchObject({

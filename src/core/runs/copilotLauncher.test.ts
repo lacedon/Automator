@@ -11,7 +11,7 @@ const FAKE = path.resolve('test/fixtures/fake-copilot.mjs');
 type Recorded = { argv: string[]; cwd: string; env: NodeJS.ProcessEnv };
 
 function setup(overrides: Parameters<typeof testConfig>[0] = {}) {
-  const config: Config = testConfig({ copilotBin: FAKE, ...overrides });
+  const config: Config = testConfig({ providers: { copilot: { bin: FAKE } }, ...overrides });
   const root = config.configDir;
   const repo = path.join(root, 'repo with space');
   fs.mkdirSync(repo, { recursive: true });
@@ -283,7 +283,7 @@ describe('createCopilotLauncher', () => {
   });
 
   test('missing binary resolves with a structured spawn error', async () => {
-    const s = setup({ copilotBin: '/nonexistent/copilot' });
+    const s = setup({ providers: { copilot: { bin: '/nonexistent/copilot' } } });
     const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
     const proc = launcher.start({
       cwd: s.repo,

@@ -15,8 +15,9 @@ test('provider settings show the global selector and provider model fields', asy
     'OpenCode',
   ]);
   for (const id of [
-    'config-copilotBin',
-    'config-runs-defaultModel',
+    'config-providers-copilot-bin',
+    'config-providers-copilot-defaultModel',
+    'config-providers-copilot-models',
     'config-providers-claude-code-bin',
     'config-providers-claude-code-defaultModel',
     'config-providers-claude-code-models',

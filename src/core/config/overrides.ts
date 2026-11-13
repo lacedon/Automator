@@ -28,7 +28,6 @@ export type OverrideErrors = Record<string, string>;
 
 const LOCALES: Config['locale'][] = ['en', 'es', 'zh', 'ru'];
 const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode'];
-const SEPARATE_PROVIDERS = ['claude-code', 'codex', 'opencode'] as const;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_TEAMS_TOOL = 'teams-global(send_chat_message)';
@@ -215,15 +214,6 @@ export function overrideFields(base: Config): OverrideField[] {
       },
       (value) => (CLOCK.test(value) ? null : 'Expected HH:MM (24h)'),
     ),
-    text(
-      'copilotBin',
-      'Copilot Bin',
-      'Copilot executable',
-      (c) => c.copilotBin,
-      (draft, value) => {
-        draft.copilotBin = value;
-      },
-    ),
     {
       id: 'locale',
       group: 'Interface',
@@ -250,7 +240,7 @@ export function overrideFields(base: Config): OverrideField[] {
         return null;
       },
     },
-    ...SEPARATE_PROVIDERS.map((provider) =>
+    ...PROVIDERS.map((provider) =>
       text(
         `providers/${provider}/bin`,
         'Provider',
@@ -261,6 +251,27 @@ export function overrideFields(base: Config): OverrideField[] {
         },
       ),
     ),
+    text(
+      'providers/copilot/defaultModel',
+      'Provider',
+      'copilot default model',
+      (c) => c.providers.copilot.defaultModel,
+      (draft, value) => {
+        draft.providers.copilot.defaultModel = value;
+      },
+    ),
+    {
+      id: 'providers/copilot/models',
+      group: 'Provider',
+      label: 'copilot models',
+      kind: 'list',
+      hint: 'Comma-separated',
+      read: (c) => c.providers.copilot.models.join(', '),
+      apply(draft, value) {
+        draft.providers.copilot.models = splitList(value);
+        return null;
+      },
+    },
     {
       id: 'runs/timeoutMinutes',
       group: 'Runs',
@@ -271,27 +282,6 @@ export function overrideFields(base: Config): OverrideField[] {
         const minutes = positiveInt(value);
         if (minutes === null) return 'Expected a positive whole number';
         draft.runs.timeoutMs = minutes * 60_000;
-        return null;
-      },
-    },
-    text(
-      'runs/defaultModel',
-      'Runs',
-      'Default model',
-      (c) => c.runs.defaultModel,
-      (draft, value) => {
-        draft.runs.defaultModel = value;
-      },
-    ),
-    {
-      id: 'runs/models',
-      group: 'Runs',
-      label: 'Models',
-      kind: 'list',
-      hint: 'Comma-separated',
-      read: (c) => c.runs.models.join(', '),
-      apply(draft, value) {
-        draft.runs.models = splitList(value);
         return null;
       },
     },
@@ -419,7 +409,7 @@ function mergedErrors(config: Config): OverrideErrors {
   if (days.length === 0) errors['schedule/workingHours/days'] = 'At least one working day is required';
   else if (new Set(days).size !== days.length) errors['schedule/workingHours/days'] = 'Working days must not repeat';
   if (start >= end) errors['schedule/workingHours/end'] = `Must be later than start (${start})`;
-  if (config.provider !== 'copilot' && config.providers[config.provider].defaultModel.trim() === '') {
+  if (config.providers[config.provider].defaultModel.trim() === '') {
     errors.provider = `A default model is required for provider "${config.provider}"`;
   }
   if (config.teams !== undefined && config.teams.chatId === '') {

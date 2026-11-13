@@ -14,7 +14,7 @@ const { GET: getRun } = await import('./runs/[id]/route');
 let core: Core;
 
 beforeEach(() => {
-  const config = testConfig({ runs: { defaultModel: 'default-model', models: [] } });
+  const config = testConfig({ providers: { copilot: { defaultModel: 'default-model', models: [] } } });
   core = createCore(
     config,
     { clock: fakeClock(), notifier: { async notifyNeedsYou() {} } },

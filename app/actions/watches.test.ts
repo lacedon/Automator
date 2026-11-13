@@ -27,7 +27,7 @@ let core: Core;
 
 beforeEach(() => {
   mrLookup.mockReset();
-  const config = testConfig({ runs: { models: ['gpt-5'] } });
+  const config = testConfig({ providers: { copilot: { models: ['gpt-5'] } } });
   core = createCore(
     config,
     {

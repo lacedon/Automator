@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { z } from 'zod';
 import { writeJsonAtomic } from '../files/atomic';
 import { ConfigError } from './load';
+import { migrateLegacyConfig } from './migrate';
 import { createConfigSchema, type ConfigInput } from './schema';
 
 type ParsedConfig = z.output<ReturnType<typeof createConfigSchema>>;
@@ -13,30 +14,13 @@ export type EditableConfig = Omit<ConfigInput, 'gitlab' | 'jira' | 'prompts' | '
     jira: { enabled: boolean; connections: Record<string, { baseUrl: string; doneStatusIds?: string[] }> };
   };
 
-const editableFields = [
-  'dataDir',
-  'copilotBin',
-  'provider',
-  'providers',
-  'schedule',
-  'runs',
-  'cleanup',
-  'teams',
-] as const;
+const editableFields = ['dataDir', 'provider', 'providers', 'schedule', 'runs', 'cleanup', 'teams'] as const;
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
-const runFields = [
-  'timeoutMinutes',
-  'defaultModel',
-  'models',
-  'initialReview',
-  'denyTools',
-  'isolation',
-  'maxConcurrent',
-] as const;
+const runFields = ['timeoutMinutes', 'initialReview', 'denyTools', 'isolation', 'maxConcurrent'] as const;
 const providerFields = ['bin', 'defaultModel', 'models'] as const;
-const providers = ['claude-code', 'codex', 'opencode'] as const;
+const providers = ['copilot', 'claude-code', 'codex', 'opencode'] as const;
 const cleanupFields = ['enabled', 'everyDays', 'retainClosedDays'] as const;
 const teamsFields = ['chatId', 'tool', 'model', 'dashboardUrl'] as const;
 
@@ -96,7 +80,7 @@ function projectConfig(
 function readRawConfig(configPath: string): RecordValue {
   const file = path.resolve(configPath);
   try {
-    const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const raw = migrateLegacyConfig(JSON.parse(fs.readFileSync(file, 'utf8'))).raw;
     if (isRecord(raw)) return raw;
     throw new Error('Config must be a JSON object');
   } catch (error) {

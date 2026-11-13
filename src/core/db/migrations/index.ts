@@ -371,4 +371,17 @@ CREATE TABLE user_settings (
 ALTER TABLE runs ADD COLUMN branch_context TEXT;
 `,
   },
+  {
+    version: 24,
+    sql: `UPDATE projects
+SET config_overrides = json_remove(json_set(config_overrides, '$."providers/copilot/bin"', json_extract(config_overrides, '$."copilotBin"')), '$."copilotBin"')
+WHERE CASE WHEN json_valid(config_overrides) THEN json_type(config_overrides, '$."copilotBin"') = 'text' ELSE 0 END;
+UPDATE projects
+SET config_overrides = json_remove(json_set(config_overrides, '$."providers/copilot/defaultModel"', json_extract(config_overrides, '$."runs/defaultModel"')), '$."runs/defaultModel"')
+WHERE CASE WHEN json_valid(config_overrides) THEN json_type(config_overrides, '$."runs/defaultModel"') = 'text' ELSE 0 END;
+UPDATE projects
+SET config_overrides = json_remove(json_set(config_overrides, '$."providers/copilot/models"', json_extract(config_overrides, '$."runs/models"')), '$."runs/models"')
+WHERE CASE WHEN json_valid(config_overrides) THEN json_type(config_overrides, '$."runs/models"') = 'text' ELSE 0 END;
+`,
+  },
 ];

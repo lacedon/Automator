@@ -13,11 +13,11 @@ const nonEmpty = z.string().min(1);
 const positiveInt = z.number().int().positive();
 const providerName = z.enum(['copilot', 'claude-code', 'codex', 'opencode']);
 
-const providerSettings = (defaultBin: string) =>
+const providerSettings = (defaultBin: string, defaultModel = '') =>
   z
     .object({
       bin: nonEmpty.default(defaultBin),
-      defaultModel: z.string().default(''),
+      defaultModel: z.string().default(defaultModel),
       models: z.array(z.string()).default([]),
     })
     .prefault({});
@@ -45,11 +45,11 @@ export function createConfigSchema(configDir: string) {
   return z
     .object({
       dataDir: pathField.prefault('~/.automator'),
-      copilotBin: nonEmpty.default('copilot'),
       locale: z.enum(['en', 'es', 'zh', 'ru']).default('en'),
       provider: providerName.default('copilot'),
       providers: z
         .object({
+          copilot: providerSettings('copilot', 'claude-sonnet-4.5'),
           'claude-code': providerSettings('claude'),
           codex: providerSettings('codex'),
           opencode: providerSettings('opencode'),
@@ -97,8 +97,6 @@ export function createConfigSchema(configDir: string) {
       runs: z
         .object({
           timeoutMinutes: positiveInt.default(30),
-          defaultModel: nonEmpty.default('claude-sonnet-4.5'),
-          models: z.array(z.string()).default([]),
           initialReview: z.enum(['baseline-only', 'unresolved']).default('baseline-only'),
           denyTools: z.array(z.string()).default([]),
           isolation: z.enum(['shared', 'copy']).default('shared'),
@@ -123,7 +121,7 @@ export function createConfigSchema(configDir: string) {
         .optional(),
     })
     .superRefine((config, ctx) => {
-      if (config.provider === 'copilot' || config.providers[config.provider].defaultModel.trim() !== '') return;
+      if (config.providers[config.provider].defaultModel.trim() !== '') return;
       ctx.addIssue({
         code: 'custom',
         path: ['providers', config.provider, 'defaultModel'],
@@ -134,8 +132,6 @@ export function createConfigSchema(configDir: string) {
 
 export type ConfigInput = z.input<ReturnType<typeof createConfigSchema>>;
 
-// Consumer modules are migrated in a later task; this type keeps them buildable while
-// the runtime schema deliberately strips the legacy property.
 export type Config = z.output<ReturnType<typeof createConfigSchema>> & {
   configDir: string;
   repositories: Record<string, { folder: string; gitlab?: string; github?: string; jira?: string; validate: string[] }>;

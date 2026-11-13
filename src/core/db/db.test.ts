@@ -100,13 +100,36 @@ function constraintCode(fn: () => unknown): string | undefined {
 }
 
 describe('db', () => {
+  test('migration 24 renames legacy Copilot Project overrides', () => {
+    const db = new BetterSqlite3(':memory:');
+    for (const { sql } of migrations.filter(({ version }) => version <= 23)) db.exec(sql);
+    const insert = db.prepare('INSERT INTO projects (name, created_at, config_overrides) VALUES (?, 0, ?)');
+    insert.run(
+      'web',
+      JSON.stringify({ copilotBin: '/c', 'runs/defaultModel': 'm', 'runs/models': 'a, b', locale: 'ru' }),
+    );
+    insert.run('bad', 'not json');
+    for (const { sql } of migrations.filter(({ version }) => version === 24)) db.exec(sql);
+    const rows = db.prepare('SELECT name, config_overrides FROM projects ORDER BY id').all() as {
+      name: string;
+      config_overrides: string;
+    }[];
+    expect(JSON.parse(rows[0]!.config_overrides)).toEqual({
+      'providers/copilot/bin': '/c',
+      'providers/copilot/defaultModel': 'm',
+      'providers/copilot/models': 'a, b',
+      locale: 'ru',
+    });
+    expect(rows[1]!.config_overrides).toBe('not json');
+  });
+
   test('existing Runs migrate to Copilot and provider values round-trip', () => {
     const db = setupVersion6();
     const oldRunId = insertRun(db, null, 'finished');
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(23);
+    expect(db.pragma('user_version', { simple: true })).toBe(24);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -120,10 +143,10 @@ describe('db', () => {
 
   test('migrate is idempotent and sets user_version 23', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(23);
+    expect(db.pragma('user_version', { simple: true })).toBe(24);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(23);
+    expect(db.pragma('user_version', { simple: true })).toBe(24);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -249,7 +272,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(23);
+    expect(db.pragma('user_version', { simple: true })).toBe(24);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

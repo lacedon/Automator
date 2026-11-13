@@ -140,7 +140,7 @@ describe('Scheduler.tick', () => {
         trigger: 'schedule',
         priority: 1,
         reason: '2 new notes',
-        model: config.runs.defaultModel,
+        model: config.providers.copilot.defaultModel,
         repository: 'pages',
       },
     ]);

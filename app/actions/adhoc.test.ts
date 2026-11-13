@@ -16,7 +16,7 @@ let core: Core;
 
 beforeEach(() => {
   const config = testConfig({
-    runs: { defaultModel: 'default-model', models: ['other-model'] },
+    providers: { copilot: { defaultModel: 'default-model', models: ['other-model'] } },
     jira: { enabled: true },
   });
   core = createCore(
