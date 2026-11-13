@@ -340,6 +340,8 @@
     "free": "Произвольный"
   },
   "WatchForm": {
+    "name": "Название",
+    "nameHint": "(необязательно, до 120 символов; показывается вместо заголовка)",
     "target": "URL цели или ключ Jira",
     "targetPlaceholder": "URL MR GitLab или PR GitHub, PROJ-123 или любой URL",
     "repository": "Репозиторий",

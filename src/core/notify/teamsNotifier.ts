@@ -91,8 +91,9 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
     async notifyNeedsYou(event) {
       if (event.teamsStatus !== 'pending') return;
       try {
-        const watch = db.prepare('SELECT title, repository FROM watches WHERE id = ?').get(event.watchId) as
-          { title: string; repository: string } | undefined;
+        const watch = db
+          .prepare('SELECT COALESCE(name, title) AS title, repository FROM watches WHERE id = ?')
+          .get(event.watchId) as { title: string; repository: string } | undefined;
         const effective = watch === undefined ? config : (deps.configFor?.(watch.repository) ?? config);
         const teams = effective.teams;
         if (teams === undefined) return;

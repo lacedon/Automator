@@ -36,12 +36,15 @@ export interface CreateWatchInput {
   agentId?: number;
   initialReview?: InitialReview;
   title?: string;
+  name?: string;
   // The script is generated from the instructions beforehand (see PrecheckScriptService).
   precheckInstructions?: string;
   precheckScript?: string;
 }
 
 export interface UpdateWatchInput {
+  // Blank clears the name.
+  name?: string | null;
   instructions?: string | null;
   intervalMs?: number | null;
   model?: string | null;
@@ -61,6 +64,14 @@ export type PreviewTargetResult = {
 function blankToNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+export const MAX_NAME_LENGTH = 120;
+
+function invalidName(name: string | null | undefined): AppError | null {
+  const trimmed = name?.trim();
+  if (!trimmed || [...trimmed].length <= MAX_NAME_LENGTH) return null;
+  return { code: 'INVALID_INPUT', field: 'name', message: `Name must be at most ${MAX_NAME_LENGTH} characters` };
 }
 
 function invalidInterval(intervalMs: number | null | undefined): AppError | null {
@@ -134,6 +145,8 @@ export class WatchService {
     const precheckInstructions = blankToNull(input.precheckInstructions);
     const badPrecheck = invalidPrecheck(target.kind, precheckInstructions, input.precheckScript);
     if (badPrecheck) return err(badPrecheck);
+    const badName = invalidName(input.name);
+    if (badName) return err(badName);
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
     const badModel = invalidModel(this.configFor(repository.name), input.model);
@@ -150,10 +163,10 @@ export class WatchService {
           const now = clock.now();
           const row = this.deps.db
             .prepare(
-              `INSERT INTO watches (kind, target_url, normalized_target, repository, title, state, instructions,
+              `INSERT INTO watches (kind, target_url, normalized_target, repository, title, name, state, instructions,
                  interval_ms, model, initial_review, agent_id, precheck_instructions, precheck_script,
                  next_check_at, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                RETURNING *`,
             )
             .get(
@@ -162,6 +175,7 @@ export class WatchService {
               target.normalizedTarget,
               repository.name,
               blankToNull(input.title) ?? target.displayUrl,
+              blankToNull(input.name),
               instructions,
               input.intervalMs ?? null,
               blankToNull(input.model),
@@ -182,6 +196,8 @@ export class WatchService {
   }
 
   update(id: number, input: UpdateWatchInput): Result<Watch> {
+    const badName = invalidName(input.name);
+    if (badName) return err(badName);
     const badInterval = invalidInterval(input.intervalMs);
     if (badInterval) return err(badInterval);
     return this.deps.db
@@ -192,6 +208,10 @@ export class WatchService {
         if (badModel) return err(badModel);
         const sets: string[] = [];
         const params: Record<string, unknown> = { id, now: this.deps.clock.now() };
+        if (input.name !== undefined) {
+          sets.push('name = @name');
+          params.name = blankToNull(input.name);
+        }
         if (input.instructions !== undefined) {
           const instructions = blankToNull(input.instructions);
           if (watch.kind === 'free' && instructions === null) return err({ code: 'MISSING_INSTRUCTIONS' });

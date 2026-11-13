@@ -33,6 +33,7 @@ export function toWatch(row: unknown): Watch {
     normalizedTarget: r.normalized_target as string,
     repository: r.repository as string,
     title: r.title as string,
+    name: (r.name ?? null) as string | null,
     state: r.state as WatchState,
     instructions: r.instructions as string | null,
     intervalMs: r.interval_ms as number | null,

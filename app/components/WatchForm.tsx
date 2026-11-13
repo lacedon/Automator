@@ -16,6 +16,7 @@ export type EditableWatch = Pick<
   Watch,
   | 'id'
   | 'kind'
+  | 'name'
   | 'targetUrl'
   | 'repository'
   | 'instructions'
@@ -114,6 +115,7 @@ export function WatchForm(props: Props) {
 
   const [target, setTarget] = useState(mode === 'create' ? props.initial.target : '');
   const [repository, setRepository] = useState(mode === 'create' ? props.initial.repository : '');
+  const [name, setName] = useState(watch?.name ?? '');
   const [instructions, setInstructions] = useState(watch?.instructions ?? '');
   const [precheckInstructions, setPrecheckInstructions] = useState(watch?.precheckInstructions ?? '');
   // Until edited, the interval field shows the effective interval and is not submitted, so defaults stay defaults.
@@ -204,6 +206,21 @@ export function WatchForm(props: Props) {
           <p className="field-hint muted locked-note">{t('lockedNote')}</p>
         </>
       )}
+
+      <div className="field">
+        <label htmlFor="wf-name">
+          {t('name')} <span className="muted">{t('nameHint')}</span>
+        </label>
+        <input
+          id="wf-name"
+          name="name"
+          className={inputClass('name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={120}
+          autoComplete="off"
+        />
+      </div>
 
       {kind === 'jira' && !settings.jiraEnabled && <div className="notice">{t('jiraOff')}</div>}
 

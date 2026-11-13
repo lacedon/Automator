@@ -24,7 +24,7 @@ export function homeView(deps: ReadDeps, scope: ProjectScope = null): HomeView {
   const inScope = scopeFilter(deps, scope);
   const needsYou = db
     .prepare(
-      `SELECT id, title, kind, repository, needs_you_reason, needs_you_since, needs_you_run_id FROM watches
+      `SELECT id, COALESCE(name, title) AS title, kind, repository, needs_you_reason, needs_you_since, needs_you_run_id FROM watches
        WHERE state = 'needs_you' ORDER BY needs_you_since DESC, id DESC`,
     )
     .all()

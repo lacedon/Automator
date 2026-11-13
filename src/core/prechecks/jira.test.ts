@@ -42,6 +42,7 @@ function watch(partial: Partial<Watch> = {}): Watch {
     normalizedTarget: `jira:jira.example.com/${ISSUE_KEY}`,
     repository: 'pages',
     title: 'Fix the login page',
+    name: null,
     state: 'active',
     instructions: null,
     intervalMs: null,

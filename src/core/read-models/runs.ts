@@ -75,7 +75,7 @@ export type RunFilter = {
 };
 
 export const RUNS_WITH_TITLE =
-  'SELECT r.*, w.title AS watch_title FROM runs r LEFT JOIN watches w ON w.id = r.watch_id';
+  'SELECT r.*, COALESCE(w.name, w.title) AS watch_title FROM runs r LEFT JOIN watches w ON w.id = r.watch_id';
 
 export type RunWithTitle = Run & { watchTitle: string | null };
 

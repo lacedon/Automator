@@ -15,6 +15,7 @@ test('links the scheduled Repository error result from the Needs you card', () =
     targetUrl: 'https://gitlab.example.com/team/app/-/merge_requests/1',
     normalizedTarget: 'gitlab:gitlab.example.com/team/app!1',
     repository: 'app',
+    name: null,
     title: 'Update app',
     state: 'needs_you',
     instructions: null,

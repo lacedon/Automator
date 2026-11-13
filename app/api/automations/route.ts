@@ -25,6 +25,7 @@ const createSchema = z.object({
   target: z.string(),
   repository: z.string(),
   interval: intervalField,
+  name: z.string().optional(),
   model: z.string().optional(),
   instructions: z.string().optional(),
   initialReview: z.enum(['baseline-only', 'unresolved']).optional(),

@@ -346,4 +346,9 @@ ALTER TABLE watches ADD COLUMN precheck_output TEXT;
 ALTER TABLE watches ADD COLUMN precheck_problem TEXT;
 `,
   },
+  {
+    version: 21,
+    sql: `ALTER TABLE watches ADD COLUMN name TEXT;
+`,
+  },
 ];

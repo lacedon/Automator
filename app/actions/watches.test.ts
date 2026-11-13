@@ -253,6 +253,27 @@ test('updateWatch saves the editable fields and redirects to the Automation', as
   });
 });
 
+test('createWatch and updateWatch save, trim and clear the optional name', async () => {
+  await expect(createWatch(null, form({ ...watchFields, name: '  Release review ' }))).rejects.toThrow('NEXT_REDIRECT');
+  const [watch] = core.watches.list();
+  expect(watch!.name).toBe('Release review');
+  const fields = { id: String(watch!.id), instructions: '', interval: '', model: '', initialReview: '' };
+  await expect(updateWatch(null, form({ ...fields, name: 'Renamed' }))).rejects.toThrow('NEXT_REDIRECT');
+  expect(core.watches.get(watch!.id)!.name).toBe('Renamed');
+  await expect(updateWatch(null, form({ ...fields, name: '   ' }))).rejects.toThrow('NEXT_REDIRECT');
+  expect(core.watches.get(watch!.id)!.name).toBeNull();
+  const tooLong = { ...fields, name: 'x'.repeat(121) };
+  expect(await updateWatch(null, form(tooLong))).toMatchObject({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'name' },
+  });
+});
+
+test('createWatch without a name stores none', async () => {
+  await expect(createWatch(null, form(watchFields))).rejects.toThrow('NEXT_REDIRECT');
+  expect(core.watches.list()[0]!.name).toBeNull();
+});
+
 test('updateWatch resets interval, model and initial review to the defaults when blank', async () => {
   const id = insertWatch(core.db);
   core.watches.update(id, { intervalMs: 60_000, model: 'gpt-5', initialReview: 'unresolved', instructions: 'x' });

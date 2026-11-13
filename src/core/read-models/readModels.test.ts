@@ -115,6 +115,21 @@ describe('read models', () => {
     expect(read.watchList({ q: 'paus' }).rows.map((r) => r.title)).toEqual(['B paused']);
   });
 
+  test('a named Automation shows its name on the board, Home and Run lists; unnamed ones keep their title', () => {
+    const { db, read } = setup();
+    const named = insertWatch(db, { title: 'Original title', state: 'needs_you' });
+    insertWatch(db, { title: 'Plain title' });
+    setWatch(db, named, { name: 'My name' });
+
+    expect(read.watchList({}).rows.map((r) => r.title)).toEqual(['My name', 'Plain title']);
+    expect(read.watchList({ q: 'my na' }).rows.map((r) => r.title)).toEqual(['My name']);
+    expect(read.watchList({ q: 'original' }).rows.map((r) => r.title)).toEqual(['My name']);
+    expect(read.homeView().needsYou.map((c) => c.title)).toEqual(['My name']);
+
+    setWatch(db, named, { name: null });
+    expect(read.watchList({}).rows.map((r) => r.title)).toEqual(['Original title', 'Plain title']);
+  });
+
   test('watch rows include the last finished Run', () => {
     const { db, read } = setup();
     const w = insertWatch(db);
