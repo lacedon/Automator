@@ -37,8 +37,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const projects = await readableProjects();
   const active = typeof selection === 'number' ? projects.find((p) => p.id === selection) : undefined;
   const hue = active ? projectHue(active.name) : undefined;
-  const accent = hue === undefined ? undefined : `hsl(${hue} 65% 55%)`;
-  const header = hue === undefined ? undefined : `hsl(${hue} 55% 24%)`;
+  const accent = hue === undefined ? undefined : `hsl(${hue} 10% 15%)`;
+  const header = hue === undefined ? undefined : `hsl(${hue} 80% 15%)`;
   return (
     <html lang={locale}>
       <body style={accent ? ({ '--project-accent': accent, '--project-header': header } as CSSProperties) : undefined}>
