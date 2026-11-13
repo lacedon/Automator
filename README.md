@@ -83,7 +83,7 @@ npm run automator -- run --repo <name> --ticket ABC-123 --prompt "Use the existi
 
 ## Run providers
 
-Provider selection is installation-wide. Change it in **Settings → Configuration** or set `provider` in `automator.config.json`. Missing provider configuration continues to mean `copilot`. The example config contains the executable, default model and supported-model list for each CLI; set a non-empty default model before selecting a non-Copilot provider. OpenCode model IDs use the `provider/model` form. Run history stores the provider and model selected when the Run was queued, so later settings changes do not relabel old Runs or reroute queued/follow-up work.
+Provider selection is installation-wide. Change it in **Settings → Configuration** or set `provider` in `automator.config.json`. Missing provider configuration continues to mean `copilot`. Copilot is configured like the other providers under `providers.copilot`; the legacy `copilotBin`, `runs.defaultModel` and `runs.models` keys are migrated there (and removed from the file) the next time the config is loaded, and legacy Project overrides are migrated by a database migration. The example config contains the executable, default model and supported-model list for each CLI; set a non-empty default model before selecting a non-Copilot provider. OpenCode model IDs use the `provider/model` form. Run history stores the provider and model selected when the Run was queued, so later settings changes do not relabel old Runs or reroute queued/follow-up work.
 
 Install each CLI and authenticate it as the same OS user that runs Automator, following its official setup guide:
 

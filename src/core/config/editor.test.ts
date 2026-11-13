@@ -53,10 +53,39 @@ describe('readEditableConfig', () => {
     expect(editable).toMatchObject({
       provider: 'copilot',
       providers: {
+        copilot: { bin: 'copilot', defaultModel: 'claude-sonnet-4.5', models: [] },
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: 'codex', defaultModel: '', models: [] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
       },
+    });
+  });
+
+  test('legacy Copilot settings are exposed and saved under providers.copilot', () => {
+    const { file } = writeConfig({
+      ...config,
+      copilotBin: '/opt/copilot',
+      runs: { timeoutMinutes: 10, defaultModel: 'legacy', models: ['legacy', 'other'] },
+    });
+
+    const editable = readEditableConfig(file);
+    expect(editable.providers.copilot).toEqual({
+      bin: '/opt/copilot',
+      defaultModel: 'legacy',
+      models: ['legacy', 'other'],
+    });
+    expect(editable).not.toHaveProperty('copilotBin');
+
+    editable.providers.copilot.defaultModel = 'other';
+    writeEditableConfig(file, editable);
+
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    expect(saved).not.toHaveProperty('copilotBin');
+    expect(saved.runs).toEqual({ timeoutMinutes: 10 });
+    expect(saved.providers.copilot).toEqual({
+      bin: '/opt/copilot',
+      defaultModel: 'other',
+      models: ['legacy', 'other'],
     });
   });
 
@@ -80,6 +109,7 @@ describe('readEditableConfig', () => {
     Object.assign(editable, {
       provider: 'codex',
       providers: {
+        copilot: editable.providers.copilot,
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: '/opt/codex-edited', defaultModel: 'codex-new', models: ['codex-new'] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
@@ -170,7 +200,7 @@ describe('writeEditableConfig', () => {
   test('does not overwrite legacy repositories when saving config edits', () => {
     const { file } = writeConfig(config);
     const editable = readEditableConfig(file);
-    editable.copilotBin = '/opt/copilot';
+    editable.providers.copilot.bin = '/opt/copilot';
     writeEditableConfig(file, editable);
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).repositories).toEqual(config.repositories);
   });

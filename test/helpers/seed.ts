@@ -15,7 +15,13 @@ export function writeSeedConfig(root: string): string {
     `${JSON.stringify(
       {
         dataDir: '.',
-        copilotBin: fileURLToPath(new URL('../fixtures/fake-copilot.mjs', import.meta.url)),
+        providers: {
+          copilot: {
+            bin: fileURLToPath(new URL('../fixtures/fake-copilot.mjs', import.meta.url)),
+            defaultModel: 'claude-sonnet-4.5',
+            models: ['claude-sonnet-4.5'],
+          },
+        },
         schedule: {
           intervals: { mr: '15m', default: '2h' },
           workingHours: { days: [1, 2, 3, 4, 5], start: '08:00', end: '19:00' },
@@ -23,7 +29,6 @@ export function writeSeedConfig(root: string): string {
         repositories: { pages: { folder: './repos/pages', gitlab: 'corp' } },
         gitlab: { corp: { host: 'https://gitlab.example.com', tokenEnv: 'GITLAB_TOKEN' } },
         jira: { enabled: false },
-        runs: { defaultModel: 'claude-sonnet-4.5', models: ['claude-sonnet-4.5'] },
       },
       null,
       2,

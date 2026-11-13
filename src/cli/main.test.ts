@@ -15,7 +15,7 @@ afterEach(() => {
 
 function setup(opts: { jira?: boolean; legacyRepo?: boolean } = {}) {
   const config = testConfig({
-    runs: { models: ['m1'] },
+    providers: { copilot: { models: ['m1'] } },
     ...(opts.jira ? { jira: { enabled: true } } : {}),
     ...(opts.legacyRepo ? { repositories: { 'inspire-mbdp-pages': { folder: './repos/pages', gitlab: 'corp' } } } : {}),
   });
@@ -348,7 +348,7 @@ describe('runCli', () => {
       expect.objectContaining({ watch_id: null, repository: 'api', adhoc_prompt: 'Do the thing' }),
     );
     expect(core.db.prepare('SELECT model FROM runs WHERE id = 2').get()).toEqual({
-      model: core.config.runs.defaultModel,
+      model: core.config.providers.copilot.defaultModel,
     });
   });
 

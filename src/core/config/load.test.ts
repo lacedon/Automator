@@ -44,6 +44,50 @@ function captureError(fn: () => unknown): Error {
 }
 
 describe('loadConfig', () => {
+  test('legacy Copilot settings are migrated to providers.copilot and saved', () => {
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      copilotBin: '/opt/copilot',
+      runs: { timeoutMinutes: 10, defaultModel: 'legacy-model', models: ['legacy-model', 'gpt-5'] },
+    });
+
+    const config = loadConfig({ path: file, env: {} });
+
+    expect(config.providers.copilot).toEqual({
+      bin: '/opt/copilot',
+      defaultModel: 'legacy-model',
+      models: ['legacy-model', 'gpt-5'],
+    });
+    expect(config).not.toHaveProperty('copilotBin');
+    expect(config.runs).not.toHaveProperty('defaultModel');
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    expect(saved).not.toHaveProperty('copilotBin');
+    expect(saved.runs).toEqual({ timeoutMinutes: 10 });
+    expect(saved.providers.copilot).toEqual(config.providers.copilot);
+  });
+
+  test('existing providers.copilot values win over legacy ones', () => {
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      copilotBin: '/legacy/copilot',
+      providers: { copilot: { bin: '/new/copilot' } },
+      runs: { defaultModel: 'legacy-model' },
+    });
+
+    const config = loadConfig({ path: file, env: {} });
+
+    expect(config.providers.copilot).toMatchObject({ bin: '/new/copilot', defaultModel: 'legacy-model' });
+  });
+
+  test('a config without legacy keys is not rewritten', () => {
+    const { file } = writeConfig({ repositories: {}, gitlab: {} });
+    const before = fs.readFileSync(file, 'utf8');
+    loadConfig({ path: file, env: {} });
+    expect(fs.readFileSync(file, 'utf8')).toBe(before);
+  });
+
   test('legacy config defaults provider to Copilot and preserves Copilot options', () => {
     const { file } = writeConfig({
       repositories: {},
@@ -56,13 +100,12 @@ describe('loadConfig', () => {
 
     expect(config).toMatchObject({
       provider: 'copilot',
-      copilotBin: '/opt/copilot',
       providers: {
+        copilot: { bin: '/opt/copilot', defaultModel: 'legacy-model', models: ['legacy-model', 'gpt-5'] },
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: 'codex', defaultModel: '', models: [] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
       },
-      runs: { defaultModel: 'legacy-model', models: ['legacy-model', 'gpt-5'] },
     });
   });
 
@@ -109,7 +152,7 @@ describe('loadConfig', () => {
     expect(config.jira.enabled).toBe(false);
     expect(config.cleanup).toEqual({ enabled: true, everyDays: 7, retainClosedDays: 30 });
     expect(config.dataDir).toBe(path.join(os.homedir(), '.automator'));
-    expect(config.copilotBin).toBe('copilot');
+    expect(config.providers.copilot).toEqual({ bin: 'copilot', defaultModel: 'claude-sonnet-4.5', models: [] });
     expect(config).not.toHaveProperty('prompts');
     expect(config.configDir).toBe(dir);
     expect(config.teams).toBeUndefined();
@@ -174,7 +217,7 @@ describe('loadConfig', () => {
     });
     const error = captureError(() => loadConfig({ path: file, env: {} }));
     expect(error).toBeInstanceOf(ConfigError);
-    expect(error.message).toContain('copilotBin');
+    expect(error.message).toContain('providers.copilot.bin');
   });
 
   test('ignores malformed legacy repository data at config-load time', () => {
@@ -194,7 +237,7 @@ describe('loadConfig', () => {
     });
     const error = captureError(() => loadConfig({ path: file, env: {} }));
     expect(error).toBeInstanceOf(ConfigError);
-    expect(error.message).toContain('copilotBin');
+    expect(error.message).toContain('providers.copilot.bin');
     expect(error.message).toContain('runs.initialReview');
   });
 
@@ -235,7 +278,7 @@ describe('loadConfig', () => {
     const { file } = writeConfig({ repositories: {}, gitlab: {}, runs: { defaultModel: '' } });
     const error = captureError(() => loadConfig({ path: file, env: {} }));
     expect(error).toBeInstanceOf(ConfigError);
-    expect(error.message).toContain('runs.defaultModel');
+    expect(error.message).toContain('providers.copilot.defaultModel');
 
     const valid = writeConfig({
       repositories: {},
@@ -265,9 +308,13 @@ describe('loadConfig', () => {
   });
 
   test('AUTOMATOR_CONFIG overrides default path', () => {
-    const { file } = writeConfig({ repositories: {}, gitlab: {}, copilotBin: '/opt/fake-copilot' });
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      providers: { copilot: { bin: '/opt/fake-copilot' } },
+    });
     const config = loadConfig({ env: { AUTOMATOR_CONFIG: file } });
-    expect(config.copilotBin).toBe('/opt/fake-copilot');
+    expect(config.providers.copilot.bin).toBe('/opt/fake-copilot');
   });
 
   test('missing or malformed file is a ConfigError', () => {
@@ -279,7 +326,7 @@ describe('loadConfig', () => {
 
   test('example config is valid', () => {
     const config = loadConfig({ path: 'automator.config.example.json', env: {} });
-    expect(config.runs.models).toEqual(['claude-sonnet-4.5', 'gpt-5']);
+    expect(config.providers.copilot.models).toEqual(['claude-sonnet-4.5', 'gpt-5']);
     expect(config.teams?.chatId).toBe('19:abc@thread.v2');
   });
 });

@@ -117,11 +117,11 @@ test('Configuration editor is modal, shows save errors and fits a narrow screen'
   await page.getByRole('button', { name: 'Open configuration', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit Configuration', exact: true });
   await expect(dialog.getByLabel('Provider', { exact: true })).toBeVisible();
-  const model = await dialog.locator('#config-runs-defaultModel').inputValue();
-  await dialog.locator('#config-runs-defaultModel').fill('');
+  const model = await dialog.locator('#config-providers-copilot-defaultModel').inputValue();
+  await dialog.locator('#config-providers-copilot-defaultModel').fill('');
   await dialog.getByRole('button', { name: 'Save Configuration' }).click();
   await expect(dialog.locator('.error-box')).toBeVisible();
-  await expect(dialog.locator('#config-runs-defaultModel')).toHaveValue('');
+  await expect(dialog.locator('#config-providers-copilot-defaultModel')).toHaveValue('');
   const box = await dialog.boundingBox();
   expect(box?.width).toBeLessThanOrEqual(390);
   expect(box?.height).toBeLessThanOrEqual(844);
@@ -129,7 +129,7 @@ test('Configuration editor is modal, shows save errors and fits a narrow screen'
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open configuration', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Open configuration', exact: true }).click();
-  await expect(dialog.locator('#config-runs-defaultModel')).toHaveValue(model);
+  await expect(dialog.locator('#config-providers-copilot-defaultModel')).toHaveValue(model);
   await expect(dialog.locator('.error-box')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Save Configuration', exact: true }).click();
   await expect(dialog).not.toBeVisible();

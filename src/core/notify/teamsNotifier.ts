@@ -61,7 +61,7 @@ export function createTeamsNotifier(deps: TeamsNotifierDeps): Notifier {
     const proc = launcher.start({
       cwd: dataDir.root,
       prompt,
-      model: teams.model ?? effective.runs.defaultModel,
+      model: teams.model ?? effective.providers.copilot.defaultModel,
       transcriptPath: dataDir.notifyTranscriptPath(event.id),
       logPath,
       env: childEnv(process.env, deps.secretsFor?.(effective) ?? secrets),

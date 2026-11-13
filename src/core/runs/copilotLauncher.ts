@@ -48,7 +48,7 @@ export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets):
         ...(opts.extraArgs ?? []),
       ];
 
-      const child = spawnChild(config.copilotBin, args, {
+      const child = spawnChild(config.providers.copilot.bin, args, {
         cwd: opts.cwd,
         env: opts.env,
         secrets,

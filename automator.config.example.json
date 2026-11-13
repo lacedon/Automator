@@ -1,8 +1,8 @@
 {
   "dataDir": "~/.automator",
-  "copilotBin": "copilot",
   "provider": "copilot",
   "providers": {
+    "copilot": { "bin": "copilot", "defaultModel": "claude-sonnet-4.5", "models": ["claude-sonnet-4.5", "gpt-5"] },
     "claude-code": { "bin": "claude", "defaultModel": "", "models": [] },
     "codex": { "bin": "codex", "defaultModel": "", "models": [] },
     "opencode": { "bin": "opencode", "defaultModel": "", "models": [] }
@@ -26,8 +26,6 @@
   },
   "runs": {
     "timeoutMinutes": 30,
-    "defaultModel": "claude-sonnet-4.5",
-    "models": ["claude-sonnet-4.5", "gpt-5"],
     "initialReview": "baseline-only",
     "denyTools": [],
     "isolation": "shared",

@@ -37,7 +37,10 @@ type SetupOpts = {
 function setup(opts: SetupOpts = {}) {
   const t = tempDb();
   cleanups.push(t.cleanup);
-  const config = testConfig({ copilotBin: FAKE, ...opts.config });
+  const config = testConfig({
+    ...opts.config,
+    providers: { copilot: { bin: FAKE, ...opts.config?.providers?.copilot } },
+  });
   config.teams = opts.teams === null ? undefined : (opts.teams ?? { ...TEAMS });
   const secrets = resolveSecrets(config, { GITLAB_TOKEN: 'glpat-secret' });
   const dataDir = new DataDir(config.dataDir);
@@ -86,7 +89,7 @@ const isAlive = (pid: number) => {
 
 describe('TeamsNotifier', () => {
   test('sends with available-tools restricted and marks sent', async () => {
-    const s = setup({ config: { runs: { defaultModel: 'claude-sonnet-4.5' } } });
+    const s = setup({ config: { providers: { copilot: { defaultModel: 'claude-sonnet-4.5' } } } });
     const { event, watchId } = needsYou(s.db);
 
     await s.notifier.notifyNeedsYou(event);
@@ -154,7 +157,7 @@ describe('TeamsNotifier', () => {
   });
 
   test('spawn error marks failed with the error message', async () => {
-    const s = setup({ config: { copilotBin: '/nonexistent/copilot' } });
+    const s = setup({ config: { providers: { copilot: { bin: '/nonexistent/copilot' } } } });
     const { event } = needsYou(s.db);
 
     await expect(s.notifier.notifyNeedsYou(event)).resolves.toBeUndefined();

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import { writeJsonAtomic } from '../files/atomic';
+import { migrateLegacyConfig } from './migrate';
 import { createConfigSchema, type Config } from './schema';
 
 export class ConfigError extends Error {
@@ -34,14 +36,25 @@ export function loadConfig(opts: { path?: string; env?: Env } = {}): Config {
   const file = path.resolve(opts.path ?? env.AUTOMATOR_CONFIG ?? path.join(process.cwd(), 'automator.config.json'));
   const configDir = path.dirname(file);
 
-  const raw = readRawConfig(file);
+  const migration = migrateLegacyConfig(readRawConfig(file));
+  const raw = migration.raw;
   const parsed = createConfigSchema(configDir).safeParse(raw);
   const issues = parsed.success ? [] : parsed.error.issues;
   if (!parsed.success || issues.length > 0) {
     const lines = issues.map((issue) => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`);
     throw new ConfigError(`Invalid config ${file}:\n${lines.join('\n')}`);
   }
+  if (migration.changed) saveMigratedConfig(file, raw);
   return { ...parsed.data, configDir } as Config;
+}
+
+// The migrated config is persisted so the legacy keys disappear from the file; a read-only file keeps working in memory.
+function saveMigratedConfig(file: string, raw: unknown): void {
+  try {
+    writeJsonAtomic(file, raw);
+  } catch (e) {
+    console.error(`config: could not save the migrated config ${file}: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 // Returns a function that yields a freshly loaded Config when the file changed since the last call and is valid;

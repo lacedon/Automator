@@ -26,7 +26,7 @@ function setup(opts: { config?: Config; preview?: WatchServiceDeps['preview'] } 
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const dataDir = new DataDir(path.dirname(t.file));
-  const config = opts.config ?? testConfig({ runs: { models: ['gpt-x', 'm1', 'watch-model'] } });
+  const config = opts.config ?? testConfig({ providers: { copilot: { models: ['gpt-x', 'm1', 'watch-model'] } } });
   const repositories = testRepositories(t.db, config);
   const queue = new QueueService(t.db, clock, dataDir, config, repositories);
   const service = new WatchService({ db: t.db, clock, dataDir, config, repositories, queue, preview: opts.preview });
@@ -486,7 +486,7 @@ describe('WatchService state actions', () => {
         watch_id: w.id,
         trigger: 'manual',
         reason: 'Resume & run now',
-        model: config.runs.defaultModel,
+        model: config.providers.copilot.defaultModel,
         extra_instructions: null,
         review_unresolved: 0,
       },

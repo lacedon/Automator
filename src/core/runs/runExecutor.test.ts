@@ -50,7 +50,7 @@ function setup(opts: SetupOpts = {}) {
   cleanups.push(t.cleanup);
   const clock = fakeClock();
   const config = testConfig({
-    copilotBin: FAKE,
+    providers: { copilot: { bin: FAKE } },
     ...opts.config,
     runs: { timeoutMs: 1500, ...opts.config?.runs },
   });
@@ -789,7 +789,7 @@ describe('RunExecutor', () => {
   });
 
   test('spawn failure becomes SPAWN_FAILED error result', async () => {
-    const s = setup({ config: { copilotBin: '/nonexistent/copilot' } });
+    const s = setup({ config: { providers: { copilot: { bin: '/nonexistent/copilot' } } } });
     const watchId = addWatch(s.db);
     const final = await s.executor.execute(claim(s.db, s.clock.now(), watchId));
     expect(final).toMatchObject({ resultStatus: 'error', exitCode: null, transcriptPath: null });

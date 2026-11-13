@@ -53,6 +53,22 @@ describe('ConfigResolver', () => {
     expect(configs.forRepository('api')).toBe(config);
   });
 
+  test('a Project can override the Copilot bin, default model and models', () => {
+    const { configs, web } = setup();
+    expect(
+      configs.setValues(web, {
+        'providers/copilot/bin': '/opt/project-copilot',
+        'providers/copilot/defaultModel': 'project-model',
+        'providers/copilot/models': 'project-model, other',
+      }),
+    ).toMatchObject({ ok: true });
+    expect(configs.forRepository('pages').providers.copilot).toEqual({
+      bin: '/opt/project-copilot',
+      defaultModel: 'project-model',
+      models: ['project-model', 'other'],
+    });
+  });
+
   test('blank values reset to the global setting', () => {
     const { config, configs, web } = setup();
     configs.setValues(web, { 'runs/timeoutMinutes': '5' });
