@@ -722,3 +722,89 @@ describe('QueueService workflow types', () => {
     expect(second.ok && second.value.run.workflowType).toBe('ticket-adhoc');
   });
 });
+
+describe('requestBranch', () => {
+  function finishedAdhoc(ctx: ReturnType<typeof setup>, over: { status?: string } = {}) {
+    const run = ctx.queue.enqueueAdhoc({ repository: 'pages', prompt: 'first', model: 'opus' });
+    ctx.db
+      .prepare('UPDATE runs SET status = ?, session_id = ? WHERE id = ?')
+      .run(over.status ?? 'finished', 'sess-1', run.id);
+    return run;
+  }
+
+  test('creates an independent Run carrying the conversation up to the selected response', () => {
+    const ctx = setup();
+    const first = finishedAdhoc(ctx);
+    ctx.db.prepare("UPDATE runs SET adhoc_prompt = 'one', summary = 'answer one' WHERE id = ?").run(first.id);
+    const reply = ctx.queue.requestFollowUp(first.id, 'two');
+    if (!reply.ok) throw new Error('setup');
+    ctx.db.prepare("UPDATE runs SET status = 'finished', summary = 'answer two' WHERE id = ?").run(reply.value.run.id);
+
+    const result = ctx.queue.requestBranch(first.id, 'three');
+    if (!result.ok) throw new Error('branch failed');
+    const run = result.value.run;
+    expect(run).toMatchObject({
+      parentRunId: null,
+      sessionId: null,
+      branchedFromRunId: first.id,
+      adhocPrompt: 'three',
+    });
+    expect(run.branchContext).toContain('User: one');
+    expect(run.branchContext).toContain('Agent: answer one');
+    expect(run.branchContext).not.toContain('answer two');
+    // The original chat is unchanged.
+    expect(ctx.db.prepare('SELECT count(*) AS n FROM runs WHERE parent_run_id = ?').get(first.id)).toEqual({ n: 1 });
+  });
+
+  test('includes earlier exchanges when branching from a later response', () => {
+    const ctx = setup();
+    const first = finishedAdhoc(ctx);
+    ctx.db.prepare("UPDATE runs SET adhoc_prompt = 'one', summary = 'answer one' WHERE id = ?").run(first.id);
+    const reply = ctx.queue.requestFollowUp(first.id, 'two');
+    if (!reply.ok) throw new Error('setup');
+    ctx.db.prepare("UPDATE runs SET status = 'finished', summary = 'answer two' WHERE id = ?").run(reply.value.run.id);
+
+    const result = ctx.queue.requestBranch(reply.value.run.id, 'three');
+    if (!result.ok) throw new Error('branch failed');
+    expect(result.value.run.branchContext).toContain('answer one');
+    expect(result.value.run.branchContext).toContain('answer two');
+  });
+
+  test('keeps the earlier chat context when branching a branched chat', () => {
+    const ctx = setup();
+    const first = finishedAdhoc(ctx);
+    ctx.db.prepare("UPDATE runs SET adhoc_prompt = 'one', summary = 'answer one' WHERE id = ?").run(first.id);
+    const b = ctx.queue.requestBranch(first.id, 'two');
+    if (!b.ok) throw new Error('setup');
+    ctx.db
+      .prepare("UPDATE runs SET status = 'finished', session_id = 'sess-2', summary = 'answer two' WHERE id = ?")
+      .run(b.value.run.id);
+    const reply = ctx.queue.requestFollowUp(b.value.run.id, 'three');
+    if (!reply.ok) throw new Error('setup');
+    ctx.db
+      .prepare("UPDATE runs SET status = 'finished', summary = 'answer three' WHERE id = ?")
+      .run(reply.value.run.id);
+
+    const result = ctx.queue.requestBranch(reply.value.run.id, 'four');
+    if (!result.ok) throw new Error('branch failed');
+    const context = result.value.run.branchContext ?? '';
+    expect(context).toContain('answer one');
+    expect(context).toContain('answer two');
+    expect(context).toContain('answer three');
+    expect(context).toContain('### Exchange 1');
+    expect(context).toContain('### Exchange 3');
+    expect(context).not.toContain('### Exchange 4');
+  });
+
+  test('rejects an unfinished Run, an empty message and an unknown Run', () => {
+    const ctx = setup();
+    const running = finishedAdhoc(ctx, { status: 'running' });
+    expect(ctx.queue.requestBranch(running.id, 'x')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_STATE', state: 'running', action: 'branch' },
+    });
+    const done = finishedAdhoc(ctx);
+    expect(ctx.queue.requestBranch(done.id, ' ')).toMatchObject({ error: { field: 'message' } });
+    expect(ctx.queue.requestBranch(9999, 'x')).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+});

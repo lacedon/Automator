@@ -8,8 +8,13 @@ const revalidatePath = vi.hoisted(() => vi.fn());
 vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
 vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
 vi.mock('next/cache', () => ({ revalidatePath }));
+vi.mock('next/navigation', () => ({
+  redirect: (url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  },
+}));
 
-const { sendRunMessage } = await import('./chat');
+const { sendRunMessage, branchRun } = await import('./chat');
 
 let core: Core;
 
@@ -75,4 +80,23 @@ test('echoes the message when the queue rejects it', async () => {
   });
   expect(core.db.prepare('SELECT count(*) AS n FROM runs').get()).toEqual({ n: 1 });
   expect(revalidatePath).not.toHaveBeenCalled();
+});
+
+test('branchRun creates a new chat from a finished Run and redirects to it', async () => {
+  const run = finishedAdhoc();
+  await expect(branchRun(null, form({ runId: String(run.id), message: 'other way' }))).rejects.toThrow(
+    /REDIRECT:\/runs\/\d+/,
+  );
+  const branch = core.db.prepare('SELECT * FROM runs WHERE branched_from_run_id = ?').get(run.id) as {
+    parent_run_id: number | null;
+    session_id: string | null;
+    adhoc_prompt: string;
+  };
+  expect(branch).toMatchObject({ parent_run_id: null, session_id: null, adhoc_prompt: 'other way' });
+});
+
+test('branchRun reports an unfinished Run', async () => {
+  const run = core.queue.enqueueAdhoc({ repository: 'pages', prompt: 'first', model: 'm' });
+  const result = await branchRun(null, form({ runId: String(run.id), message: 'x' }));
+  expect(result).toMatchObject({ ok: false, values: { message: 'x' } });
 });

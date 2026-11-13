@@ -20,6 +20,7 @@ export type ThreadView = {
   runs: ThreadRun[];
   replyToRunId: number | null;
   replyBlockedReason: string | null;
+  branchedFromRunId: number | null;
 };
 
 function toThreadRun(run: Run): ThreadRun {
@@ -80,5 +81,6 @@ export function runThread(deps: ReadDeps, run: Run): ThreadView | null {
     runs: chain.map(toThreadRun),
     replyToRunId: blocked === null ? tip.id : null,
     replyBlockedReason: blocked,
+    branchedFromRunId: root.branchedFromRunId,
   };
 }

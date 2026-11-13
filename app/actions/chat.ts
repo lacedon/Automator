@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import type { AppError } from '@core/index';
 import { getCore } from '../lib/core';
@@ -31,4 +32,21 @@ export async function sendRunMessage(_prev: ChatFormState, formData: FormData): 
   core.access.setOwner('runs', result.value.run.id, guard.userId);
   revalidatePath('/', 'layout');
   return { ok: true, value: { runId: result.value.run.id } };
+}
+
+export type BranchFormState = { ok: false; error: AppError; values: { message?: string } } | null;
+
+export async function branchRun(_prev: BranchFormState, formData: FormData): Promise<BranchFormState> {
+  const message = formData.get('message');
+  const values = typeof message === 'string' ? { message } : {};
+  const input = parseInput(chatSchema, { runId: formData.get('runId'), message });
+  if (!input.ok) return { ...input, values };
+  const guard = await requireWriteOnRun(input.value.runId);
+  if (!guard.ok) return { ...guard, values };
+  const core = getCore();
+  const result = core.queue.requestBranch(input.value.runId, input.value.message);
+  if (!result.ok) return { ...result, values };
+  core.access.setOwner('runs', result.value.run.id, guard.userId);
+  revalidatePath('/', 'layout');
+  redirect(`/runs/${result.value.run.id}`);
 }

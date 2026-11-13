@@ -6,7 +6,7 @@ import type { ThreadView } from '@core/index';
 import en from '../../messages/en.json';
 import { ChatPane, canClose } from './ChatPane';
 
-vi.mock('../actions/chat', () => ({ sendRunMessage: async () => null }));
+vi.mock('../actions/chat', () => ({ sendRunMessage: async () => null, branchRun: async () => null }));
 vi.mock('../actions/runs', () => ({ closeRun: async () => ({ ok: true }) }));
 
 const run = { status: 'finished', outcome: null, error: null, interrupted: null, closedAt: null } as const;
@@ -20,7 +20,7 @@ test('canClose is true only for open finished Needs you or Error Runs', () => {
   expect(canClose({ ...run, status: 'running', outcome: 'needs-you' })).toBe(false);
 });
 
-function render(outcome: 'needs-you' | 'acted', closedAt: number | null) {
+function render(outcome: 'needs-you' | 'acted', closedAt: number | null, branchedFromRunId: number | null = null) {
   const thread: ThreadView = {
     runs: [
       {
@@ -39,6 +39,7 @@ function render(outcome: 'needs-you' | 'acted', closedAt: number | null) {
     ],
     replyToRunId: null,
     replyBlockedReason: null,
+    branchedFromRunId,
   };
   return renderToStaticMarkup(
     // eslint-disable-next-line react/no-children-prop -- the provider's props type requires children
@@ -58,4 +59,12 @@ test('renders the close button after the file links, only for a Needs you Run', 
   const closed = render('needs-you', 1);
   expect(closed).not.toContain('Close chat');
   expect(closed).toContain('Done');
+});
+
+test('offers a Branch action on a finished response and links a branched chat to its origin', () => {
+  expect(render('acted', null)).toContain('>Branch<');
+  expect(render('acted', null)).not.toContain('Branched from');
+  const branched = render('acted', null, 7);
+  expect(branched).toContain('Branched from Run #7');
+  expect(branched).toContain('href="/runs/7"');
 });

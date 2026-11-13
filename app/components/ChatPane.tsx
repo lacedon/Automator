@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import type { ThreadRun, ThreadView } from '@core/index';
-import { sendRunMessage, type ChatFormState } from '../actions/chat';
+import { branchRun, sendRunMessage, type BranchFormState, type ChatFormState } from '../actions/chat';
 import { closeRun } from '../actions/runs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
@@ -17,6 +17,57 @@ export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | '
     run.closedAt === null &&
     run.interrupted === null &&
     (run.outcome === 'needs-you' || run.error !== null)
+  );
+}
+
+function BranchForm({ runId }: { runId: number }) {
+  const t = useTranslations('Chat');
+  const tError = useTranslations('ErrorBox');
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(branchRun, null);
+  const [message, setMessage] = useState('');
+  const [seen, setSeen] = useState<BranchFormState>(null);
+  if (state !== seen) {
+    setSeen(state);
+    if (state?.values.message !== undefined) setMessage(state.values.message);
+  }
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    startTransition(() => formAction(data));
+  };
+  if (!open) {
+    return (
+      <button type="button" className="btn" title={t('branchTitle')} onClick={() => setOpen(true)}>
+        {t('branch')}
+      </button>
+    );
+  }
+  return (
+    <form action={formAction} onSubmit={submit} className="watch-form chat-form">
+      {state !== null && <ErrorBox error={state.error} unknownRepositoryOutcome={tError('noRunQueued')} />}
+      <input type="hidden" name="runId" value={runId} />
+      <div className="field">
+        <label htmlFor={`branch-message-${runId}`}>{t('branchMessage')}</label>
+        <textarea
+          id={`branch-message-${runId}`}
+          name="message"
+          rows={3}
+          required
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder={t('branchPlaceholder')}
+        />
+      </div>
+      <div className="actions">
+        <button type="submit" className="btn btn-primary" disabled={pending}>
+          {t('branchSubmit')}
+        </button>
+        <button type="button" className="btn" onClick={() => setOpen(false)}>
+          {t('branchCancel')}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -50,6 +101,11 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
       <div className="chat-run-files muted">
         <RunFileLinks runId={run.id} />
       </div>
+      {run.status === 'finished' && (
+        <div className="actions">
+          <BranchForm runId={run.id} />
+        </div>
+      )}
       {current && canClose(run) && (
         <div className="actions">
           <ConfirmDialog
@@ -89,6 +145,11 @@ export function ChatPane({ thread, currentRunId }: { thread: ThreadView; current
 
   return (
     <div className="chat">
+      {thread.branchedFromRunId !== null && (
+        <p className="muted">
+          <Link href={`/runs/${thread.branchedFromRunId}`}>{t('branchedFrom', { id: thread.branchedFromRunId })}</Link>
+        </p>
+      )}
       {thread.runs.map((run) => (
         <RunExchange key={run.id} run={run} current={run.id === currentRunId} />
       ))}

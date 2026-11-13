@@ -30,6 +30,8 @@ export interface EnqueueAdhocInput {
   model: string;
   provider?: ProviderName;
   parentRunId?: number;
+  branchedFromRunId?: number;
+  branchContext?: string;
   sessionId?: string;
   ticketKey?: string;
   ticketTitle?: string | null;
@@ -123,8 +125,8 @@ export class QueueService {
     const workflowType = inherited ?? (input.ticketKey === undefined ? 'free-adhoc' : 'ticket-adhoc');
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type, agent_id)
-           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type, agent_id, branched_from_run_id, branch_context)
+           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -139,6 +141,8 @@ export class QueueService {
         this.clock.now(),
         workflowType,
         input.agentId ?? null,
+        input.branchedFromRunId ?? null,
+        input.branchContext ?? null,
       );
     return toRun(row);
   }
@@ -191,6 +195,63 @@ export class QueueService {
             parentRunId: runId,
             sessionId: parent.session_id,
             agentId: parent.agent_id,
+          }),
+        });
+      })
+      .immediate();
+  }
+
+  // Starts a new Chat whose first Run is told the conversation up to and including `runId`; the original is untouched.
+  requestBranch(runId: number, message: string): Result<{ run: Run }> {
+    return this.db
+      .transaction((): Result<{ run: Run }> => {
+        const target = this.db.prepare('SELECT * FROM runs WHERE id = ?').get(runId);
+        if (target === undefined) return err({ code: 'NOT_FOUND' });
+        const run = toRun(target);
+        if (run.watchId !== null)
+          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Branching is only available for ad-hoc Runs' });
+        const prompt = message.trim();
+        if (prompt === '') return err({ code: 'INVALID_INPUT', field: 'message', message: 'Message is required' });
+        if (prompt.length > MAX_FOLLOW_UP_CHARS)
+          return err({
+            code: 'INVALID_INPUT',
+            field: 'message',
+            message: `Message is too long (max ${MAX_FOLLOW_UP_CHARS} characters)`,
+          });
+        if (run.status !== 'finished') return err({ code: 'INVALID_STATE', state: run.status, action: 'branch' });
+        const invalidRepository = repositoryError(this.repositories, this.dataDir, run.repository, this.clock.now());
+        if (invalidRepository) return err(invalidRepository);
+        // Walk up to the Chat's first Run, then render each exchange down to the selected one.
+        const parentOf = this.db.prepare('SELECT * FROM runs WHERE id = ?');
+        const chain = [run];
+        const seen = new Set([run.id]);
+        for (let cur = run; cur.parentRunId !== null && !seen.has(cur.parentRunId);) {
+          const parent = parentOf.get(cur.parentRunId);
+          if (parent === undefined) break;
+          cur = toRun(parent);
+          seen.add(cur.id);
+          chain.unshift(cur);
+        }
+        // A branched chat's first Run carries the earlier conversation; keep it and continue its numbering.
+        const earlier = chain[0].branchContext;
+        const offset = earlier === null ? 0 : (earlier.match(/^### Exchange \d+$/gm)?.length ?? 0);
+        const context = [
+          ...(earlier === null ? [] : [earlier]),
+          ...chain.map((r, i) => {
+            const request = r.adhocPrompt?.trim() || r.ticketKey || '(none)';
+            const response = r.error !== null ? `Error: ${r.error.message}` : (r.summary ?? '(no summary)');
+            return `### Exchange ${offset + i + 1}\n\nUser: ${request}\n\nAgent: ${response}`;
+          }),
+        ].join('\n\n');
+        return ok({
+          run: this.enqueueAdhoc({
+            repository: run.repository,
+            prompt,
+            provider: run.provider,
+            model: run.model,
+            agentId: run.agentId,
+            branchedFromRunId: run.id,
+            branchContext: context,
           }),
         });
       })

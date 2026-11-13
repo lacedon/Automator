@@ -230,7 +230,14 @@
     "message": "Mensaje",
     "placeholder": "Continúa en la misma sesión de Copilot…",
     "send": "Enviar",
-    "queued": "Ejecución #{id} en cola"
+    "queued": "Ejecución #{id} en cola",
+    "branch": "Bifurcar",
+    "branchTitle": "Iniciar un chat nuevo desde esta respuesta",
+    "branchMessage": "Mensaje del nuevo chat",
+    "branchPlaceholder": "Continuar desde esta respuesta en un chat nuevo…",
+    "branchSubmit": "Crear bifurcación",
+    "branchCancel": "Cancelar",
+    "branchedFrom": "Bifurcado desde la ejecución #{id}"
   },
   "RunFiles": {
     "transcript": "Transcripción",

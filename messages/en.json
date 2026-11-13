@@ -230,7 +230,14 @@
     "message": "Message",
     "placeholder": "Follow up in the same Copilot session…",
     "send": "Send",
-    "queued": "Run #{id} queued"
+    "queued": "Run #{id} queued",
+    "branch": "Branch",
+    "branchTitle": "Start a new chat from this response",
+    "branchMessage": "New chat message",
+    "branchPlaceholder": "Continue from this response in a new chat…",
+    "branchSubmit": "Start branch",
+    "branchCancel": "Cancel",
+    "branchedFrom": "Branched from Run #{id}"
   },
   "RunFiles": {
     "transcript": "Transcript",

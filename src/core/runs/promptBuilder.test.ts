@@ -87,6 +87,8 @@ function run(partial: Partial<Run> = {}): Run {
     extraInstructions: null,
     sessionId: null,
     parentRunId: null,
+    branchedFromRunId: null,
+    branchContext: null,
     reviewUnresolved: false,
     model: 'claude-sonnet-4.5',
     agentId: null,
@@ -430,6 +432,26 @@ describe('buildAdhocPrompt', () => {
     expect(prompt).toContain('Use the staging URL');
     expect(prompt).toContain(RESULT_PATH);
     expect(prompt).not.toContain('## Request');
+  });
+
+  test('branched prompt includes the earlier conversation before the new request', () => {
+    const prompt = adhocPrompt({
+      run: run({
+        watchId: null,
+        trigger: 'adhoc',
+        parentRunId: null,
+        sessionId: null,
+        adhocPrompt: 'Try another way',
+        branchContext: '### Exchange 1\n\nUser: a\n\nAgent: b',
+      }),
+      config: config(),
+      resultPath: RESULT_PATH,
+      agentInstructions: AGENT,
+      operationTemplate: null,
+    });
+    expect(prompt).toContain('## Earlier conversation');
+    expect(prompt.indexOf('Agent: b')).toBeLessThan(prompt.indexOf('## Request'));
+    expect(prompt).toContain('## Request');
   });
 
   test('root prompt is unchanged', () => {
