@@ -1,4 +1,7 @@
 import { getTranslations } from 'next-intl/server';
+import { COLOR_SCHEMES } from '@core/index';
+import { setUserColorScheme } from '../actions/colorScheme';
+import { ColorSchemePicker } from '../components/ColorSchemePicker';
 import { CredentialsManager } from '../components/CredentialsManager';
 import { TokensManager } from '../components/TokensManager';
 import { getCore } from '../lib/core';
@@ -11,6 +14,7 @@ export default async function AccountPage() {
   const user = await currentUser();
   if (user === null) return null;
   const t = await getTranslations('Account');
+  const tScheme = await getTranslations('ColorScheme');
   return (
     <>
       <h1 className="page-title">{t('title')}</h1>
@@ -21,6 +25,15 @@ export default async function AccountPage() {
           code: (chunks) => <code>{chunks}</code>,
         })}
       </p>
+      <h2>{tScheme('own')}</h2>
+      <p className="muted">{tScheme('ownIntro')}</p>
+      <ColorSchemePicker
+        schemes={COLOR_SCHEMES}
+        value={getCore().settings.userColorScheme(user.id)}
+        allowDefault
+        label={tScheme('own')}
+        action={setUserColorScheme}
+      />
       <TokensManager tokens={getCore().users.listTokens(user.id)} />
       <h2>{t('credentials')}</h2>
       <p className="muted">{t('credentialsIntro')}</p>

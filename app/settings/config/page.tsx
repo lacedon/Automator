@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import path from 'node:path';
 import { getTranslations } from 'next-intl/server';
-import { readEditableConfig } from '@core/index';
+import { COLOR_SCHEMES, readEditableConfig } from '@core/index';
+import { setApplicationColorScheme } from '../../actions/colorScheme';
+import { ColorSchemePicker } from '../../components/ColorSchemePicker';
+import { getCore } from '../../lib/core';
 import { ConfigForm } from '../../components/ConfigForm';
 import { ErrorBox } from '../../components/ErrorBox';
 import { RestartApplicationButton } from '../../components/RestartApplicationButton';
@@ -18,6 +21,7 @@ function configPath(): string {
 
 export default async function ConfigurationSettingsPage() {
   const t = await getTranslations('ConfigPage');
+  const tScheme = await getTranslations('ColorScheme');
   let loadedConfig: ReturnType<typeof readEditableConfig> | undefined;
   let error: string | null = null;
   try {
@@ -67,6 +71,18 @@ export default async function ConfigurationSettingsPage() {
           </>
         )
       )}
+      <section aria-labelledby="color-scheme-heading">
+        <h2 id="color-scheme-heading" className="section-h">
+          {tScheme('default')}
+        </h2>
+        <p className="muted">{tScheme('defaultIntro')}</p>
+        <ColorSchemePicker
+          schemes={COLOR_SCHEMES}
+          value={getCore().settings.applicationColorScheme()}
+          label={tScheme('default')}
+          action={setApplicationColorScheme}
+        />
+      </section>
       <section aria-labelledby="restart-application-heading">
         <h2 id="restart-application-heading" className="section-h">
           {t('restartHeading')}

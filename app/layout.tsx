@@ -26,9 +26,10 @@ function chatStatus(run: RunRow): NavChatStatus | null {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await currentUser();
   const locale = await getLocale();
+  const scheme = getCore().settings.effectiveColorScheme(user?.id ?? null);
   if (user === null)
     return (
-      <html lang={locale}>
+      <html lang={locale} data-scheme={scheme}>
         <body>
           <NextIntlClientProvider>{children}</NextIntlClientProvider>
         </body>
@@ -49,7 +50,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const accent = hue === undefined ? undefined : `hsl(${hue} 10% 15%)`;
   const header = hue === undefined ? undefined : `hsl(${hue} 80% 15%)`;
   return (
-    <html lang={locale}>
+    <html lang={locale} data-scheme={scheme}>
       <body style={accent ? ({ '--project-accent': accent, '--project-header': header } as CSSProperties) : undefined}>
         <NextIntlClientProvider>
           <TopBar counts={counts} chats={chats} projects={projects} scope={selection} username={user.username} />

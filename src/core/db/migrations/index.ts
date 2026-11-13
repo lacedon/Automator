@@ -351,4 +351,18 @@ ALTER TABLE watches ADD COLUMN precheck_problem TEXT;
     sql: `ALTER TABLE watches ADD COLUMN name TEXT;
 `,
   },
+  {
+    version: 22,
+    sql: `CREATE TABLE app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE user_settings (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  PRIMARY KEY (user_id, key)
+);
+`,
+  },
 ];
