@@ -7,7 +7,10 @@ import { useTranslations } from 'next-intl';
 import { Pill } from './Pill';
 
 type Counts = { watches: number; queued: number };
-export type NavChat = { id: number; title: string; needsYou: boolean };
+export type NavChatStatus = 'needs-you' | 'error' | 'queued' | 'running';
+export type NavChat = { id: number; title: string; status: NavChatStatus | null };
+
+const STATUS_PILL = { 'needs-you': 'needs-you', error: 'needs-you', queued: 'info', running: 'running' } as const;
 
 function NavigationItems({
   counts,
@@ -20,6 +23,7 @@ function NavigationItems({
 }) {
   const pathname = usePathname();
   const t = useTranslations('Navigation');
+  const tPill = useTranslations('Pill');
   const items = [
     { href: '/', label: t('home') },
     { href: '/automations', label: t('automations'), count: counts.watches },
@@ -50,7 +54,7 @@ function NavigationItems({
               onClick={onNavigate}
             >
               <span>{chat.title}</span>
-              {chat.needsYou && <Pill variant="needs-you">{t('needsYou')}</Pill>}
+              {chat.status !== null && <Pill variant={STATUS_PILL[chat.status]}>{tPill(chat.status)}</Pill>}
             </Link>
           ))}
       </Fragment>
