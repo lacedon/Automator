@@ -97,6 +97,8 @@ const FORM_FIELDS = [
   'name',
   'instructions',
   'precheckInstructions',
+  'precheckMode',
+  'precheckScript',
   'interval',
   'model',
   'agentId',
@@ -112,6 +114,11 @@ function formValues(formData: FormData): WatchFormValues {
     if (typeof value === 'string') values[field] = value;
   }
   return values;
+}
+
+// Browsers submit textarea line breaks as CRLF, which bash cannot run.
+function scriptText(text: string | undefined): string {
+  return (text ?? '').replace(/\r\n?/g, '\n');
 }
 
 // Missing = leave unchanged, blank = the kind default (null), otherwise a duration like 15m or 2h.
@@ -142,6 +149,9 @@ const editableFields = {
   name: z.string().optional(),
   instructions: z.string().optional(),
   precheckInstructions: z.string().optional(),
+  // Absent keeps the previous behaviour: generate from the instructions.
+  precheckMode: z.enum(['generate', 'manual']).optional(),
+  precheckScript: z.string().optional(),
   interval: intervalField,
   model: z.string().optional(),
   initialReview: initialReviewField,
@@ -164,8 +174,9 @@ export async function createWatch(
   if (!input.ok) return { ...input, values };
   const guard = await requireWriteOnRepository(input.value.repository);
   if (!guard.ok) return { ...guard, values };
-  const { interval, initialReview, ...rest } = input.value;
-  const precheckInstructions = rest.precheckInstructions?.trim();
+  const { interval, initialReview, precheckMode, precheckScript: manualText, ...rest } = input.value;
+  const manual = precheckMode === 'manual';
+  const precheckInstructions = manual ? undefined : rest.precheckInstructions?.trim();
   let precheckScript: string | undefined;
   if (precheckInstructions) {
     const generated = await getCore().precheckScripts.generate(precheckInstructions, rest.repository);
@@ -174,7 +185,9 @@ export async function createWatch(
   }
   const result = getCore().watches.create({
     ...rest,
+    precheckInstructions,
     precheckScript,
+    manualPrecheckScript: manual ? scriptText(manualText) : undefined,
     intervalMs: interval ?? undefined,
     initialReview: initialReview ?? undefined,
   });
@@ -191,7 +204,18 @@ export async function updateWatch(
   const values = formValues(formData);
   const input = parseInput(updateSchema, values);
   if (!input.ok) return { ...input, values };
-  const { id, name, instructions, precheckInstructions, interval, model, initialReview } = input.value;
+  const {
+    id,
+    name,
+    instructions,
+    interval,
+    model,
+    initialReview,
+    precheckMode,
+    precheckScript: manualText,
+  } = input.value;
+  const manual = precheckMode === 'manual';
+  const precheckInstructions = manual ? undefined : input.value.precheckInstructions;
   const guard = await requireWriteOnWatch(id);
   if (!guard.ok) return { ...guard, values };
   const watch = getCore().watches.get(id);
@@ -207,6 +231,12 @@ export async function updateWatch(
     instructions,
     precheckInstructions,
     precheckScript,
+    // Switching to generation with blank instructions clears a manual script, as it clears a generated one.
+    manualPrecheckScript: manual
+      ? scriptText(manualText)
+      : watch && watch.precheckInstructions === null && precheckInstructions?.trim() === ''
+        ? ''
+        : undefined,
     intervalMs: interval,
     model,
     initialReview,

@@ -21,6 +21,7 @@ export type EditableWatch = Pick<
   | 'repository'
   | 'instructions'
   | 'precheckInstructions'
+  | 'precheckScript'
   | 'intervalMs'
   | 'model'
   | 'initialReview'
@@ -118,6 +119,11 @@ export function WatchForm(props: Props) {
   const [name, setName] = useState(watch?.name ?? '');
   const [instructions, setInstructions] = useState(watch?.instructions ?? '');
   const [precheckInstructions, setPrecheckInstructions] = useState(watch?.precheckInstructions ?? '');
+  // A stored script without instructions was entered by hand.
+  const [precheckManual, setPrecheckManual] = useState(
+    watch?.precheckInstructions === null && watch.precheckScript !== null,
+  );
+  const [precheckScript, setPrecheckScript] = useState(watch?.precheckScript ?? '');
   // Until edited, the interval field shows the effective interval and is not submitted, so defaults stay defaults.
   const [interval, setIntervalText] = useState<string | null>(null);
   const [model, setModel] = useState(watch?.model ?? '');
@@ -250,19 +256,53 @@ export function WatchForm(props: Props) {
 
         {kind === 'free' && (
           <div className="field">
-            <label htmlFor="wf-precheck">
+            <span className="field-label">
               {t('precheck')} <span className="muted">{t('precheckHint')}</span>
-            </label>
-            <textarea
-              id="wf-precheck"
-              name="precheckInstructions"
-              rows={3}
-              className={inputClass('precheckInstructions')}
-              value={precheckInstructions}
-              onChange={(e) => setPrecheckInstructions(e.target.value)}
-              placeholder={t('precheckPlaceholder')}
-            />
-            <div className="field-hint muted">{t('precheckNote')}</div>
+            </span>
+            <div className="seg" role="radiogroup" aria-label={t('precheckSource')}>
+              {[false, true].map((manual) => (
+                <label key={String(manual)} className={precheckManual === manual ? 'on' : undefined}>
+                  <input
+                    type="radio"
+                    name="precheckMode"
+                    value={manual ? 'manual' : 'generate'}
+                    checked={precheckManual === manual}
+                    onChange={() => setPrecheckManual(manual)}
+                  />
+                  {t(manual ? 'precheckManual' : 'precheckGenerate')}
+                </label>
+              ))}
+            </div>
+            {precheckManual ? (
+              <>
+                <textarea
+                  id="wf-precheck-script"
+                  name="precheckScript"
+                  aria-label={t('precheckScript')}
+                  rows={6}
+                  className={inputClass('precheckScript')}
+                  value={precheckScript}
+                  onChange={(e) => setPrecheckScript(e.target.value)}
+                  placeholder={t('precheckScriptPlaceholder')}
+                  spellCheck={false}
+                />
+                <div className="field-hint muted">{t('precheckScriptNote')}</div>
+              </>
+            ) : (
+              <>
+                <textarea
+                  id="wf-precheck"
+                  name="precheckInstructions"
+                  aria-label={t('precheck')}
+                  rows={3}
+                  className={inputClass('precheckInstructions')}
+                  value={precheckInstructions}
+                  onChange={(e) => setPrecheckInstructions(e.target.value)}
+                  placeholder={t('precheckPlaceholder')}
+                />
+                <div className="field-hint muted">{t('precheckNote')}</div>
+              </>
+            )}
           </div>
         )}
 

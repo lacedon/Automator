@@ -8,7 +8,8 @@ export class FreeformPrecheck implements Precheck {
 
   async check(w: Watch): Promise<PrecheckResult> {
     if (w.precheckScript === null || this.dataDir === undefined) return { kind: 'changed', reason: 'interval' };
-    const violations = denyListViolations(w.precheckScript);
+    // A script without instructions was entered by the user, who is trusted: no deny-list check.
+    const violations = w.precheckInstructions === null ? [] : denyListViolations(w.precheckScript);
     if (violations.length > 0) {
       return this.broken(`The pre-check script is not allowed: it ${violations.join('; ')}`);
     }
