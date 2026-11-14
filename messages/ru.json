@@ -237,7 +237,10 @@
     "branchPlaceholder": "Продолжить с этого ответа в новом чате…",
     "branchSubmit": "Создать ветку",
     "branchCancel": "Отмена",
-    "branchedFrom": "Ответвлено от запуска #{id}"
+    "branchedFrom": "Ответвлено от запуска #{id}",
+    "skills": "Навыки",
+    "skillGlobal": "Глобальный навык",
+    "skillLocal": "Локальный навык (этот репозиторий)"
   },
   "RunFiles": {
     "transcript": "Транскрипт",

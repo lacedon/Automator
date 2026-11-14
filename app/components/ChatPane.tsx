@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
-import type { ThreadRun, ThreadView } from '@core/index';
+import type { Skill, ThreadRun, ThreadView } from '@core/index';
 import { branchRun, sendRunMessage, type BranchFormState, type ChatFormState } from '../actions/chat';
 import { closeRun } from '../actions/runs';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -120,7 +120,15 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
   );
 }
 
-export function ChatPane({ thread, currentRunId }: { thread: ThreadView; currentRunId: number }) {
+export function ChatPane({
+  thread,
+  currentRunId,
+  skills = [],
+}: {
+  thread: ThreadView;
+  currentRunId: number;
+  skills?: Skill[];
+}) {
   const t = useTranslations('Chat');
   const tError = useTranslations('ErrorBox');
   const [state, formAction, pending] = useActionState(sendRunMessage, null);
@@ -176,6 +184,21 @@ export function ChatPane({ thread, currentRunId }: { thread: ThreadView; current
               placeholder={t('placeholder')}
             />
           </div>
+          {skills.length > 0 && (
+            <div className="chat-skills muted" aria-label={t('skills')}>
+              {skills.map((skill) => (
+                <button
+                  key={skill.name}
+                  type="button"
+                  className={`btn chat-skill chat-skill-${skill.scope}`}
+                  title={t(skill.scope === 'local' ? 'skillLocal' : 'skillGlobal')}
+                  onClick={() => setMessage((m) => `${m}${m === '' || m.endsWith(' ') ? '' : ' '}/${skill.name} `)}
+                >
+                  /{skill.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="actions">
             <button type="submit" className="btn btn-primary" disabled={pending}>
               {t('send')}

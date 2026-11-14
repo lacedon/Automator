@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { discoverSkills, type Skill } from '../skills/skills';
 import type { Run } from '../domain/types';
 import type { ReadDeps } from './deps';
 import { runThread, type ThreadView } from './thread';
@@ -17,6 +18,7 @@ export type RunDetailView = {
   result: FileView;
   prompt: FileView;
   thread: ThreadView | null;
+  skills: Skill[];
 };
 
 async function readCapped(file: string): Promise<FileView> {
@@ -56,5 +58,9 @@ export async function runDetail(deps: ReadDeps, id: number): Promise<RunDetailVi
     result,
     prompt,
     thread: runThread(deps, run),
+    skills: discoverSkills({
+      provider: run.provider,
+      repositoryFolder: deps.repositories.get(run.repository)?.folder ?? null,
+    }),
   };
 }
