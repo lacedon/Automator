@@ -418,12 +418,18 @@ describe('Scheduler.tick', () => {
     ids.applyThrows = dueWatch(db, clock.now() - 3 * MIN);
     ids.checkThrows = dueWatch(db, clock.now() - 2 * MIN);
     const ok = dueWatch(db, clock.now() - MIN);
+    db.prepare('UPDATE watches SET last_check_skipped = 1, skipped_check_at = ? WHERE id = ?').run(
+      clock.now() - 3 * MIN,
+      ids.checkThrows,
+    );
 
     expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
     expect(watch(db, ok).cursor).toEqual(good);
     for (const id of [ids.applyThrows, ids.checkThrows]) {
       expect(watch(db, id)).toMatchObject({ state: 'active', nextCheckAt: clock.now() + interval, cursor: null });
     }
+    // A failed check is not a skipped one, so the stale skip marker is cleared.
+    expect(watch(db, ids.checkThrows)).toMatchObject({ lastCheckSkipped: false, skippedCheckAt: null });
     expect(errors).toHaveBeenCalledTimes(2);
     expect(errors).toHaveBeenCalledWith(
       expect.stringMatching(new RegExp(`^\\S+Z .*Automation #${ids.checkThrows}.*check exploded`)),

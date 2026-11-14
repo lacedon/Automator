@@ -104,11 +104,9 @@ export class Scheduler {
     const { db, clock } = this.deps;
     try {
       const now = clock.now();
-      db.prepare("UPDATE watches SET next_check_at = ?, updated_at = ? WHERE id = ? AND state = 'active'").run(
-        now + intervalFor(watch, this.configFor(watch.repository)),
-        now,
-        watch.id,
-      );
+      db.prepare(
+        "UPDATE watches SET next_check_at = ?, updated_at = ?, last_check_skipped = 0, skipped_check_at = NULL WHERE id = ? AND state = 'active'",
+      ).run(now + intervalFor(watch, this.configFor(watch.repository)), now, watch.id);
     } catch (e) {
       console.error(
         `${new Date().toISOString()} scheduler: cannot postpone Automation #${watch.id}: ${e instanceof Error ? e.message : String(e)}`,
