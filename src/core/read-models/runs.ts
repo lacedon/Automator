@@ -72,6 +72,8 @@ export type RunFilter = {
   repository?: string;
   project?: ProjectScope;
   limit?: number;
+  // Also list a chat whose Runs are all still queued (its first Run), so a new chat shows right away.
+  includeQueued?: boolean;
 };
 
 export const RUNS_WITH_TITLE =
@@ -141,7 +143,7 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
     const chain = [root];
     for (let next = followUp.get(root.id); next !== undefined && !chain.includes(next); next = followUp.get(next.id))
       chain.push(next);
-    const tip = chain.findLast((run) => run.status !== 'queued');
+    const tip = chain.findLast((run) => run.status !== 'queued') ?? (f.includeQueued ? root : undefined);
     if (tip === undefined) continue;
     const started = tip.startedAt ?? tip.queuedAt;
     if (

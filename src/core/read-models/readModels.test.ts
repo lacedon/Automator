@@ -321,6 +321,18 @@ describe('read models', () => {
     expect(read.runList({}).map((r) => r.id)).toEqual([a]);
   });
 
+  test('sidebar chats also list a new chat whose first run is still queued', () => {
+    const { db, read } = setup();
+    const a = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'chat A' });
+    const fresh = insertRun(db, { trigger: 'adhoc', adhoc_prompt: 'only queued', status: 'queued' });
+
+    expect(read.runList({ includeQueued: true }).map((r) => r.id)).toEqual([fresh, a]);
+    expect(read.runList({ includeQueued: true }).find((r) => r.id === fresh)).toMatchObject({
+      status: 'queued',
+      adhocPrompt: 'only queued',
+    });
+  });
+
   test('run history searches task, prompt, ticket, result, error and ID without treating wildcards specially', () => {
     const { db, read } = setup();
     const watch = insertWatch(db, { title: 'Review café navigation' });

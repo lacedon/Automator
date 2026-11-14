@@ -39,7 +39,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const t = await getTranslations('Navigation');
   const selection = await currentSelection();
   const counts = core.read.navCounts(await currentScope());
-  const chats = core.read.runList({ project: await currentScope(), limit: 10 }).map((run) => ({
+  const chats = core.read.runList({ project: await currentScope(), limit: 10, includeQueued: true }).map((run) => ({
     id: run.id,
     title: run.adhocPrompt || (run.ticket?.key ?? t('chatFallback', { id: run.id })),
     status: chatStatus(run),
