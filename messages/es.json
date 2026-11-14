@@ -347,6 +347,7 @@
     "free": "Libre"
   },
   "WatchForm": {
+    "saving": "Guardando…",
     "name": "Nombre",
     "nameHint": "(opcional, máx. 120 caracteres; se muestra en lugar del título)",
     "target": "URL de destino o clave de Jira",

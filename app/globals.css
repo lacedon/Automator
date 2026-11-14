@@ -2049,3 +2049,10 @@ dialog.file-dialog::backdrop {
     transform: rotate(360deg);
   }
 }
+
+.watch-form-hidden {
+  display: none;
+}
+.watch-form-saving {
+  padding: 1rem 0;
+}
