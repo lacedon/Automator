@@ -349,6 +349,7 @@
     "free": "Free"
   },
   "WatchForm": {
+    "saving": "Saving…",
     "name": "Name",
     "nameHint": "(optional, max 120 characters; shown instead of the title)",
     "target": "Target URL or Jira key",

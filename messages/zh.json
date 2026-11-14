@@ -347,6 +347,7 @@
     "free": "自由"
   },
   "WatchForm": {
+    "saving": "保存中…",
     "name": "名称",
     "nameHint": "（可选，最多 120 个字符；显示时替代标题）",
     "target": "目标 URL 或 Jira 键",

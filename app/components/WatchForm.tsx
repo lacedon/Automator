@@ -148,201 +148,208 @@ export function WatchForm(props: Props) {
   const otherModels = settings.models.filter((m) => m !== settings.defaultModel);
 
   return (
-    <form action={formAction} onSubmit={submit} className="watch-form">
-      {state && <ErrorBox error={state.error} />}
+    <>
+      {pending && (
+        <div className="watch-form-saving muted" role="status" aria-busy="true">
+          <span className="spinner" aria-hidden="true" /> {t('saving')}
+        </div>
+      )}
+      <form action={formAction} onSubmit={submit} className={pending ? 'watch-form watch-form-hidden' : 'watch-form'}>
+        {state && <ErrorBox error={state.error} />}
 
-      {watch === null ? (
-        <>
+        {watch === null ? (
+          <>
+            <div className="field">
+              <label htmlFor="wf-target">{t('target')}</label>
+              <input
+                id="wf-target"
+                name="target"
+                className={inputClass('target')}
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder={t('targetPlaceholder')}
+                autoComplete="off"
+              />
+              {detected !== null && <DetectedKind detected={detected} />}
+            </div>
+            <div className="field">
+              <label htmlFor="wf-repository">{t('repository')}</label>
+              <select
+                id="wf-repository"
+                name="repository"
+                className={inputClass('repository')}
+                value={repository}
+                onChange={(e) => setRepository(e.target.value)}
+              >
+                {repo === undefined && <option value={repository}>{repository}</option>}
+                {options.repositories.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.project === null ? r.name : `${r.name} (${r.project})`}
+                  </option>
+                ))}
+              </select>
+              {repo !== undefined && (
+                <div className="field-hint muted">
+                  <span className="mono">{repo.folder}</span>
+                  {repo.host !== null && ` · ${repo.host.replace(/^https?:\/\//, '')}`}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <input type="hidden" name="id" value={watch.id} />
+            <div className="field-split">
+              <div className="field">
+                <label>{t('lockedTarget')}</label>
+                <div className="input-locked">{watch.targetUrl}</div>
+              </div>
+              <div className="field">
+                <label>{t('lockedRepository')}</label>
+                <div className="input-locked">{watch.repository}</div>
+              </div>
+            </div>
+            <p className="field-hint muted locked-note">{t('lockedNote')}</p>
+          </>
+        )}
+
+        <div className="field">
+          <label htmlFor="wf-name">
+            {t('name')} <span className="muted">{t('nameHint')}</span>
+          </label>
+          <input
+            id="wf-name"
+            name="name"
+            className={inputClass('name')}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+            autoComplete="off"
+          />
+        </div>
+
+        {kind === 'jira' && !settings.jiraEnabled && <div className="notice">{t('jiraOff')}</div>}
+
+        <div className="field">
+          <label htmlFor="wf-instructions">
+            {t('extra')} <span className="muted">{t('extraHint')}</span>
+          </label>
+          <textarea
+            id="wf-instructions"
+            name="instructions"
+            rows={3}
+            className={inputClass('instructions')}
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder={kind === null ? undefined : t(PLACEHOLDER_KEY[kind])}
+          />
+          <div className="field-hint muted">
+            {t.rich('agentSettingsNote', { link: (chunks) => <Link href="/settings/agents">{chunks}</Link> })}
+          </div>
+        </div>
+
+        {kind === 'free' && (
           <div className="field">
-            <label htmlFor="wf-target">{t('target')}</label>
+            <label htmlFor="wf-precheck">
+              {t('precheck')} <span className="muted">{t('precheckHint')}</span>
+            </label>
+            <textarea
+              id="wf-precheck"
+              name="precheckInstructions"
+              rows={3}
+              className={inputClass('precheckInstructions')}
+              value={precheckInstructions}
+              onChange={(e) => setPrecheckInstructions(e.target.value)}
+              placeholder={t('precheckPlaceholder')}
+            />
+            <div className="field-hint muted">{t('precheckNote')}</div>
+          </div>
+        )}
+
+        {watch === null && (
+          <AgentSelect
+            id="wf-agent"
+            options={options}
+            defaultAgent={kind === null ? null : defaultAgentId(options.agentAssignments, repository, `${kind}-watch`)}
+            className={inputClass('agentId')}
+          />
+        )}
+
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="wf-interval">
+              {t('interval')} {intervalIsDefault && <span className="muted">{t('default')}</span>}
+            </label>
             <input
-              id="wf-target"
-              name="target"
-              className={inputClass('target')}
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder={t('targetPlaceholder')}
+              id="wf-interval"
+              name={interval === null ? undefined : 'interval'}
+              className={inputClass('interval')}
+              value={shownInterval}
+              onChange={(e) => setIntervalText(e.target.value)}
+              placeholder={t('intervalPlaceholder', { interval: formatInterval(kindDefaultMs) })}
               autoComplete="off"
             />
-            {detected !== null && <DetectedKind detected={detected} />}
+            <div className="field-hint muted">{t('intervalHint')}</div>
           </div>
           <div className="field">
-            <label htmlFor="wf-repository">{t('repository')}</label>
+            <label htmlFor="wf-model">{t('model')}</label>
             <select
-              id="wf-repository"
-              name="repository"
-              className={inputClass('repository')}
-              value={repository}
-              onChange={(e) => setRepository(e.target.value)}
+              id="wf-model"
+              name="model"
+              className={inputClass('model')}
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
             >
-              {repo === undefined && <option value={repository}>{repository}</option>}
-              {options.repositories.map((r) => (
-                <option key={r.name} value={r.name}>
-                  {r.project === null ? r.name : `${r.name} (${r.project})`}
+              <option value="">{t('defaultModel', { model: settings.defaultModel })}</option>
+              {model !== '' && !otherModels.includes(model) && <option value={model}>{model}</option>}
+              {otherModels.map((m) => (
+                <option key={m} value={m}>
+                  {m}
                 </option>
               ))}
             </select>
-            {repo !== undefined && (
-              <div className="field-hint muted">
-                <span className="mono">{repo.folder}</span>
-                {repo.host !== null && ` · ${repo.host.replace(/^https?:\/\//, '')}`}
+            <div className="field-hint muted">{t('provider', { provider: providerLabel(settings.provider) })}</div>
+          </div>
+          {kind === 'mr' && (
+            <div className="field">
+              <span className="field-label">{t('initialReview')}</span>
+              <div className="seg" role="radiogroup" aria-label={t('initialReview')}>
+                {REVIEW_MODES.map((option) => (
+                  <label key={option} className={shownReview === option ? 'on' : undefined}>
+                    <input
+                      type="radio"
+                      name="initialReviewChoice"
+                      checked={shownReview === option}
+                      onChange={() => {
+                        setReview(option);
+                        setReviewTouched(true);
+                      }}
+                    />
+                    {t(option === 'baseline-only' ? 'baselineOnly' : 'unresolved')}
+                  </label>
+                ))}
               </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <input type="hidden" name="id" value={watch.id} />
-          <div className="field-split">
-            <div className="field">
-              <label>{t('lockedTarget')}</label>
-              <div className="input-locked">{watch.targetUrl}</div>
+              {(watch === null || reviewTouched) && (
+                <input
+                  type="hidden"
+                  name="initialReview"
+                  value={shownReview === settings.initialReview ? '' : shownReview}
+                />
+              )}
             </div>
-            <div className="field">
-              <label>{t('lockedRepository')}</label>
-              <div className="input-locked">{watch.repository}</div>
-            </div>
-          </div>
-          <p className="field-hint muted locked-note">{t('lockedNote')}</p>
-        </>
-      )}
-
-      <div className="field">
-        <label htmlFor="wf-name">
-          {t('name')} <span className="muted">{t('nameHint')}</span>
-        </label>
-        <input
-          id="wf-name"
-          name="name"
-          className={inputClass('name')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={120}
-          autoComplete="off"
-        />
-      </div>
-
-      {kind === 'jira' && !settings.jiraEnabled && <div className="notice">{t('jiraOff')}</div>}
-
-      <div className="field">
-        <label htmlFor="wf-instructions">
-          {t('extra')} <span className="muted">{t('extraHint')}</span>
-        </label>
-        <textarea
-          id="wf-instructions"
-          name="instructions"
-          rows={3}
-          className={inputClass('instructions')}
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder={kind === null ? undefined : t(PLACEHOLDER_KEY[kind])}
-        />
-        <div className="field-hint muted">
-          {t.rich('agentSettingsNote', { link: (chunks) => <Link href="/settings/agents">{chunks}</Link> })}
+          )}
         </div>
-      </div>
+        {kind === 'mr' && <p className="field-hint muted review-hint">{t('reviewHint')}</p>}
 
-      {kind === 'free' && (
-        <div className="field">
-          <label htmlFor="wf-precheck">
-            {t('precheck')} <span className="muted">{t('precheckHint')}</span>
-          </label>
-          <textarea
-            id="wf-precheck"
-            name="precheckInstructions"
-            rows={3}
-            className={inputClass('precheckInstructions')}
-            value={precheckInstructions}
-            onChange={(e) => setPrecheckInstructions(e.target.value)}
-            placeholder={t('precheckPlaceholder')}
-          />
-          <div className="field-hint muted">{t('precheckNote')}</div>
+        <div className="actions">
+          <button type="submit" className="btn btn-primary" disabled={pending}>
+            {watch === null ? t('create') : t('save')}
+          </button>
+          <Link href={watch === null ? '/automations' : `/automations/${watch.id}`} className="btn btn-secondary">
+            {t('cancel')}
+          </Link>
         </div>
-      )}
-
-      {watch === null && (
-        <AgentSelect
-          id="wf-agent"
-          options={options}
-          defaultAgent={kind === null ? null : defaultAgentId(options.agentAssignments, repository, `${kind}-watch`)}
-          className={inputClass('agentId')}
-        />
-      )}
-
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="wf-interval">
-            {t('interval')} {intervalIsDefault && <span className="muted">{t('default')}</span>}
-          </label>
-          <input
-            id="wf-interval"
-            name={interval === null ? undefined : 'interval'}
-            className={inputClass('interval')}
-            value={shownInterval}
-            onChange={(e) => setIntervalText(e.target.value)}
-            placeholder={t('intervalPlaceholder', { interval: formatInterval(kindDefaultMs) })}
-            autoComplete="off"
-          />
-          <div className="field-hint muted">{t('intervalHint')}</div>
-        </div>
-        <div className="field">
-          <label htmlFor="wf-model">{t('model')}</label>
-          <select
-            id="wf-model"
-            name="model"
-            className={inputClass('model')}
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-          >
-            <option value="">{t('defaultModel', { model: settings.defaultModel })}</option>
-            {model !== '' && !otherModels.includes(model) && <option value={model}>{model}</option>}
-            {otherModels.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <div className="field-hint muted">{t('provider', { provider: providerLabel(settings.provider) })}</div>
-        </div>
-        {kind === 'mr' && (
-          <div className="field">
-            <span className="field-label">{t('initialReview')}</span>
-            <div className="seg" role="radiogroup" aria-label={t('initialReview')}>
-              {REVIEW_MODES.map((option) => (
-                <label key={option} className={shownReview === option ? 'on' : undefined}>
-                  <input
-                    type="radio"
-                    name="initialReviewChoice"
-                    checked={shownReview === option}
-                    onChange={() => {
-                      setReview(option);
-                      setReviewTouched(true);
-                    }}
-                  />
-                  {t(option === 'baseline-only' ? 'baselineOnly' : 'unresolved')}
-                </label>
-              ))}
-            </div>
-            {(watch === null || reviewTouched) && (
-              <input
-                type="hidden"
-                name="initialReview"
-                value={shownReview === settings.initialReview ? '' : shownReview}
-              />
-            )}
-          </div>
-        )}
-      </div>
-      {kind === 'mr' && <p className="field-hint muted review-hint">{t('reviewHint')}</p>}
-
-      <div className="actions">
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {watch === null ? t('create') : t('save')}
-        </button>
-        <Link href={watch === null ? '/automations' : `/automations/${watch.id}`} className="btn btn-secondary">
-          {t('cancel')}
-        </Link>
-      </div>
-    </form>
+      </form>
+    </>
   );
 }
