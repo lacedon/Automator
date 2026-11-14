@@ -35,6 +35,7 @@ export type WatchRow = {
   everyMs: number;
   nextCheck: NextCheck;
   lastRun: LastRun | null;
+  skippedCheckAt: number | null;
   needsYouReason: string | null;
   running: boolean;
   actions: WatchAction[];
@@ -142,6 +143,7 @@ export function watchList(deps: ReadDeps, f: WatchFilter): WatchListView {
       everyMs: intervalFor(w, configOf(deps, w.repository)),
       nextCheck: nextCheckFor(w, src, deps),
       lastRun: last.get(w.id) ?? null,
+      skippedCheckAt: w.lastCheckSkipped ? (w.skippedCheckAt ?? w.updatedAt) : null,
       needsYouReason: w.needsYouReason,
       running: src.running.has(w.id),
       actions: actionsFor(w, src.running.get(w.id) ?? null),

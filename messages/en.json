@@ -305,7 +305,8 @@
     "cancelMessage": "Cancelling can't undo replies or pushes that already happened.",
     "cancelRun": "Cancel run",
     "keepRunning": "Keep running",
-    "cancelRequested": "Cancel already requested"
+    "cancelRequested": "Cancel already requested",
+    "lastCheck": "Last check"
   },
   "AutomationList": {
     "jiraNotice": "Jira checking is off (<code>jira.enabled</code> is false) for some Repositories. Their Jira Automations are kept but don't run on schedule or via Run now.",
@@ -672,5 +673,9 @@
     "own": "Your color scheme",
     "ownIntro": "Applies to you only and overrides the application default.",
     "useDefault": "Use application default"
+  },
+  "SkippedCheck": {
+    "label": "Skipped",
+    "title": "Last check skipped; it was due {at}"
   }
 }

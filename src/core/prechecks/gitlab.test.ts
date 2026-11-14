@@ -51,6 +51,8 @@ function watch(partial: Partial<Watch> = {}): Watch {
     precheckScript: null,
     precheckOutput: null,
     precheckProblem: null,
+    lastCheckSkipped: false,
+    skippedCheckAt: null,
     resolutionNote: null,
     closedReason: null,
     closedAt: null,

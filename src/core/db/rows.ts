@@ -51,6 +51,8 @@ export function toWatch(row: unknown): Watch {
     precheckScript: r.precheck_script as string | null,
     precheckOutput: r.precheck_output as string | null,
     precheckProblem: r.precheck_problem as string | null,
+    lastCheckSkipped: r.last_check_skipped === 1,
+    skippedCheckAt: (r.skipped_check_at ?? null) as number | null,
     resolutionNote: r.resolution_note as string | null,
     closedReason: r.closed_reason as ClosedReason | null,
     closedAt: r.closed_at as number | null,

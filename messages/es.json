@@ -302,7 +302,8 @@
     "cancelMessage": "Cancelar no deshace las respuestas ni los pushes que ya se hicieron.",
     "cancelRun": "Cancelar ejecución",
     "keepRunning": "Seguir ejecutando",
-    "cancelRequested": "La cancelación ya fue solicitada"
+    "cancelRequested": "La cancelación ya fue solicitada",
+    "lastCheck": "Última comprobación"
   },
   "AutomationList": {
     "jiraNotice": "La comprobación de Jira está desactivada (<code>jira.enabled</code> es false) para algunos repositorios. Sus automatizaciones de Jira se conservan, pero no se ejecutan según lo programado ni con «Ejecutar ahora».",
@@ -659,5 +660,9 @@
     "own": "Tu esquema de color",
     "ownIntro": "Se aplica solo a ti y sustituye al predeterminado de la aplicación.",
     "useDefault": "Usar el predeterminado de la aplicación"
+  },
+  "SkippedCheck": {
+    "label": "Omitida",
+    "title": "Última comprobación omitida; estaba prevista para {at}"
   }
 }

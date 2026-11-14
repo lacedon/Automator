@@ -302,7 +302,8 @@
     "cancelMessage": "取消无法撤销已发出的回复或已完成的推送。",
     "cancelRun": "取消运行",
     "keepRunning": "继续运行",
-    "cancelRequested": "已请求取消"
+    "cancelRequested": "已请求取消",
+    "lastCheck": "上次检查"
   },
   "AutomationList": {
     "jiraNotice": "部分仓库的 Jira 检查已关闭（<code>jira.enabled</code> 为 false）。其 Jira 自动化会保留，但不会按计划或通过“立即运行”执行。",
@@ -659,5 +660,9 @@
     "own": "你的配色方案",
     "ownIntro": "仅对你生效,并覆盖应用程序默认值。",
     "useDefault": "使用应用程序默认值"
+  },
+  "SkippedCheck": {
+    "label": "已跳过",
+    "title": "上次检查已跳过；原定于 {at}"
   }
 }
