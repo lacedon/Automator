@@ -306,7 +306,9 @@ describe('Scheduler.tick', () => {
   describe('free-form pre-check script', () => {
     const scriptedWatch = (db: Database, now: number, script: string, output: string | null = null) => {
       const id = dueWatch(db, now, 'free');
-      db.prepare('UPDATE watches SET precheck_script = ?, precheck_output = ? WHERE id = ?').run(script, output, id);
+      db.prepare(
+        "UPDATE watches SET precheck_instructions = 'x', precheck_script = ?, precheck_output = ? WHERE id = ?",
+      ).run(script, output, id);
       return id;
     };
     const finishRuns = (db: Database, id: number) =>

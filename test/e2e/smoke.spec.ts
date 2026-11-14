@@ -196,3 +196,17 @@ test('free-form form generates a pre-check script and keeps its instructions', a
   await page.getByRole('link', { name: 'Edit' }).first().click();
   await expect(page.getByLabel('Pre-check instructions')).toHaveValue('Compare the Last-Modified header of the page.');
 });
+
+test('free-form form accepts a manual pre-check script and keeps it on edit', async ({ page }) => {
+  await page.goto('/automations/new');
+  await page.getByLabel('Target URL or Jira key').fill('https://wiki.example.com/manual-precheck');
+  await page.getByLabel('Extra instructions').fill('Summarize the page changes.');
+  await page.getByText('Enter a script manually').click();
+  await page.getByLabel('Pre-check script', { exact: true }).fill('echo manual-state');
+  await page.getByRole('button', { name: 'Create Automation' }).click();
+  await expect(page).toHaveURL(/\/automations\/\d+$/);
+  await expect(page.getByText('echo manual-state')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Edit' }).first().click();
+  await expect(page.getByLabel('Pre-check script', { exact: true })).toHaveValue('echo manual-state');
+});

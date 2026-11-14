@@ -16,7 +16,17 @@ export default async function EditWatchPage({ params }: { params: Promise<{ id: 
   const tNew = await getTranslations('NewWatch');
   const watch = core.watches.get(Number(id));
   if (watch === null) notFound();
-  const { kind, targetUrl, repository, instructions, precheckInstructions, intervalMs, model, initialReview } = watch;
+  const {
+    kind,
+    targetUrl,
+    repository,
+    instructions,
+    precheckInstructions,
+    precheckScript,
+    intervalMs,
+    model,
+    initialReview,
+  } = watch;
   return (
     <>
       <div className="muted">
@@ -35,6 +45,7 @@ export default async function EditWatchPage({ params }: { params: Promise<{ id: 
           repository,
           instructions,
           precheckInstructions,
+          precheckScript,
           intervalMs,
           model,
           initialReview,

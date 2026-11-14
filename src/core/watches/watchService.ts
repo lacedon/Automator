@@ -40,6 +40,8 @@ export interface CreateWatchInput {
   // The script is generated from the instructions beforehand (see PrecheckScriptService).
   precheckInstructions?: string;
   precheckScript?: string;
+  // Alternative to generation: a script the user wrote, saved as entered and trusted (no instructions, no review).
+  manualPrecheckScript?: string;
 }
 
 export interface UpdateWatchInput {
@@ -52,6 +54,8 @@ export interface UpdateWatchInput {
   // Blank clears the pre-check; changed instructions need the script generated from them.
   precheckInstructions?: string | null;
   precheckScript?: string;
+  // Blank clears the pre-check; otherwise replaces it with a script the user wrote (no instructions, no review).
+  manualPrecheckScript?: string | null;
 }
 
 export type PreviewTargetResult = {
@@ -103,6 +107,13 @@ function invalidPrecheck(kind: WatchKind, instructions: string | null, script: s
   return null;
 }
 
+function invalidManualPrecheck(kind: WatchKind, instructions: string | null): AppError | null {
+  const invalid = (message: string): AppError => ({ code: 'INVALID_INPUT', field: 'precheckScript', message });
+  if (kind !== 'free') return invalid('Pre-check scripts are only available for free-form Automations');
+  if (instructions !== null) return invalid('Use either a generated or a manual pre-check script, not both');
+  return null;
+}
+
 function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === 'SQLITE_CONSTRAINT_UNIQUE';
 }
@@ -145,6 +156,11 @@ export class WatchService {
     const precheckInstructions = blankToNull(input.precheckInstructions);
     const badPrecheck = invalidPrecheck(target.kind, precheckInstructions, input.precheckScript);
     if (badPrecheck) return err(badPrecheck);
+    const manualScript = blankToNull(input.manualPrecheckScript);
+    if (manualScript !== null) {
+      const badManual = invalidManualPrecheck(target.kind, precheckInstructions);
+      if (badManual) return err(badManual);
+    }
     const badName = invalidName(input.name);
     if (badName) return err(badName);
     const badInterval = invalidInterval(input.intervalMs);
@@ -182,7 +198,7 @@ export class WatchService {
               input.initialReview ?? null,
               input.agentId ?? null,
               precheckInstructions,
-              precheckInstructions === null ? null : (input.precheckScript ?? null),
+              precheckInstructions === null ? manualScript : (input.precheckScript ?? null),
               now,
               now,
               now,
@@ -245,6 +261,30 @@ export class WatchService {
             params.precheckInstructions = precheckInstructions;
             params.precheckScript = precheckInstructions === null ? null : (input.precheckScript ?? null);
           }
+        }
+        // Handled only when the generated pre-check is untouched in this update, so the two never mix.
+        if (input.manualPrecheckScript !== undefined && !('precheckScript' in params)) {
+          const manualScript = blankToNull(input.manualPrecheckScript);
+          if (manualScript !== null) {
+            const badManual = invalidManualPrecheck(watch.kind, null);
+            if (badManual) return err(badManual);
+          }
+          // Replacing a generated script with the same text still makes it manual; clearing is a no-op when empty.
+          if (manualScript !== watch.precheckScript || (manualScript !== null && watch.precheckInstructions !== null)) {
+            sets.push(
+              'precheck_instructions = NULL',
+              'precheck_script = @precheckScript',
+              'precheck_output = NULL',
+              'precheck_problem = NULL',
+            );
+            params.precheckScript = manualScript;
+          }
+        } else if (input.manualPrecheckScript != null && blankToNull(input.manualPrecheckScript) !== null) {
+          return err({
+            code: 'INVALID_INPUT',
+            field: 'precheckScript',
+            message: 'Use either a generated or a manual pre-check script, not both',
+          });
         }
         sets.push('updated_at = @now');
         return ok(

@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { testConfig } from '../../../test/helpers/config';
@@ -18,6 +21,7 @@ import {
 } from '../../../test/fixtures/msw/jira';
 import type { Config } from '../config/schema';
 import { resolveSecrets, type Env } from '../config/load';
+import type { DataDir } from '../files/dataDir';
 import type { JiraCursor, Watch } from '../domain/types';
 import { fetchWithRetry, HttpError } from '../http/fetchWithRetry';
 import { FreeformPrecheck } from './freeform';
@@ -511,6 +515,29 @@ describe('FreeformPrecheck', () => {
       cursorCandidate: {},
       title: 'Docs',
     });
+  });
+});
+
+describe('FreeformPrecheck with a script', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'freeform-'));
+  const dataDir = { precheckDir: () => dir } as unknown as DataDir;
+  const base = { kind: 'free', targetUrl: 'https://example.com/page', precheckOutput: null } as const;
+  // `eval` is on the deny list, so a generated script using it is rejected at run time.
+  const script = 'eval "echo ok"';
+
+  test('rejects a generated script that breaks the deny list', async () => {
+    const result = await new FreeformPrecheck(dataDir).check(
+      watch({ ...base, precheckInstructions: 'x', precheckScript: script }),
+    );
+    expect(result).toMatchObject({ kind: 'changed', script: { output: null } });
+    expect(result.kind === 'changed' && result.script?.problem).toContain('not allowed');
+  });
+
+  test('runs a manual script without the deny-list check', async () => {
+    const result = await new FreeformPrecheck(dataDir).check(
+      watch({ ...base, precheckInstructions: null, precheckScript: script }),
+    );
+    expect(result).toMatchObject({ kind: 'changed', script: { output: 'ok', problem: null } });
   });
 });
 

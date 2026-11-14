@@ -303,6 +303,54 @@ describe('WatchService pre-check script', () => {
   });
 });
 
+describe('WatchService manual pre-check script', () => {
+  const FREE = 'https://wiki.example.com/handbook';
+  const base = { target: FREE, repository: 'pages', instructions: 'a' };
+
+  test('stores a manual script as entered, without instructions', () => {
+    const { service } = setup();
+    expect(value(service.create({ ...base, manualPrecheckScript: 'eval "echo 1"\n ' }))).toMatchObject({
+      precheckInstructions: null,
+      precheckScript: 'eval "echo 1"',
+    });
+  });
+
+  test('is an alternative to generation and only for free-form Automations', () => {
+    const { service } = setup();
+    expect(
+      service.create({ ...base, precheckInstructions: 'x', precheckScript: 'echo', manualPrecheckScript: 'echo' }),
+    ).toMatchObject({ ok: false, error: { field: 'precheckScript' } });
+    expect(service.create({ target: MR, repository: 'pages', manualPrecheckScript: 'echo' })).toMatchObject({
+      ok: false,
+      error: { field: 'precheckScript' },
+    });
+  });
+
+  test('editing replaces, switches and clears the script', () => {
+    const { db, service } = setup();
+    const { id } = value(service.create({ ...base, precheckInstructions: 'x', precheckScript: 'echo 1' }));
+    db.prepare("UPDATE watches SET precheck_output = '1' WHERE id = ?").run(id);
+
+    expect(value(service.update(id, { manualPrecheckScript: 'echo 2' }))).toMatchObject({
+      precheckInstructions: null,
+      precheckScript: 'echo 2',
+      precheckOutput: null,
+    });
+    expect(value(service.update(id, { manualPrecheckScript: 'echo 3' }))).toMatchObject({ precheckScript: 'echo 3' });
+    expect(value(service.update(id, { precheckInstructions: 'y', precheckScript: 'echo 4' }))).toMatchObject({
+      precheckInstructions: 'y',
+      precheckScript: 'echo 4',
+    });
+    expect(
+      service.update(id, { precheckInstructions: 'z', precheckScript: 'echo 5', manualPrecheckScript: 'echo' }),
+    ).toMatchObject({ ok: false, error: { field: 'precheckScript' } });
+    expect(value(service.update(id, { manualPrecheckScript: ' ' }))).toMatchObject({
+      precheckInstructions: null,
+      precheckScript: null,
+    });
+  });
+});
+
 describe('WatchService.list', () => {
   test('list filters by state and repository', () => {
     const { db, service } = setup();

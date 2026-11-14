@@ -192,6 +192,17 @@ export default async function WatchDetailPage({ params }: { params: Promise<{ id
               )}
             </div>
           )}
+          {watch.precheckInstructions === null && watch.precheckScript !== null && (
+            <div className="card">
+              <h3 className="section-h">{t('precheckScript')}</h3>
+              <pre className="pre-wrap mono">{watch.precheckScript}</pre>
+              {watch.precheckProblem !== null && (
+                <div className="notice" role="alert">
+                  {t('precheckProblem', { problem: watch.precheckProblem })}
+                </div>
+              )}
+            </div>
+          )}
           <LastHandledCard lines={view.lastHandled} t={t} />
         </div>
       </div>
