@@ -111,11 +111,27 @@ test('run detail is chat-first with file modals and collapsed details', async ({
   await expect(dialog).toContainText('# Prompt for Run #');
 });
 
+test('automation runs table opens transcript and result in one modal', async ({ page }) => {
+  await page.goto('/automations');
+  await page.getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
+  await expect(page).toHaveURL(/\/automations\/\d+$/);
+  const url = page.url();
+  const dialog = page.getByRole('dialog');
+  await page.getByRole('button', { name: 'transcript' }).first().click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'result' }).first().click();
+  await expect(dialog).toContainText('"outcome"');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  expect(page.url()).toBe(url);
+});
+
 test('run detail chat-first layout fits a phone viewport', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 700 });
   await page.goto('/automations');
   await page.getByRole('link', { name: '!51 Bump eslint config', exact: true }).click();
   await page.getByRole('link', { name: 'Replied to 2 comments, pushed fix' }).click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
   await expect(page.getByRole('button', { name: 'Transcript' })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);

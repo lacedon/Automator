@@ -5,6 +5,14 @@ import { formatDateTime, formatTook } from '../lib/format';
 import { providerLabel } from '../lib/providerLabel';
 import { EmptyState } from './EmptyState';
 import { RunPill } from './Pill';
+import { RunFileLinks } from './RunFileLinks';
+
+function files(run: RunRow): ('transcript.md' | 'result.json')[] {
+  return [
+    ...(run.transcriptPath !== null ? (['transcript.md'] as const) : []),
+    ...(run.resultPath !== null ? (['result.json'] as const) : []),
+  ];
+}
 
 export function RunsTable({ runs }: { runs: RunRow[] }) {
   const t = useTranslations('RunsTable');
@@ -43,17 +51,7 @@ export function RunsTable({ runs }: { runs: RunRow[] }) {
               </Link>
             </td>
             <td className="nowrap">
-              {run.transcriptPath !== null && (
-                <a href={`/files/run/${run.id}/transcript.md`} target="_blank" rel="noreferrer">
-                  {t('transcript')}
-                </a>
-              )}
-              {run.transcriptPath !== null && run.resultPath !== null && ' · '}
-              {run.resultPath !== null && (
-                <a href={`/files/run/${run.id}/result.json`} target="_blank" rel="noreferrer">
-                  {t('result')}
-                </a>
-              )}
+              <RunFileLinks runId={run.id} files={files(run)} />
             </td>
           </tr>
         ))}
