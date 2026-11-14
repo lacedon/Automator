@@ -21,7 +21,7 @@ export function formatFile(name: FileName, text: string): string {
 }
 
 // Files are shown as plain text in <pre>, never rendered as HTML or Markdown.
-export function RunFileLinks({ runId }: { runId: number }) {
+export function RunFileLinks({ runId, files = FILES.map((file) => file.name) }: { runId: number; files?: FileName[] }) {
   const t = useTranslations('RunFiles');
   const dialog = useRef<HTMLDialogElement>(null);
   const [current, setCurrent] = useState<(typeof FILES)[number] | null>(null);
@@ -44,7 +44,7 @@ export function RunFileLinks({ runId }: { runId: number }) {
 
   return (
     <span className="run-file-links">
-      {FILES.map((file) => (
+      {FILES.filter((file) => files.includes(file.name)).map((file) => (
         <button key={file.name} type="button" className="link-button" onClick={() => open(file)}>
           {t(file.label)}
         </button>
