@@ -384,4 +384,10 @@ SET config_overrides = json_remove(json_set(config_overrides, '$."providers/copi
 WHERE CASE WHEN json_valid(config_overrides) THEN json_type(config_overrides, '$."runs/models"') = 'text' ELSE 0 END;
 `,
   },
+  {
+    version: 25,
+    sql: `ALTER TABLE watches ADD COLUMN last_check_skipped INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE watches ADD COLUMN skipped_check_at INTEGER;
+`,
+  },
 ];

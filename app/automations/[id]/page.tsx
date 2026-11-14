@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Elapsed } from '../../components/Elapsed';
 import { NeedsYouCard } from '../../components/NeedsYouCard';
 import { NextCheckLabel, Pill, WatchStatePill } from '../../components/Pill';
+import { SkippedCheck } from '../../components/SkippedCheck';
 import { RunNowPopover } from '../../components/RunNowPopover';
 import { RunsTable } from '../../components/RunsTable';
 import { WatchActionBar } from '../../components/WatchRowMenu';
@@ -76,6 +77,14 @@ function SettingsCard({ view, t, locale }: { view: WatchDetailView; t: T; locale
         <dd>
           <NextCheckLabel next={view.nextCheck} />
         </dd>
+        {view.watch.lastCheckSkipped && view.watch.skippedCheckAt !== null && (
+          <>
+            <dt>{t('lastCheck')}</dt>
+            <dd>
+              <SkippedCheck at={view.watch.skippedCheckAt} />
+            </dd>
+          </>
+        )}
         <dt>{t('created')}</dt>
         <dd>{formatDateTime(s.createdAt, locale)}</dd>
       </dl>

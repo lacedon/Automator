@@ -66,7 +66,10 @@ export class Scheduler {
     const { clock } = this.deps;
     const config = this.configFor(watch.repository);
     if (!isWithinWorkingHours(clock.now(), config.schedule.workingHours)) return;
-    if (watch.kind === 'jira' && !config.jira.enabled) return;
+    if (watch.kind === 'jira' && !config.jira.enabled) {
+      this.recordSkipped(watch);
+      return;
+    }
     try {
       const timeoutMs = watch.precheckScript === null ? CHECK_TIMEOUT_MS : SCRIPT_CHECK_TIMEOUT_MS;
       const result = await withTimeout(this.check(watch), timeoutMs, `Pre-check timed out after ${timeoutMs / 1000}s`);
@@ -78,6 +81,21 @@ export class Scheduler {
         `${new Date().toISOString()} scheduler: Automation #${watch.id} failed: ${e instanceof Error ? e.message : String(e)}`,
       );
       this.postpone(watch);
+    }
+  }
+
+  // Records that the latest check was skipped, keeping when it was supposed to run. No Run row is written.
+  private recordSkipped(watch: Watch): void {
+    const { db, clock } = this.deps;
+    try {
+      db.prepare('UPDATE watches SET last_check_skipped = 1, skipped_check_at = ? WHERE id = ?').run(
+        watch.nextCheckAt ?? clock.now(),
+        watch.id,
+      );
+    } catch (e) {
+      console.error(
+        `${new Date().toISOString()} scheduler: cannot record skipped check of Automation #${watch.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -151,6 +169,7 @@ export class Scheduler {
           event = enterNeedsYou(db, { watchId, runId: null, reason, now, teamsEnabled: config.teams !== undefined });
         };
         let failures = 0;
+        const skipped = result.kind === 'unchanged';
         let cursor = watch.cursor;
         switch (result.kind) {
           case 'changed':
@@ -184,12 +203,15 @@ export class Scheduler {
             break;
         }
         db.prepare(
-          `UPDATE watches SET check_failures = ?, cursor_json = ?, next_check_at = ?, updated_at = ? WHERE id = ?`,
+          `UPDATE watches SET check_failures = ?, cursor_json = ?, next_check_at = ?, updated_at = ?,
+             last_check_skipped = ?, skipped_check_at = ? WHERE id = ?`,
         ).run(
           failures,
           cursor === null ? null : JSON.stringify(cursor),
           now + intervalFor(watch, config),
           now,
+          skipped ? 1 : 0,
+          skipped ? (watch.nextCheckAt ?? now) : null,
           watchId,
         );
         if ((result.kind === 'changed' || result.kind === 'unchanged') && result.script !== undefined) {

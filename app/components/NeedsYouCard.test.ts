@@ -35,6 +35,8 @@ test('links the scheduled Repository error result from the Needs you card', () =
     precheckScript: null,
     precheckOutput: null,
     precheckProblem: null,
+    lastCheckSkipped: false,
+    skippedCheckAt: null,
     resolutionNote: null,
     closedReason: null,
     closedAt: null,

@@ -43,6 +43,8 @@ export interface Watch {
   precheckScript: string | null;
   precheckOutput: string | null;
   precheckProblem: string | null;
+  lastCheckSkipped: boolean;
+  skippedCheckAt: number | null;
   resolutionNote: string | null;
   closedReason: ClosedReason | null;
   closedAt: number | null;

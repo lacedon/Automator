@@ -272,6 +272,8 @@ describe('Scheduler.tick', () => {
     expect(await scheduler.tick()).toEqual({ checked: 0, enqueued: 0 });
     expect(jiraCalls).toEqual([]);
     expect(watch(db, id).nextCheckAt).toBe(clock.now() - MIN);
+    expect(watch(db, id)).toMatchObject({ lastCheckSkipped: true, skippedCheckAt: clock.now() - MIN });
+    expect(runsOf(db, id)).toEqual([]);
   });
 
   test('jira without token enqueues without calling check', async () => {
@@ -327,11 +329,13 @@ describe('Scheduler.tick', () => {
       const id = scriptedWatch(db, clock.now(), 'echo v1', 'v1');
       expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 0 });
       expect(runsOf(db, id)).toEqual([]);
+      expect(watch(db, id)).toMatchObject({ lastCheckSkipped: true, skippedCheckAt: clock.now() });
 
       db.prepare("UPDATE watches SET precheck_script = 'echo v2' WHERE id = ?").run(id);
       clock.advance(config.schedule.intervals.default);
       expect(await scheduler.tick()).toEqual({ checked: 1, enqueued: 1 });
       expect(watch(db, id).precheckOutput).toBe('v2');
+      expect(watch(db, id)).toMatchObject({ lastCheckSkipped: false, skippedCheckAt: null });
       finishRuns(db, id);
 
       clock.advance(config.schedule.intervals.default);
@@ -346,6 +350,7 @@ describe('Scheduler.tick', () => {
       expect(watch(db, id)).toMatchObject({
         precheckOutput: 'v1',
         precheckProblem: 'The pre-check script failed: Exited with code 2: nope',
+        lastCheckSkipped: false,
       });
     });
 

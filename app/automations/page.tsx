@@ -5,6 +5,7 @@ import { ActionErrorProvider } from '../components/ActionButton';
 import { EmptyState } from '../components/EmptyState';
 import { NextCheckLabel, RunPill, WatchStatePill } from '../components/Pill';
 import { RelativeTime } from '../components/RelativeTime';
+import { SkippedCheck } from '../components/SkippedCheck';
 import { WatchFilters, type WatchFilterParams } from '../components/WatchFilters';
 import { ResumeButton, WatchRowMenu } from '../components/WatchRowMenu';
 import { getCore } from '../lib/core';
@@ -54,6 +55,11 @@ function WatchTableRow({ row, jiraEnabled, kindLabel }: { row: WatchRow; jiraEna
             <RunPill run={{ ...row.lastRun, status: 'finished' }} />{' '}
             {row.lastRun.endedAt !== null && <RelativeTime at={row.lastRun.endedAt} />}
           </>
+        )}
+        {row.skippedCheckAt !== null && (
+          <div>
+            <SkippedCheck at={row.skippedCheckAt} />
+          </div>
         )}
       </td>
       <td className="row-actions">
