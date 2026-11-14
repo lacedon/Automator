@@ -237,7 +237,10 @@
     "branchPlaceholder": "Continue from this response in a new chat…",
     "branchSubmit": "Start branch",
     "branchCancel": "Cancel",
-    "branchedFrom": "Branched from Run #{id}"
+    "branchedFrom": "Branched from Run #{id}",
+    "skills": "Skills",
+    "skillGlobal": "Global skill",
+    "skillLocal": "Local skill (this Repository)"
   },
   "RunFiles": {
     "transcript": "Transcript",

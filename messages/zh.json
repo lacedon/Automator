@@ -237,7 +237,10 @@
     "branchPlaceholder": "在新对话中从此回复继续…",
     "branchSubmit": "创建分支",
     "branchCancel": "取消",
-    "branchedFrom": "分支自运行 #{id}"
+    "branchedFrom": "分支自运行 #{id}",
+    "skills": "技能",
+    "skillGlobal": "全局技能",
+    "skillLocal": "本地技能（此仓库）"
   },
   "RunFiles": {
     "transcript": "记录",

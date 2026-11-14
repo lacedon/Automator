@@ -91,6 +91,7 @@ export { createOpenCodeLauncher } from './runs/opencodeLauncher';
 export type { RunFinal } from './runs/outcomeApplier';
 export { recoverInterruptedRuns } from './runs/recovery';
 export type * from './read-models/index';
+export type { Skill, SkillScope } from './skills/skills';
 export { RunExecutor, type ResultFileV1, type RunExecutorDeps } from './runs/runExecutor';
 export { Scheduler } from './scheduler/scheduler';
 export {

@@ -62,7 +62,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         <RunPill run={run} />
       </div>
       {!keepsRefreshing(run.status, view.thread) && <NoAutoRefresh />}
-      <ChatPane thread={view.thread ?? singleRunThread(run)} currentRunId={run.id} />
+      <ChatPane thread={view.thread ?? singleRunThread(run)} currentRunId={run.id} skills={view.skills} />
       <details className="run-details">
         <summary>{t('details')}</summary>
         {run.error !== null && <RunErrorCard error={run.error} />}
