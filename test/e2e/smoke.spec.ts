@@ -135,6 +135,7 @@ test('run detail auto-refreshes only while the run is not finished', async ({ pa
   });
 
   await page.goto('/queue');
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Queue', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: /^run #\d+$/ }).click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
   refreshes.length = 0;

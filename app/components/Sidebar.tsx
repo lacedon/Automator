@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Pill } from './Pill';
 
-type Counts = { watches: number; queued: number };
+type Counts = { watches: number };
 export type NavChatStatus = 'needs-you' | 'error' | 'queued' | 'running';
 export type NavChat = { id: number; title: string; status: NavChatStatus | null };
 
@@ -27,7 +27,6 @@ function NavigationItems({
   const items = [
     { href: '/', label: t('home') },
     { href: '/automations', label: t('automations'), count: counts.watches },
-    { href: '/queue', label: t('queue'), count: counts.queued },
     { href: '/runs', label: t('chats') },
     { href: '/settings', label: t('settings') },
   ];
