@@ -10,13 +10,14 @@ import { AgentSelect, type AgentPick } from './AgentSelect';
 import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
 import { PromptInput, type Suggestion } from './PromptInput';
+import { skillSuggestions } from '../lib/skillSuggestions';
 
 export function AdhocForm({
   options,
 }: {
   options: Pick<
     FormOptions,
-    'repositories' | 'provider' | 'models' | 'defaultModel' | 'byRepository' | 'agents' | 'agentAssignments'
+    'repositories' | 'provider' | 'models' | 'defaultModel' | 'skills' | 'byRepository' | 'agents' | 'agentAssignments'
   >;
 }) {
   const t = useTranslations('Adhoc');
@@ -55,14 +56,20 @@ export function AdhocForm({
       ? 'input-err'
       : undefined;
 
+  const shadowed = (name: string) => settings.skills.some((skill) => skill.name === name);
   const commands: Suggestion[] = [
-    { id: 'ticket', label: '/ticket', hint: t('ticketHint'), apply: () => ticketRef.current?.focus() },
-    ...settings.models.map((m) => ({
-      id: `model:${m}`,
-      label: `/model ${m}`,
-      hint: t('modelHint'),
-      apply: () => setModel(m === settings.defaultModel ? '' : m),
-    })),
+    ...(shadowed('ticket')
+      ? []
+      : [{ id: 'ticket', label: '/ticket', hint: t('ticketHint'), apply: () => ticketRef.current?.focus() }]),
+    ...(shadowed('model')
+      ? []
+      : settings.models.map((m) => ({
+          id: `model:${m}`,
+          label: `/model ${m}`,
+          hint: t('modelHint'),
+          apply: () => setModel(m === settings.defaultModel ? '' : m),
+        }))),
+    ...skillSuggestions(settings.skills, { global: t('skillGlobal'), local: t('skillLocal') }),
   ];
   const mentions: Suggestion[] = options.agents.map((a) => ({
     id: `agent:${a.id}`,

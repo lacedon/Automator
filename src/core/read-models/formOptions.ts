@@ -1,5 +1,6 @@
 import { providerOptions } from '../config/providers';
 import type { AgentAssignment, InitialReview, ProjectScope, ProviderName, WorkflowType } from '../domain/types';
+import { discoverSkills, type Skill } from '../skills/skills';
 import { configOf, type ReadDeps } from './deps';
 import { scopeFilter } from './scope';
 
@@ -10,6 +11,8 @@ export type RepositorySettings = {
   intervals: { mr: number; default: number };
   initialReview: InitialReview;
   jiraEnabled: boolean;
+  // Skills available to the provider, for the Repository when there is one.
+  skills: Skill[];
 };
 
 export type FormOptions = RepositorySettings & {
@@ -23,7 +26,7 @@ export type FormOptions = RepositorySettings & {
 export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOptions {
   const { config, db, repositories } = deps;
   const inScope = scopeFilter(deps, scope);
-  const settingsOf = (effective: typeof config): RepositorySettings => {
+  const settingsOf = (effective: typeof config, repositoryFolder: string | null): RepositorySettings => {
     const options = providerOptions(effective, effective.provider);
     return {
       provider: effective.provider,
@@ -32,6 +35,7 @@ export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOpt
       intervals: { ...effective.schedule.intervals },
       initialReview: effective.runs.initialReview,
       jiraEnabled: effective.jira.enabled,
+      skills: discoverSkills({ provider: effective.provider, repositoryFolder }),
     };
   };
   const projectOf = new Map(
@@ -54,9 +58,9 @@ export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOpt
           (repo.github && config.github[repo.github]?.host) ||
           null,
       })),
-    ...settingsOf(config),
+    ...settingsOf(config, null),
     byRepository: Object.fromEntries(
-      repositories.list().map((repo) => [repo.name, settingsOf(configOf(deps, repo.name))]),
+      repositories.list().map((repo) => [repo.name, settingsOf(configOf(deps, repo.name), repo.folder)]),
     ),
     agents: (db.prepare('SELECT id, name FROM agents ORDER BY id').all() as { id: number; name: string }[]).map(
       ({ id, name }) => ({ id, name }),

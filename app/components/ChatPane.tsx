@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { startTransition, useActionState, useState, type FormEvent } from 'react';
+import { startTransition, useActionState, useRef, useState, type FormEvent } from 'react';
 import type { Skill, ThreadRun, ThreadView } from '@core/index';
 import { branchRun, sendRunMessage, type BranchFormState, type ChatFormState } from '../actions/chat';
 import { closeRun } from '../actions/runs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
+import { PromptInput } from './PromptInput';
 import { RunPill } from './Pill';
 import { RunFileLinks } from './RunFileLinks';
+import { withSkills } from '../lib/skillSuggestions';
 
 export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | 'interrupted' | 'closedAt'>): boolean {
   return (
@@ -133,6 +135,8 @@ export function ChatPane({
   const tError = useTranslations('ErrorBox');
   const [state, formAction, pending] = useActionState(sendRunMessage, null);
   const [message, setMessage] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
+  const commands = withSkills([], skills, { global: t('skillGlobal'), local: t('skillLocal') });
 
   // A successful send clears the message; a failure restores what was submitted.
   const [seen, setSeen] = useState<ChatFormState>(null);
@@ -164,7 +168,7 @@ export function ChatPane({
       {thread.replyToRunId === null ? (
         thread.replyBlockedReason !== null && <p className="muted">{thread.replyBlockedReason}</p>
       ) : (
-        <form action={formAction} onSubmit={submit} className="watch-form chat-form">
+        <form ref={formRef} action={formAction} onSubmit={submit} className="watch-form chat-form">
           {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome={tError('noRunQueued')} />}
           {state?.ok && (
             <div className="success-box" role="status">
@@ -174,31 +178,17 @@ export function ChatPane({
           <input type="hidden" name="runId" value={thread.replyToRunId} />
           <div className="field">
             <label htmlFor="chat-message">{t('message')}</label>
-            <textarea
+            <PromptInput
               id="chat-message"
               name="message"
-              rows={3}
-              required
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={t('placeholder')}
+              onChange={setMessage}
+              required
+              commands={commands}
+              mentions={[]}
+              onSubmit={() => formRef.current?.requestSubmit()}
             />
           </div>
-          {skills.length > 0 && (
-            <div className="chat-skills muted" aria-label={t('skills')}>
-              {skills.map((skill) => (
-                <button
-                  key={skill.name}
-                  type="button"
-                  className={`btn chat-skill chat-skill-${skill.scope}`}
-                  title={t(skill.scope === 'local' ? 'skillLocal' : 'skillGlobal')}
-                  onClick={() => setMessage((m) => `${m}${m === '' || m.endsWith(' ') ? '' : ' '}/${skill.name} `)}
-                >
-                  /{skill.name}
-                </button>
-              ))}
-            </div>
-          )}
           <div className="actions">
             <button type="submit" className="btn btn-primary" disabled={pending}>
               {t('send')}

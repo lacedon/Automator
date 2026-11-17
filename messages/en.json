@@ -238,7 +238,6 @@
     "branchSubmit": "Start branch",
     "branchCancel": "Cancel",
     "branchedFrom": "Branched from Run #{id}",
-    "skills": "Skills",
     "skillGlobal": "Global skill",
     "skillLocal": "Local skill (this Repository)"
   },
@@ -268,6 +267,8 @@
     "ticketHint": "Link a Ticket",
     "modelHint": "Use this model",
     "agentHint": "Use this agent",
+    "skillGlobal": "Global skill",
+    "skillLocal": "Local skill (this Repository)",
     "send": "Send",
     "provider": "Provider: {provider}. Goes ahead of scheduled work, ignores working hours, never interrupts the current Run."
   },

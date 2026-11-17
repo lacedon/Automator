@@ -3,7 +3,8 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslations } from 'next-intl';
 
-export type Suggestion = { id: string; label: string; hint?: string; apply: () => void };
+// `insert` replaces the typed trigger text; otherwise the trigger text is removed. `apply` runs afterwards.
+export type Suggestion = { id: string; label: string; hint?: string; insert?: string; apply?: () => void };
 
 // `/` at the start of a line triggers commands; `@` after whitespace triggers mentions.
 const TRIGGER = /(?:^|\n)\/([^\n]*)$|(?:^|\s)@([\w.-]*)$/;
@@ -15,6 +16,19 @@ function triggerAt(text: string, caret: number): { kind: '/' | '@'; query: strin
   const kind = match[1] !== undefined ? '/' : '@';
   const query = match[1] ?? match[2] ?? '';
   return { kind, query, start: caret - query.length - 1 };
+}
+
+// The suggestions offered for the text before the caret, filtered by what was typed after the trigger.
+export function suggestionsFor(
+  text: string,
+  caret: number,
+  commands: Suggestion[],
+  mentions: Suggestion[],
+): Suggestion[] {
+  const trigger = triggerAt(text, caret);
+  if (trigger === null) return [];
+  const query = trigger.query.toLowerCase();
+  return (trigger.kind === '/' ? commands : mentions).filter((s) => s.label.toLowerCase().includes(query));
 }
 
 export function PromptInput({
@@ -45,22 +59,18 @@ export function PromptInput({
   const [dismissed, setDismissed] = useState(false);
 
   const trigger = dismissed ? null : triggerAt(value, caret);
-  const items =
-    trigger === null
-      ? []
-      : (trigger.kind === '/' ? commands : mentions).filter((s) =>
-          s.label.toLowerCase().includes(trigger.query.toLowerCase()),
-        );
+  const items = dismissed ? [] : suggestionsFor(value, caret, commands, mentions);
   const open = trigger !== null && items.length > 0;
   const current = Math.min(active, Math.max(items.length - 1, 0));
 
   const pick = (item: Suggestion) => {
     if (trigger === null) return;
-    const next = value.slice(0, trigger.start) + value.slice(caret);
-    onChange(next);
-    setCaret(trigger.start);
-    item.apply();
-    requestAnimationFrame(() => ref.current?.setSelectionRange(trigger.start, trigger.start));
+    const insert = item.insert ?? '';
+    onChange(value.slice(0, trigger.start) + insert + value.slice(caret));
+    const end = trigger.start + insert.length;
+    setCaret(end);
+    item.apply?.();
+    requestAnimationFrame(() => ref.current?.setSelectionRange(end, end));
   };
 
   const keyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

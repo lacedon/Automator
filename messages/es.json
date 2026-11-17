@@ -238,7 +238,6 @@
     "branchSubmit": "Crear bifurcación",
     "branchCancel": "Cancelar",
     "branchedFrom": "Bifurcado desde la ejecución #{id}",
-    "skills": "Skills",
     "skillGlobal": "Skill global",
     "skillLocal": "Skill local (este repositorio)"
   },
@@ -268,6 +267,8 @@
     "ticketHint": "Vincular un ticket",
     "modelHint": "Usar este modelo",
     "agentHint": "Usar este agente",
+    "skillGlobal": "Skill global",
+    "skillLocal": "Skill local (este repositorio)",
     "send": "Enviar",
     "provider": "Proveedor: {provider}. Se adelanta al trabajo programado, ignora el horario laboral y nunca interrumpe la ejecución actual."
   },
