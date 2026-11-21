@@ -228,7 +228,6 @@
     "run": "运行 #{id}",
     "thisRun": "（本次运行）",
     "message": "消息",
-    "placeholder": "在同一个 Copilot 会话中继续…",
     "send": "发送",
     "queued": "运行 #{id} 已排队",
     "branch": "分支",

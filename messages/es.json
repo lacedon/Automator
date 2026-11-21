@@ -228,7 +228,6 @@
     "run": "Ejecución #{id}",
     "thisRun": " (esta ejecución)",
     "message": "Mensaje",
-    "placeholder": "Continúa en la misma sesión de Copilot…",
     "send": "Enviar",
     "queued": "Ejecución #{id} en cola",
     "branch": "Bifurcar",
