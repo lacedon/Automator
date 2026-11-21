@@ -10,13 +10,14 @@ import { AgentSelect, type AgentPick } from './AgentSelect';
 import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
 import { PromptInput, type Suggestion } from './PromptInput';
+import { withSkills } from '../lib/skillSuggestions';
 
 export function AdhocForm({
   options,
 }: {
   options: Pick<
     FormOptions,
-    'repositories' | 'provider' | 'models' | 'defaultModel' | 'byRepository' | 'agents' | 'agentAssignments'
+    'repositories' | 'provider' | 'models' | 'defaultModel' | 'skills' | 'byRepository' | 'agents' | 'agentAssignments'
   >;
 }) {
   const t = useTranslations('Adhoc');
@@ -29,7 +30,6 @@ export function AdhocForm({
   const [agentPick, setAgentPick] = useState<AgentPick | null>(null);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const ticketRef = useRef<HTMLInputElement>(null);
 
   // A successful submit opens the created Run's chat; failures keep everything as entered.
   useEffect(() => {
@@ -55,8 +55,9 @@ export function AdhocForm({
       ? 'input-err'
       : undefined;
 
-  const commands: Suggestion[] = [
-    { id: 'ticket', label: '/ticket', hint: t('ticketHint'), apply: () => ticketRef.current?.focus() },
+  const focusTicket = () => document.getElementById('ah-ticket')?.focus();
+  const builtIns: Suggestion[] = [
+    { id: 'ticket', label: '/ticket', hint: t('ticketHint'), apply: focusTicket },
     ...settings.models.map((m) => ({
       id: `model:${m}`,
       label: `/model ${m}`,
@@ -64,6 +65,7 @@ export function AdhocForm({
       apply: () => setModel(m === settings.defaultModel ? '' : m),
     })),
   ];
+  const commands = withSkills(builtIns, settings.skills, { global: t('skillGlobal'), local: t('skillLocal') });
   const mentions: Suggestion[] = options.agents.map((a) => ({
     id: `agent:${a.id}`,
     label: a.name,
@@ -116,7 +118,6 @@ export function AdhocForm({
             <label htmlFor="ah-ticket">{t('ticket')}</label>
             <input
               id="ah-ticket"
-              ref={ticketRef}
               name="ticket"
               type="text"
               className={inputClass('ticket')}

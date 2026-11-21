@@ -10,12 +10,23 @@ export default async function AdhocPage() {
   const core = getCore();
   const t = await getTranslations('Adhoc');
   const scope = await currentScope();
-  const { repositories, provider, models, defaultModel, byRepository, agents, agentAssignments } =
+  const { repositories, provider, models, defaultModel, skills, byRepository, agents, agentAssignments } =
     core.read.formOptions(scope);
   return (
     <ActionErrorProvider>
       <h1 className="page-title">{t('title')}</h1>
-      <AdhocForm options={{ repositories, provider, models, defaultModel, byRepository, agents, agentAssignments }} />
+      <AdhocForm
+        options={{
+          repositories,
+          provider,
+          models,
+          defaultModel,
+          skills,
+          byRepository,
+          agents,
+          agentAssignments,
+        }}
+      />
     </ActionErrorProvider>
   );
 }

@@ -228,7 +228,6 @@
     "run": "运行 #{id}",
     "thisRun": "（本次运行）",
     "message": "消息",
-    "placeholder": "在同一个 Copilot 会话中继续…",
     "send": "发送",
     "queued": "运行 #{id} 已排队",
     "branch": "分支",
@@ -238,7 +237,6 @@
     "branchSubmit": "创建分支",
     "branchCancel": "取消",
     "branchedFrom": "分支自运行 #{id}",
-    "skills": "技能",
     "skillGlobal": "全局技能",
     "skillLocal": "本地技能（此仓库）"
   },
@@ -268,6 +266,8 @@
     "ticketHint": "关联工单",
     "modelHint": "使用此模型",
     "agentHint": "使用此智能体",
+    "skillGlobal": "全局技能",
+    "skillLocal": "本地技能（此仓库）",
     "send": "发送",
     "provider": "提供方：{provider}。优先于计划任务，忽略工作时间，不会中断当前运行。"
   },

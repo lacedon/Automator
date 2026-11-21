@@ -2056,18 +2056,3 @@ dialog.file-dialog::backdrop {
 .watch-form-saving {
   padding: 1rem 0;
 }
-
-.chat-skills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
-}
-.chat-skill {
-  font-family: monospace;
-  padding: 0.1rem 0.5rem;
-}
-.chat-skill-local {
-  border-style: dashed;
-  font-weight: 600;
-}
