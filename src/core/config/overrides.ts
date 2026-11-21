@@ -27,7 +27,7 @@ export type OverrideRow = Pick<OverrideField, 'id' | 'group' | 'label' | 'kind' 
 export type OverrideErrors = Record<string, string>;
 
 const LOCALES: Config['locale'][] = ['en', 'es', 'zh', 'ru'];
-const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode'];
+const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode', 'pi'];
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_TEAMS_TOOL = 'teams-global(send_chat_message)';

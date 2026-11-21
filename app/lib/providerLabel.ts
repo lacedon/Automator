@@ -5,6 +5,7 @@ const providerLabels: Record<ProviderName, string> = {
   'claude-code': 'Claude Code',
   codex: 'OpenAI Codex CLI',
   opencode: 'OpenCode',
+  pi: 'pi',
 };
 
 export function providerLabel(provider: ProviderName): string {

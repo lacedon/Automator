@@ -1,6 +1,6 @@
 export type WatchKind = 'mr' | 'jira' | 'free';
 export type WorkflowType = 'mr-watch' | 'jira-watch' | 'free-watch' | 'ticket-adhoc' | 'free-adhoc';
-export type ProviderName = 'copilot' | 'claude-code' | 'codex' | 'opencode';
+export type ProviderName = 'copilot' | 'claude-code' | 'codex' | 'opencode' | 'pi';
 export type WatchState = 'active' | 'paused' | 'needs_you' | 'closed';
 export type RunStatus = 'queued' | 'running' | 'finished';
 export type Trigger = 'schedule' | 'manual' | 'adhoc';

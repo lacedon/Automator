@@ -13,6 +13,7 @@ test('provider settings show the global selector and provider model fields', asy
     'Claude Code',
     'OpenAI Codex CLI',
     'OpenCode',
+    'pi',
   ]);
   for (const id of [
     'config-providers-copilot-bin',
@@ -27,6 +28,9 @@ test('provider settings show the global selector and provider model fields', asy
     'config-providers-opencode-bin',
     'config-providers-opencode-defaultModel',
     'config-providers-opencode-models',
+    'config-providers-pi-bin',
+    'config-providers-pi-defaultModel',
+    'config-providers-pi-models',
   ]) {
     await expect(page.locator(`#${id}`)).toBeVisible();
   }

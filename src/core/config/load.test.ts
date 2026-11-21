@@ -105,6 +105,7 @@ describe('loadConfig', () => {
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: 'codex', defaultModel: '', models: [] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
+        pi: { bin: 'pi', defaultModel: '', models: [] },
       },
     });
   });

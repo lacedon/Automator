@@ -20,7 +20,7 @@ const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
 const runFields = ['timeoutMinutes', 'initialReview', 'denyTools', 'isolation', 'maxConcurrent'] as const;
 const providerFields = ['bin', 'defaultModel', 'models'] as const;
-const providers = ['copilot', 'claude-code', 'codex', 'opencode'] as const;
+const providers = ['copilot', 'claude-code', 'codex', 'opencode', 'pi'] as const;
 const cleanupFields = ['enabled', 'everyDays', 'retainClosedDays'] as const;
 const teamsFields = ['chatId', 'tool', 'model', 'dashboardUrl'] as const;
 

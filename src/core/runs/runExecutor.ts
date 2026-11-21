@@ -38,6 +38,7 @@ const providerLabels: Record<ProviderName, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex CLI',
   opencode: 'OpenCode',
+  pi: 'pi',
 };
 
 export const copilotResultSchema = z.looseObject({

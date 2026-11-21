@@ -10,6 +10,7 @@ describe('providerOptions', () => {
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: '/opt/codex', defaultModel: 'codex-model', models: ['codex-fast'] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
+        pi: { bin: 'pi', defaultModel: '', models: [] },
       },
     });
 

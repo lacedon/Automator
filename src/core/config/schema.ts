@@ -11,7 +11,7 @@ export function resolvePath(p: string, baseDir: string): string {
 
 const nonEmpty = z.string().min(1);
 const positiveInt = z.number().int().positive();
-const providerName = z.enum(['copilot', 'claude-code', 'codex', 'opencode']);
+const providerName = z.enum(['copilot', 'claude-code', 'codex', 'opencode', 'pi']);
 
 const providerSettings = (defaultBin: string, defaultModel = '') =>
   z
@@ -53,6 +53,7 @@ export function createConfigSchema(configDir: string) {
           'claude-code': providerSettings('claude'),
           codex: providerSettings('codex'),
           opencode: providerSettings('opencode'),
+          pi: providerSettings('pi'),
         })
         .prefault({}),
       gitlab: z.record(z.string(), z.object({ host: nonEmpty, tokenEnv: nonEmpty })).default({}),

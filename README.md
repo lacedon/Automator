@@ -83,7 +83,7 @@ npm run automator -- run --repo <name> --ticket ABC-123 --prompt "Use the existi
 
 ## Run providers
 
-Provider selection is installation-wide. Change it in **Settings → Configuration** or set `provider` in `automator.config.json`. Missing provider configuration continues to mean `copilot`. Copilot is configured like the other providers under `providers.copilot`; the legacy `copilotBin`, `runs.defaultModel` and `runs.models` keys are migrated there (and removed from the file) the next time the config is loaded, and legacy Project overrides are migrated by a database migration. The example config contains the executable, default model and supported-model list for each CLI; set a non-empty default model before selecting a non-Copilot provider. OpenCode model IDs use the `provider/model` form. Run history stores the provider and model selected when the Run was queued, so later settings changes do not relabel old Runs or reroute queued/follow-up work.
+Provider selection is installation-wide. Change it in **Settings → Configuration** or set `provider` in `automator.config.json`. Missing provider configuration continues to mean `copilot`. Copilot is configured like the other providers under `providers.copilot`; the legacy `copilotBin`, `runs.defaultModel` and `runs.models` keys are migrated there (and removed from the file) the next time the config is loaded, and legacy Project overrides are migrated by a database migration. The example config contains the executable, default model and supported-model list for each CLI; set a non-empty default model before selecting a non-Copilot provider. OpenCode and pi model IDs use the `provider/model` form. Run history stores the provider and model selected when the Run was queued, so later settings changes do not relabel old Runs or reroute queued/follow-up work.
 
 Install each CLI and authenticate it as the same OS user that runs Automator, following its official setup guide:
 
@@ -93,10 +93,13 @@ Install each CLI and authenticate it as the same OS user that runs Automator, fo
 | Claude Code        | [Setup guide](https://code.claude.com/docs/en/setup)                                   | `claude auth login`                 | `claude --version`   |
 | OpenAI Codex CLI   | [CLI guide](https://developers.openai.com/codex/cli)                                   | `codex login`                       | `codex --version`    |
 | OpenCode           | [Install guide](https://opencode.ai/docs/)                                             | `opencode auth login`               | `opencode --version` |
+| pi                 | [Install guide](https://docs.pi.dev/latest/quickstart)                                 | `pi auth login <provider>`          | `pi --version`       |
+
+pi can be installed with `curl -fsSL https://pi.dev/install.sh | sh`.
 
 Automator removes credential-like environment variables (API/access keys, tokens, secrets, passwords and credential-file paths) and configured Git/Jira credential variables before starting a coding CLI. For Copilot, its supported `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, and `GITHUB_TOKEN` authentication variables are preserved unless one is also configured as an Automator integration credential, and are marked secret so Copilot strips them from shell and MCP tool environments. Use each CLI's native login or supported authentication rather than putting provider credentials in the JSON config. Native auth stores remain in the OS user's profile; a coding agent with shell access is not isolated from files that user can read. Treat each provider account and its local credentials accordingly, and only run trusted repositories.
 
-Every CLI starts in the selected Repository folder. Automator does not copy or translate repository instructions, skills, or MCP configuration; each CLI discovers these using its own conventions. For example, Copilot has its [custom-instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions), Claude Code uses `CLAUDE.md` and `.claude/skills/`, Codex uses `AGENTS.md` and `.agents/skills/`, and OpenCode uses `AGENTS.md` plus `.opencode/skills/`. MCP servers and additional skills must be configured in the selected CLI's native format; see the linked provider documentation. The CLIs also differ in permissions: Codex uses the `workspace-write` sandbox and receives write access only to the current Run's artifact directory outside the Repository, Claude Code uses its non-interactive permission mode, and OpenCode auto-approves permissions not explicitly denied. `runs.denyTools` is Copilot-specific; the other adapters fail visibly rather than ignoring it when it is configured.
+Every CLI starts in the selected Repository folder. Automator does not copy or translate repository instructions, skills, or MCP configuration; each CLI discovers these using its own conventions. For example, Copilot has its [custom-instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions), Claude Code uses `CLAUDE.md` and `.claude/skills/`, Codex uses `AGENTS.md` and `.agents/skills/`, OpenCode uses `AGENTS.md` plus `.opencode/skills/`, and pi discovers its own context files and skills. MCP servers and additional skills must be configured in the selected CLI's native format; see the linked provider documentation. The CLIs also differ in permissions: Codex uses the `workspace-write` sandbox and receives write access only to the current Run's artifact directory outside the Repository, Claude Code uses its non-interactive permission mode, OpenCode auto-approves permissions not explicitly denied, and pi has no permission model in non-interactive mode (it is not sandboxed). `runs.denyTools` is enforced by Copilot and pi (mapped to `--exclude-tools`); the other adapters fail visibly rather than ignoring it when it is configured.
 
 Troubleshooting:
 
@@ -135,7 +138,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 - Node.js, TypeScript (ESM)
 - Next.js App Router for the dashboard
 - `better-sqlite3` for storage
-- GitHub Copilot CLI, Claude Code, OpenAI Codex CLI or OpenCode as the Run provider
+- GitHub Copilot CLI, Claude Code, OpenAI Codex CLI, OpenCode or pi as the Run provider
 
 ## Architecture
 

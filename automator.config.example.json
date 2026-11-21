@@ -5,7 +5,8 @@
     "copilot": { "bin": "copilot", "defaultModel": "claude-sonnet-4.5", "models": ["claude-sonnet-4.5", "gpt-5"] },
     "claude-code": { "bin": "claude", "defaultModel": "", "models": [] },
     "codex": { "bin": "codex", "defaultModel": "", "models": [] },
-    "opencode": { "bin": "opencode", "defaultModel": "", "models": [] }
+    "opencode": { "bin": "opencode", "defaultModel": "", "models": [] },
+    "pi": { "bin": "pi", "defaultModel": "", "models": [] }
   },
   "gitlab": { "corp": { "host": "https://gitlab.example.com", "tokenEnv": "GITLAB_TOKEN" } },
   "github": { "public": { "host": "github.com", "tokenEnv": "AUTOMATOR_GITHUB_TOKEN" } },

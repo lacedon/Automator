@@ -12,6 +12,7 @@ const GLOBAL_FOLDERS: Record<ProviderName, string[]> = {
   copilot: ['.copilot/skills', '.claude/skills', '.agents/skills'],
   codex: ['.codex/skills', '.agents/skills'],
   opencode: ['.config/opencode/skills', '.claude/skills', '.agents/skills'],
+  pi: ['.pi/agent/skills', '.agents/skills'],
 };
 
 const LOCAL_FOLDERS: Record<ProviderName, string> = {
@@ -19,6 +20,7 @@ const LOCAL_FOLDERS: Record<ProviderName, string> = {
   copilot: '.github/skills',
   codex: '.agents/skills',
   opencode: '.opencode/skills',
+  pi: '.pi/skills',
 };
 
 // A skill is a sub-folder (or a link to one) holding a SKILL.md; its name is the folder name.

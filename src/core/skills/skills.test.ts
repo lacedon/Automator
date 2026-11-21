@@ -59,10 +59,13 @@ describe('discoverSkills', () => {
     skill(home, '.copilot/skills', 'cp-only');
     skill(repo, '.agents/skills', 'local-codex');
     skill(repo, '.opencode/skills', 'local-oc');
+    skill(home, '.pi/agent/skills', 'pi-only');
+    skill(repo, '.pi/skills', 'local-pi');
     const names = (provider: Parameters<typeof discoverSkills>[0]['provider']) =>
       discoverSkills({ provider, repositoryFolder: repo, homeDir: home }).map((s) => s.name);
     expect(names('codex')).toEqual(['codex-only', 'local-codex']);
     expect(names('opencode')).toEqual(['local-oc', 'oc-only']);
+    expect(names('pi')).toEqual(['local-pi', 'pi-only']);
     expect(names('copilot')).toEqual(['cp-only']);
   });
 });
