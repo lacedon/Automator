@@ -129,11 +129,13 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(25);
+    expect(db.pragma('user_version', { simple: true })).toBe(26);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
     });
+    db.prepare("UPDATE runs SET provider = 'pi' WHERE id = ?").run(oldRunId);
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId)).provider).toBe('pi');
     db.prepare("UPDATE runs SET provider = 'codex' WHERE id = ?").run(oldRunId);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId)).provider).toBe('codex');
     expect(constraintCode(() => db.prepare("UPDATE runs SET provider = 'other' WHERE id = ?").run(oldRunId))).toBe(
@@ -141,12 +143,41 @@ describe('db', () => {
     );
   });
 
+  test('widening the provider constraint keeps Runs, links to them and the id sequence', () => {
+    const db = new BetterSqlite3(':memory:');
+    db.pragma('foreign_keys = ON');
+    const early = [...migrations].filter((m) => m.version < 26);
+    db.exec('BEGIN');
+    for (const m of early.sort((a, b) => a.version - b.version)) db.exec(m.sql);
+    db.pragma('user_version = 25');
+    db.exec('COMMIT');
+    const watchId = insertWatch(db);
+    const parent = insertRun(db, watchId, 'finished');
+    const child = insertRun(db, watchId, 'finished');
+    db.prepare('UPDATE runs SET parent_run_id = ?, provider = ? WHERE id = ?').run(parent, 'codex', child);
+    const dropped = insertRun(db, watchId, 'finished');
+    db.prepare('DELETE FROM runs WHERE id = ?').run(dropped);
+    db.prepare(
+      "INSERT INTO needs_you_events (watch_id, run_id, reason, created_at, teams_status) VALUES (?, ?, 'r', ?, 'pending')",
+    ).run(watchId, parent, T);
+
+    migrate(db);
+
+    expect(db.prepare('SELECT id, parent_run_id, provider FROM runs ORDER BY id').all()).toEqual([
+      { id: parent, parent_run_id: null, provider: 'copilot' },
+      { id: child, parent_run_id: parent, provider: 'codex' },
+    ]);
+    expect(db.prepare('SELECT run_id FROM needs_you_events').get()).toEqual({ run_id: parent });
+    expect(insertRun(db, watchId, 'finished')).toBeGreaterThan(dropped);
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
   test('migrate is idempotent and sets user_version 23', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(25);
+    expect(db.pragma('user_version', { simple: true })).toBe(26);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(25);
+    expect(db.pragma('user_version', { simple: true })).toBe(26);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -272,7 +303,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(25);
+    expect(db.pragma('user_version', { simple: true })).toBe(26);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

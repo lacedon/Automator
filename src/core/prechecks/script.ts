@@ -51,7 +51,7 @@ const DENIED: { rule: RegExp; message: string }[] = [
     message: 'uses a tool that can change state or read stored credentials',
   },
   {
-    rule: word('copilot|claude|codex|opencode|gemini|openai|anthropic|ollama|aider|llm'),
+    rule: word('copilot|claude|codex|opencode|pi|gemini|openai|anthropic|ollama|aider|llm'),
     message: 'uses AI',
   },
   {

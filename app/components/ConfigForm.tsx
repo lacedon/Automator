@@ -8,7 +8,7 @@ import { ErrorBox } from './ErrorBox';
 import { providerLabel } from '../lib/providerLabel';
 import { SettingsDialogActions, useSettingsDialog } from './SettingsDialog';
 
-const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode'];
+const PROVIDERS: ProviderName[] = ['copilot', 'claude-code', 'codex', 'opencode', 'pi'];
 const FIELD_ORDER: Record<string, number> = { dataDir: 0, schedule: 1 };
 
 function label(value: string): string {

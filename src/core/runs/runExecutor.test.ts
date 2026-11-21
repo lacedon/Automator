@@ -95,7 +95,7 @@ function setup(opts: SetupOpts = {}) {
     config,
     repositories,
     dataDir,
-    launchers: { copilot: launcher, 'claude-code': launcher, codex: codexLauncher, opencode: launcher },
+    launchers: { copilot: launcher, 'claude-code': launcher, codex: codexLauncher, opencode: launcher, pi: launcher },
     prechecks,
     currentBranch,
     onNeedsYou,

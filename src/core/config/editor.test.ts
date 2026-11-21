@@ -57,6 +57,7 @@ describe('readEditableConfig', () => {
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: 'codex', defaultModel: '', models: [] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
+        pi: { bin: 'pi', defaultModel: '', models: [] },
       },
     });
   });
@@ -102,6 +103,7 @@ describe('readEditableConfig', () => {
           apiKeyEnv: 'OPENAI_API_KEY',
         },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
+        pi: { bin: 'pi', defaultModel: '', models: [] },
       },
     });
     const editable = readEditableConfig(file);
@@ -113,6 +115,7 @@ describe('readEditableConfig', () => {
         'claude-code': { bin: 'claude', defaultModel: '', models: [] },
         codex: { bin: '/opt/codex-edited', defaultModel: 'codex-new', models: ['codex-new'] },
         opencode: { bin: 'opencode', defaultModel: '', models: [] },
+        pi: { bin: 'pi', defaultModel: '', models: [] },
       },
     });
 
