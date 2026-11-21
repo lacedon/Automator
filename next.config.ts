@@ -5,6 +5,9 @@ const withNextIntl = createNextIntlPlugin('./app/lib/i18nRequest.ts');
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  experimental: {
+    agentUpgrade: 'security',
+  },
   serverExternalPackages: ['better-sqlite3'],
   async redirects() {
     return [
