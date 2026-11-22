@@ -62,6 +62,16 @@ export function acpCommand(
   }
 }
 
+// An unprompted turn (a native timer firing inside the live process) has no start or end signal over ACP (provider
+// spike, Claude item i). It ends with the usage_update that carries `cost`, or after this long without any update.
+export const AGENT_SETTLE_MS = 5000;
+const BOOKKEEPING_UPDATES = new Set([
+  'usage_update',
+  'session_info_update',
+  'available_commands_update',
+  'current_mode_update',
+]);
+
 type PendingElicitation = {
   choices: { value: string; label: string }[];
   hasCustom: boolean;
@@ -126,6 +136,13 @@ class AcpSession implements SessionHandle {
   private acceptUpdates = false;
   private promptInFlight = false;
   private unpromptedActive = false;
+  private settleTimer: NodeJS.Timeout | null = null;
+  // Tool calls of the unprompted turn that have not completed or failed: a long tool is silent, not finished.
+  private readonly pendingTools = new Set<string>();
+  // After a cancelled unprompted turn the adapter may still print its tail; that must not start a new turn.
+  private suppressUnprompted = false;
+  private quietTimer: NodeJS.Timeout | null = null;
+  private readonly agentSettleMs: number;
   private cancelRequested = false;
   private turnFinished = true;
   private fatal: RunError | null = null;
@@ -145,6 +162,7 @@ class AcpSession implements SessionHandle {
   ) {
     const input = new PassThrough();
     this.requestTimeoutMs = timings.requestTimeoutMs ?? HANDSHAKE_REQUEST_TIMEOUT_MS;
+    this.agentSettleMs = timings.agentSettleMs ?? AGENT_SETTLE_MS;
     this.elicitation = INTERACTIVE_CAPABILITIES[provider].nativeQuestions === 'acp-elicitation';
     this.proc = spawnSessionProcess({
       bin: command.bin,
@@ -307,29 +325,42 @@ class AcpSession implements SessionHandle {
   private onExit(exit: ProviderExit): void {
     const error = this.exitError(exit);
     this.fatal = error;
+    if (this.unpromptedActive) this.endUnprompted({ stopReason: 'error', error });
+    this.liftSuppression();
     if (this.promptInFlight) {
       this.finishTurn(this.cancelRequested ? { stopReason: 'cancelled' } : { stopReason: 'error', error });
     }
     this.proc.emit({ type: 'exit', exit: exit.error === undefined ? exit : { ...exit, error } });
   }
 
-  // Updates that arrive while no prompt is in flight are unprompted turns (native timers). Only substantive
-  // updates count; usage and bookkeeping notifications are ignored.
+  // Updates that arrive while no prompt is in flight are unprompted turns (native timers). The first update that is
+  // not bookkeeping starts one; usage_update with `cost` (or AGENT_SETTLE_MS of silence) ends it.
   private onUpdate(params: unknown): void {
     if (!this.acceptUpdates || !isRecord(params) || !isRecord(params.update)) return;
     const update = params.update;
-    const kind = str(update.sessionUpdate);
-    if (kind === 'usage_update') {
-      // The adapter closes an unprompted turn with a usage_update that carries the cost.
-      if (this.unpromptedActive && !this.promptInFlight && update.cost !== undefined) this.unpromptedActive = false;
+    const kind = str(update.sessionUpdate) ?? '';
+    if (!this.promptInFlight && this.suppressUnprompted) {
+      // Tail of a cancelled unprompted turn: swallowed until a final usage_update (with cost) or a quiet period.
+      if (kind === 'usage_update' && update.cost !== undefined) this.liftSuppression();
+      else this.armQuiet();
       return;
     }
-    const substantive = kind === 'agent_message_chunk' || kind === 'tool_call' || kind === 'tool_call_update';
-    if (!substantive) return;
-    if (!this.promptInFlight && !this.unpromptedActive) {
-      this.unpromptedActive = true;
-      this.proc.emit({ type: 'turn-start', prompted: false });
+    if (!this.promptInFlight) {
+      if (BOOKKEEPING_UPDATES.has(kind)) {
+        if (this.unpromptedActive) {
+          if (kind === 'usage_update' && update.cost !== undefined) this.endUnprompted({ stopReason: 'end_turn' });
+          else this.armSettle();
+        }
+        return;
+      }
+      if (!this.unpromptedActive) {
+        this.unpromptedActive = true;
+        this.proc.emit({ type: 'turn-start', prompted: false });
+      }
+      this.armSettle();
     }
+    // Only text and tool calls are recorded; other updates (thoughts, plans) just keep an unprompted turn alive.
+    if (kind !== 'agent_message_chunk' && kind !== 'tool_call' && kind !== 'tool_call_update') return;
     if (kind === 'agent_message_chunk') {
       const content = isRecord(update.content) ? update.content : {};
       const text = str(content.text);
@@ -342,8 +373,44 @@ class AcpSession implements SessionHandle {
     this.toolTitles.set(id, title);
     const status = str(update.status);
     if (status === 'pending' || status === 'in_progress' || status === 'completed' || status === 'failed') {
+      if (this.unpromptedActive && !this.promptInFlight) {
+        if (status === 'completed' || status === 'failed') this.pendingTools.delete(id);
+        else this.pendingTools.add(id);
+        this.armSettle();
+      }
       this.proc.emit({ type: 'tool-call', id, title, status });
     }
+  }
+
+  private armQuiet(): void {
+    if (this.quietTimer !== null) clearTimeout(this.quietTimer);
+    this.quietTimer = setTimeout(() => this.liftSuppression(), this.agentSettleMs);
+    this.quietTimer.unref();
+  }
+
+  private liftSuppression(): void {
+    this.suppressUnprompted = false;
+    if (this.quietTimer !== null) clearTimeout(this.quietTimer);
+    this.quietTimer = null;
+  }
+
+  // The silence window only applies while no tool call of the turn is in flight.
+  private armSettle(): void {
+    if (this.settleTimer !== null) clearTimeout(this.settleTimer);
+    this.settleTimer = null;
+    if (this.pendingTools.size > 0) return;
+    this.settleTimer = setTimeout(() => this.endUnprompted({ stopReason: 'end_turn' }), this.agentSettleMs);
+    this.settleTimer.unref();
+  }
+
+  private endUnprompted(end: { stopReason: TurnStopReason; error?: RunError }): void {
+    if (!this.unpromptedActive) return;
+    this.unpromptedActive = false;
+    if (this.settleTimer !== null) clearTimeout(this.settleTimer);
+    this.settleTimer = null;
+    this.pendingTools.clear();
+    this.toolTitles.clear();
+    this.proc.emit({ type: 'turn-end', ...end });
   }
 
   private onPermission(params: unknown): unknown {
@@ -365,7 +432,8 @@ class AcpSession implements SessionHandle {
     if (this.sessionId === null) return Promise.reject(new Error('The session is not ready'));
     if (this.promptInFlight) return Promise.reject(new Error('A turn is in flight'));
     this.acceptUpdates = true;
-    this.unpromptedActive = false;
+    this.endUnprompted({ stopReason: 'end_turn' }); // a prompt supersedes an unprompted turn that is still open
+    this.liftSuppression();
     this.promptInFlight = true;
     this.cancelRequested = false;
     this.turnFinished = false;
@@ -455,6 +523,13 @@ class AcpSession implements SessionHandle {
   }
 
   cancelTurn(): void {
+    if (this.sessionId !== null && this.unpromptedActive && !this.promptInFlight) {
+      this.peer.notify('session/cancel', { sessionId: this.sessionId });
+      this.endUnprompted({ stopReason: 'cancelled' });
+      this.suppressUnprompted = true;
+      this.armQuiet();
+      return;
+    }
     if (this.sessionId === null || !this.promptInFlight) return;
     this.cancelRequested = true;
     this.peer.notify('session/cancel', { sessionId: this.sessionId });

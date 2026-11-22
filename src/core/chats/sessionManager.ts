@@ -4,7 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { ConfigFor } from '../config/resolver';
 import type { Database } from '../db/open';
-import { toChatSession } from '../db/rows';
+import { toChatSession, toRun } from '../db/rows';
 import type { ChatProcessState, ChatSession, Clock, Run, RunError } from '../domain/types';
 import { CHAT_COPYING_PREFIX as COPYING_PREFIX, type DataDir } from '../files/dataDir';
 import type { QueueService } from '../queue/queueService';
@@ -40,6 +40,10 @@ export interface ChatSessionManagerDeps {
   // it no tools are passed (unit tests, or a process that has no CLI entry).
   // A function, so nothing is resolved in the dashboard process, which never starts a provider.
   mcp?: () => { command: string; scriptPath: string; configPath: string };
+  // Hands an unprompted turn (a native timer firing in the live process) to the executor, which supervises and
+  // finalizes the already-running `agent` Run. Without it unprompted turns are only logged.
+  // The returned promise settles when the Run is finalized; stopAll() waits for it.
+  adoptTurn?: (run: Run, handle: TurnHandle) => Promise<unknown>;
 }
 
 export const SESSION_HANDSHAKE_TIMEOUT_MS = 60_000;
@@ -438,7 +442,9 @@ export class ChatSessionManager {
     }
   }
 
-  private async beginTurn(live: Live, run: Run, prompt: string): Promise<TurnHandle> {
+  // The turn's transcript, completion promise and executor-facing handle; the caller sends the prompt (or not: an
+  // unprompted turn is already running inside the provider).
+  private openTurn(live: Live, run: Run): TurnHandle {
     const transcript = createLiveTranscript(this.deps.dataDir.transcriptPath(run.id), { separator: '' });
     let settle!: (exit: ProviderExit) => void;
     const exited = new Promise<ProviderExit>((resolve) => {
@@ -461,11 +467,6 @@ export class ChatSessionManager {
       transcript.finish(null);
       reportLiveFailure(transcript, this.deps.dataDir.chatSessionLogPath(live.id));
     });
-    try {
-      await live.handle.send(prompt);
-    } catch (e) {
-      this.endTurn(live, { code: null, signal: null, error: asRunError(e) });
-    }
     return {
       pid: live.handle.pid,
       sessionId: live.handle.ready.then(
@@ -481,6 +482,86 @@ export class ChatSessionManager {
     };
   }
 
+  private async beginTurn(live: Live, run: Run, prompt: string): Promise<TurnHandle> {
+    const handle = this.openTurn(live, run);
+    try {
+      await live.handle.send(prompt);
+    } catch (e) {
+      this.endTurn(live, { code: null, signal: null, error: asRunError(e) });
+    }
+    return handle;
+  }
+
+  // A native timer fired inside the live process. In one IMMEDIATE transaction the `agent` Run is inserted as running
+  // on the Chat tip and any queued turn is re-parented under it, so the chain stays linear (plan clarification 15).
+  // An Automator turn of the Chat, in flight or just claimed, owns the provider's output: no Run is created then.
+  private beginUnprompted(live: Live): void {
+    const adopt = this.deps.adoptTurn;
+    if (adopt === undefined) {
+      if (!live.unpromptedLogged) {
+        live.unpromptedLogged = true;
+        this.log(live.id, 'unprompted turn started (not recorded)');
+      }
+      return;
+    }
+    if (live.turn !== null || this.starting.has(live.id)) return;
+    const session = this.row(live.id);
+    if (session === null || session.closedAt !== null) return;
+    const run = this.deps.db
+      .transaction((): Run | null => {
+        const { db } = this.deps;
+        const running = db.prepare("SELECT 1 FROM runs WHERE chat_session_id = ? AND status = 'running'").get(live.id);
+        if (running !== undefined) return null;
+        const tip = db
+          .prepare(
+            `SELECT * FROM runs r WHERE r.chat_session_id = ?
+               AND NOT EXISTS (SELECT 1 FROM runs c WHERE c.parent_run_id = r.id)
+             ORDER BY r.id DESC LIMIT 1`,
+          )
+          .get(live.id);
+        if (tip === undefined) return null;
+        const last = toRun(tip);
+        // A queued turn hangs off the last finished Run; the agent Run goes in between.
+        const parentId = last.status === 'queued' ? last.parentRunId : last.id;
+        if (parentId === null) return null;
+        const parent = last.id === parentId ? last : toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(parentId));
+        const now = this.deps.clock.now();
+        const inserted = db
+          .prepare(
+            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, provider, model, parent_run_id, queued_at, started_at, workflow_type, agent_id, chat_session_id, isolation, owner_user_id)
+             VALUES (NULL, ?, 'running', 'agent', 0, 'agent', NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'copy', (SELECT owner_user_id FROM runs WHERE id = ?)) RETURNING *`,
+          )
+          .get(
+            session.repository,
+            session.provider,
+            session.model,
+            parentId,
+            now,
+            now,
+            parent.workflowType,
+            session.agentId,
+            live.id,
+            parentId,
+          );
+        const agent = toRun(inserted);
+        db.prepare(
+          "UPDATE runs SET parent_run_id = ? WHERE chat_session_id = ? AND status = 'queued' AND parent_run_id = ?",
+        ).run(agent.id, live.id, parentId);
+        return agent;
+      })
+      .immediate();
+    if (run === null) {
+      if (!live.unpromptedLogged) {
+        live.unpromptedLogged = true;
+        this.log(live.id, 'unprompted turn started while a turn of this chat is claimed; not recorded');
+      }
+      return;
+    }
+    this.deps.dataDir.ensureRunDir(run.id);
+    this.log(live.id, `unprompted turn started: Run #${run.id}`);
+    this.track(adopt(run, this.openTurn(live, run)));
+  }
+
   private onEvent(live: Live, event: SessionEvent): void {
     const turn = live.turn;
     switch (event.type) {
@@ -490,10 +571,7 @@ export class ChatSessionManager {
         }
         return;
       case 'turn-start':
-        if (!event.prompted && turn === null && !live.unpromptedLogged) {
-          live.unpromptedLogged = true;
-          this.log(live.id, 'unprompted turn started (not recorded until agent Runs exist)');
-        }
+        if (!event.prompted && turn === null) this.beginUnprompted(live);
         return;
       case 'text':
         if (turn === null || event.delta === '') return;
@@ -630,7 +708,8 @@ export class ChatSessionManager {
     clearQuestion(this.deps.db, id);
     this.deps.db
       .prepare(
-        `UPDATE chat_sessions SET closed_at = ?, process_state = 'stopped', pid = NULL, copy_path = NULL WHERE id = ?`,
+        `UPDATE chat_sessions SET closed_at = ?, process_state = 'stopped', pid = NULL, copy_path = NULL,
+           timer_fire_at = NULL, timer_message = NULL, timer_created_at = NULL WHERE id = ?`,
       )
       .run(this.deps.clock.now(), id);
   }

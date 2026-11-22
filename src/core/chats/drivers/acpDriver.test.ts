@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { testConfig } from '../../../../test/helpers/config';
 import { resolveSecrets } from '../../config/load';
-import { acpCommand, createAcpDriver, type AcpProvider } from './acpDriver';
+import { acpCommand, AGENT_SETTLE_MS, createAcpDriver, type AcpProvider } from './acpDriver';
 import { DriverError, type SessionEvent, type SessionHandle, type ToolPolicy } from './sessionDriver';
 
 const FAKE = path.resolve('test/fixtures/fake-acp-agent.mjs');
@@ -12,7 +12,10 @@ const open: ToolPolicy = { allowAll: true, allowed: [], blocked: [], denyTools: 
 const cleanups: (() => void)[] = [];
 const handles: SessionHandle[] = [];
 
+const realSetTimeout = globalThis.setTimeout;
+
 afterEach(async () => {
+  vi.useRealTimers();
   for (const handle of handles.splice(0)) handle.kill();
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
@@ -29,6 +32,7 @@ function setup(
   script: Script = {},
   extraEnv: Record<string, string> = {},
   requestTimeoutMs?: number,
+  agentSettleMs?: number,
 ) {
   const config = testConfig({
     providers: {
@@ -55,6 +59,7 @@ function setup(
     stdinGraceMs: 150,
     killGraceMs: 150,
     ...(requestTimeoutMs === undefined ? {} : { requestTimeoutMs }),
+    ...(agentSettleMs === undefined ? {} : { agentSettleMs }),
   });
   const start = (overrides: Partial<Parameters<typeof driver.start>[0]> = {}) => {
     const handle = driver.start({
@@ -88,7 +93,7 @@ async function until<T>(read: () => T | undefined, ms = 5_000): Promise<T> {
     const value = read();
     if (value !== undefined) return value;
     if (Date.now() > deadline) throw new Error('timed out');
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => realSetTimeout(resolve, 10));
   }
 }
 
@@ -345,6 +350,264 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     expect(events).toContainEqual({ type: 'turn-start', prompted: false });
     await until(() => (texts(events).includes('tick') ? true : undefined));
     expect(texts(events)).toBe('oktick');
+  });
+
+  test('an unprompted turn ends with the usage_update that carries the cost', async () => {
+    const cost = { amount: 0.04, currency: 'USD' };
+    const s = setup(
+      provider,
+      {
+        prompts: [
+          {
+            updates: [{ text: 'ok' }],
+            unprompted: {
+              afterMs: 20,
+              updates: [
+                { text: 'tick' },
+                { sessionUpdate: 'usage_update', used: 5, size: 10 },
+                { sessionUpdate: 'usage_update', used: 6, size: 10, cost },
+              ],
+            },
+          },
+        ],
+      },
+      {},
+      undefined,
+      60_000, // the settle window must not be what ends it
+    );
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('set a timer');
+    await until(() => events.filter((e) => e.type === 'turn-end').length === 2 || undefined);
+
+    const kinds = events.flatMap((e) => (e.type === 'turn-start' || e.type === 'turn-end' ? [e] : []));
+    expect(kinds).toEqual([
+      { type: 'turn-start', prompted: true },
+      { type: 'turn-end', stopReason: 'end_turn' },
+      { type: 'turn-start', prompted: false },
+      { type: 'turn-end', stopReason: 'end_turn' },
+    ]);
+    expect(texts(events)).toBe('oktick');
+  });
+
+  const fakeTimers = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const fakeStart = (s: ReturnType<typeof setup>) => {
+    fakeTimers();
+    return s.start();
+  };
+  const turnEnds = (events: SessionEvent[]) => events.filter((e) => e.type === 'turn-end').length;
+
+  test('an unprompted turn ends after AGENT_SETTLE_MS without updates', async () => {
+    const s = setup(provider, {
+      prompts: [{ updates: [{ text: 'ok' }], unprompted: { afterMs: 20, updates: [{ text: 'a' }, { text: 'b' }] } }],
+    });
+    const { handle, events } = fakeStart(s);
+    await handle.ready;
+    await handle.send('set a timer');
+    await until(() => (texts(events) === 'okab' ? true : undefined));
+    vi.advanceTimersByTime(AGENT_SETTLE_MS - 1);
+    expect(turnEnds(events)).toBe(1); // only the prompted turn so far
+    vi.advanceTimersByTime(1);
+    expect(turnEnds(events)).toBe(2);
+    expect(events.filter((e) => e.type === 'turn-start' && !e.prompted)).toHaveLength(1);
+  });
+
+  test('every update restarts the settle window', async () => {
+    const s = setup(provider, {
+      prompts: [{ updates: [{ text: 'ok' }], unprompted: { afterMs: 20, updates: [{ text: 'a' }] } }],
+    });
+    const { handle, events } = fakeStart(s);
+    await handle.ready;
+    await handle.send('go');
+    await until(() => (texts(events) === 'oka' ? true : undefined));
+    vi.advanceTimersByTime(AGENT_SETTLE_MS - 10);
+    expect(turnEnds(events)).toBe(1);
+    // (a late update from the agent would re-arm here; the fixture sends none, so the window simply elapses)
+    vi.advanceTimersByTime(10);
+    expect(turnEnds(events)).toBe(2);
+  });
+
+  test('a pending tool call keeps an unprompted turn open past the settle window until it completes', async () => {
+    const s = setup(provider, {
+      prompts: [
+        {
+          updates: [{ text: 'ok' }],
+          unprompted: {
+            afterMs: 20,
+            updates: [{ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'sleep 60', status: 'in_progress' }],
+            later: [
+              { afterMs: 400, updates: [{ sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'completed' }] },
+            ],
+          },
+        },
+      ],
+    });
+    const { handle, events } = fakeStart(s);
+    await handle.ready;
+    await handle.send('go');
+    await until(() => events.find((e) => e.type === 'tool-call' && e.status === 'in_progress'));
+    vi.advanceTimersByTime(10 * AGENT_SETTLE_MS); // far beyond the window, but the tool is still running
+    expect(turnEnds(events)).toBe(1);
+    await until(() => events.find((e) => e.type === 'tool-call' && e.status === 'completed'));
+    vi.advanceTimersByTime(AGENT_SETTLE_MS - 1);
+    expect(turnEnds(events)).toBe(1);
+    vi.advanceTimersByTime(1); // nothing in flight any more: the window applies again
+    expect(turnEnds(events)).toBe(2);
+  });
+
+  test('a failed tool call also stops holding the turn open', async () => {
+    const s = setup(provider, {
+      prompts: [
+        {
+          updates: [{ text: 'ok' }],
+          unprompted: {
+            afterMs: 20,
+            updates: [{ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'x', status: 'pending' }],
+            later: [
+              { afterMs: 300, updates: [{ sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'failed' }] },
+            ],
+          },
+        },
+      ],
+    });
+    const { handle, events } = fakeStart(s);
+    await handle.ready;
+    await handle.send('go');
+    await until(() => events.find((e) => e.type === 'tool-call' && e.status === 'pending'));
+    await until(() => events.find((e) => e.type === 'tool-call' && e.status === 'failed'));
+    vi.advanceTimersByTime(AGENT_SETTLE_MS);
+    expect(turnEnds(events)).toBe(2);
+  });
+
+  test('bookkeeping updates do not start an unprompted turn, other updates do', async () => {
+    const quiet = setup(provider, {
+      prompts: [
+        {
+          updates: [{ text: 'ok' }],
+          unprompted: {
+            afterMs: 20,
+            updates: [
+              { sessionUpdate: 'usage_update', used: 1, size: 2 },
+              { sessionUpdate: 'session_info_update', title: 't' },
+              { sessionUpdate: 'available_commands_update', availableCommands: [] },
+              { sessionUpdate: 'current_mode_update', currentModeId: 'x' },
+              { text: 'sentinel' },
+            ],
+          },
+        },
+      ],
+    });
+    // Everything before the sentinel was bookkeeping and started nothing; the sentinel is the first real update.
+    const first = fakeStart(quiet);
+    await first.handle.ready;
+    await first.handle.send('go');
+    await until(() => first.events.find((e) => e.type === 'text' && e.delta === 'sentinel'));
+    const starts = first.events.filter((e) => e.type === 'turn-start');
+    expect(starts).toEqual([
+      { type: 'turn-start', prompted: true },
+      { type: 'turn-start', prompted: false },
+    ]);
+    // and the unprompted turn began only at the sentinel, after the prompted turn's own events
+    const order = first.events.flatMap((e) =>
+      e.type === 'turn-start' || e.type === 'text' ? [e.type + (e.type === 'text' ? e.delta : String(e.prompted))] : [],
+    );
+    expect(order).toEqual(['turn-starttrue', 'textok', 'turn-startfalse', 'textsentinel']);
+
+    const thought = setup(provider, {
+      prompts: [
+        {
+          updates: [{ text: 'ok' }],
+          unprompted: {
+            afterMs: 20,
+            updates: [{ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'hmm' } }],
+          },
+        },
+      ],
+    });
+    const second = fakeStart(thought);
+    await second.handle.ready;
+    await second.handle.send('go');
+    await until(() => second.events.find((e) => e.type === 'turn-start' && !e.prompted));
+    expect(texts(second.events)).toBe('ok'); // thoughts keep the turn alive but are not recorded
+    vi.advanceTimersByTime(AGENT_SETTLE_MS);
+    expect(turnEnds(second.events)).toBe(2);
+  });
+
+  test('a prompted turn is not ended by the settle window', async () => {
+    const s = setup(provider, { prompts: [{ updates: [{ text: 'a' }, { text: 'b' }], pauseMs: 300 }] });
+    const { handle, events } = fakeStart(s);
+    await handle.ready;
+    await handle.send('slow');
+    await until(() => (texts(events).includes('a') ? true : undefined));
+    vi.advanceTimersByTime(10 * AGENT_SETTLE_MS);
+    expect(turnEnds(events)).toBe(0);
+    await until(() => turnEnd(events));
+    expect(turnEnds(events)).toBe(1);
+    expect(texts(events)).toBe('ab');
+  });
+
+  test('cancelling an unprompted turn sends session/cancel and ends it as cancelled', async () => {
+    const s = setup(provider, {
+      prompts: [{ updates: [{ text: 'ok' }], unprompted: { afterMs: 20, updates: [{ text: 'tick' }] } }],
+    });
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('go');
+    await until(() => events.find((e) => e.type === 'turn-start' && !e.prompted));
+    handle.cancelTurn();
+    await until(() => (turnEnds(events) === 2 ? true : undefined));
+    expect(events.filter((e) => e.type === 'turn-end')[1]).toMatchObject({ stopReason: 'cancelled' });
+    await until(() => (s.methods().includes('session/cancel') ? true : undefined));
+  });
+
+  test('tail updates after a cancelled unprompted turn do not start a new one until things go quiet', async () => {
+    const s = setup(provider, {
+      prompts: [
+        {
+          updates: [{ text: 'ok' }],
+          unprompted: {
+            afterMs: 20,
+            updates: [{ text: 'tick' }],
+            later: [
+              {
+                afterMs: 300,
+                updates: [
+                  { text: 'tail' },
+                  { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'x' } },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const { handle, events } = fakeStart(s);
+    await handle.ready;
+    await handle.send('go');
+    await until(() => events.find((e) => e.type === 'turn-start' && !e.prompted));
+    handle.cancelTurn();
+    await new Promise((resolve) => realSetTimeout(resolve, 600)); // the tail has arrived
+    expect(events.filter((e) => e.type === 'turn-start' && !e.prompted)).toHaveLength(1);
+    expect(texts(events)).toBe('oktick'); // the tail is neither recorded nor a new turn
+    expect(turnEnds(events)).toBe(2);
+  });
+
+  test('a prompt lifts the suppression after a cancelled unprompted turn', async () => {
+    const s = setup(provider, {
+      prompts: [
+        { updates: [{ text: 'ok' }], unprompted: { afterMs: 20, updates: [{ text: 'tick' }] } },
+        { updates: [{ text: 'again' }] },
+      ],
+    });
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('go');
+    await until(() => events.find((e) => e.type === 'turn-start' && !e.prompted));
+    handle.cancelTurn();
+    await until(() => (turnEnds(events) === 2 ? true : undefined));
+    await handle.send('next');
+    await until(() => (turnEnds(events) === 3 ? true : undefined));
+    expect(texts(events)).toBe('oktickagain');
   });
 
   test('updates before the first prompt and during session/load are swallowed', async () => {

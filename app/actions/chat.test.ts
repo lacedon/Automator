@@ -28,7 +28,7 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-const { sendRunMessage, branchRun, closeChat, answerQuestion } = await import('./chat');
+const { sendRunMessage, branchRun, closeChat, answerQuestion, cancelChatTimer } = await import('./chat');
 
 let core: Core;
 
@@ -233,6 +233,41 @@ test('closeChat rejects a Follow-up Chat and a running turn', async () => {
   const { run } = interactiveChat();
   core.db.prepare("UPDATE runs SET status = 'running' WHERE id = ?").run(run.id);
   expect(await closeChat(run.id, true)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
+});
+
+test('cancelChatTimer clears the Chat timer', async () => {
+  const { run, session } = interactiveChat({ copy: false });
+  core.db
+    .prepare('UPDATE chat_sessions SET timer_fire_at = 9, timer_message = ?, timer_created_at = 1 WHERE id = ?')
+    .run('wake', session.id);
+
+  expect(await cancelChatTimer(run.id)).toEqual({ ok: true });
+
+  expect(core.chats.get(session.id)!.timer).toBeNull();
+  expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+
+  // A second cancel finds nothing pending and says so instead of claiming success.
+  revalidatePath.mockClear();
+  expect(await cancelChatTimer(run.id)).toMatchObject({
+    ok: false,
+    error: { code: 'INVALID_INPUT', message: expect.stringContaining('No wake-up is pending') },
+  });
+});
+
+test('cancelChatTimer needs write on the Run', async () => {
+  const { run, session } = interactiveChat({ copy: false });
+  core.db
+    .prepare('UPDATE chat_sessions SET timer_fire_at = 9, timer_message = ?, timer_created_at = 1 WHERE id = ?')
+    .run('wake', session.id);
+  guardState.denyWrite = true;
+
+  expect(await cancelChatTimer(run.id)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+  expect(core.chats.get(session.id)!.timer).not.toBeNull();
+});
+
+test('cancelChatTimer rejects a bad id and a Follow-up Chat', async () => {
+  expect(await cancelChatTimer(0)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
+  expect(await cancelChatTimer(finishedAdhoc().id)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
 });
 
 function waitingChat(opts: { runStatus?: 'running' | 'finished'; expired?: boolean } = {}) {

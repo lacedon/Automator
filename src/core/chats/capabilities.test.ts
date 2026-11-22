@@ -23,3 +23,10 @@ test('gated-off providers have no tools and no native questions', () => {
     });
   }
 });
+
+test('only Claude Code has native timers that fire unprompted turns', () => {
+  expect(INTERACTIVE_CAPABILITIES['claude-code'].nativeTimers).toBe(true);
+  for (const provider of ['pi', 'copilot', 'codex', 'opencode'] as const) {
+    expect(INTERACTIVE_CAPABILITIES[provider].nativeTimers).toBe(false);
+  }
+});

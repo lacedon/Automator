@@ -1206,6 +1206,92 @@ describe('Interactive turns', () => {
     expect(final).toMatchObject({ interrupted: 'timeout', error: { code: 'INTERRUPTED' } });
   });
 
+  describe('adopted agent turns', () => {
+    // An `agent` Run is inserted as running by the session manager while the provider already works on it.
+    const agentRun = (s: ReturnType<typeof interactive>) => {
+      const run = s.turnRun('unused');
+      s.db.prepare("UPDATE runs SET trigger = 'agent', reason = 'agent', adhoc_prompt = NULL WHERE id = ?").run(run.id);
+      return runOf(s.db, run.id);
+    };
+
+    test('adopted agent turns are supervised and finalized done', async () => {
+      const s = interactive();
+      const run = agentRun(s);
+      const turn = fakeTurn('Timer fired and I checked the build.');
+
+      const pending = s.executor.adoptTurn(run, turn.handle);
+      expect(s.executor.activeCount()).toBe(1);
+      turn.settle({ code: 0, signal: null });
+      const final = await pending;
+
+      expect(final).toMatchObject({ resultStatus: 'success', outcome: 'done', error: null });
+      expect(runOf(s.db, run.id)).toMatchObject({
+        status: 'finished',
+        trigger: 'agent',
+        outcome: 'done',
+        summary: 'Timer fired and I checked the build.',
+      });
+      expect(readResult(s.dataDir.resultPath(run.id))).toMatchObject({
+        status: 'success',
+        outcome: 'done',
+        trigger: 'agent',
+      });
+      expect(s.executor.activeCount()).toBe(0);
+      expect(s.calls).toHaveLength(0); // no prompt is sent: the provider started the turn itself
+    });
+
+    test('cancelling an agent turn cancels it', async () => {
+      const s = interactive();
+      const run = agentRun(s);
+      const turn = fakeTurn();
+      const pending = s.executor.adoptTurn(run, turn.handle);
+
+      s.db.prepare('UPDATE runs SET cancel_requested_at = ? WHERE id = ?').run(s.clock.now(), run.id);
+      s.executor.watchdog();
+      const final = await pending;
+
+      expect(turn.kills).toEqual(['SIGTERM']);
+      expect(final).toMatchObject({ resultStatus: 'error', interrupted: 'cancelled', error: { code: 'INTERRUPTED' } });
+    });
+
+    test('an agent turn times out like any other turn', async () => {
+      const s = interactive();
+      const run = agentRun(s);
+      const turn = fakeTurn();
+      const pending = s.executor.adoptTurn(run, turn.handle);
+
+      s.clock.advance(1600);
+      s.executor.watchdog();
+
+      expect(await pending).toMatchObject({ interrupted: 'timeout', error: { code: 'INTERRUPTED' } });
+    });
+
+    test('a provider crash fails the agent turn', async () => {
+      const s = interactive();
+      const run = agentRun(s);
+      const turn = fakeTurn();
+      const pending = s.executor.adoptTurn(run, turn.handle);
+      turn.settle({
+        code: 9,
+        signal: null,
+        error: { code: 'PROVIDER_ERROR', message: 'Provider exited with code 9.' },
+      });
+
+      expect(await pending).toMatchObject({ resultStatus: 'error', error: { code: 'PROVIDER_ERROR' } });
+      expect(runOf(s.db, run.id).status).toBe('finished');
+    });
+
+    test('adopting a Run that already executes is refused', async () => {
+      const s = interactive();
+      const run = agentRun(s);
+      const turn = fakeTurn();
+      const pending = s.executor.adoptTurn(run, turn.handle);
+      await expect(s.executor.adoptTurn(run, fakeTurn().handle)).rejects.toThrow(/already executing/);
+      turn.settle({ code: 0, signal: null });
+      await pending;
+    });
+  });
+
   test('a provider crash fails the turn', async () => {
     const s = interactive({ turn: () => fakeTurn() });
     const run = s.turnRun('boom');

@@ -530,13 +530,13 @@ describe('read models', () => {
     });
 
     const interactiveChat = (db: Database, extra: Record<string, unknown> = {}) => {
-      const cols = { process_state: 'stopped', ...extra };
+      const cols = { process_state: 'stopped', provider: 'pi', ...extra };
       const names = Object.keys(cols);
       return Number(
         db
           .prepare(
-            `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at, ${names.join(', ')})
-             VALUES ('interactive', 'pages', 'pi', 'm', 1, 1, ${names.map(() => '?').join(', ')})`,
+            `INSERT INTO chat_sessions (mode, repository, model, created_at, last_activity_at, ${names.join(', ')})
+             VALUES ('interactive', 'pages', 'm', 1, 1, ${names.map(() => '?').join(', ')})`,
           )
           .run(...Object.values(cols)).lastInsertRowid,
       );
@@ -559,6 +559,8 @@ describe('read models', () => {
         state: null,
         canClose: false,
         question: null,
+        timer: null,
+        nativeTimers: false,
       });
       expect(await chatOf(a)).toEqual({
         mode: 'interactive',
@@ -566,6 +568,8 @@ describe('read models', () => {
         state: 'live',
         canClose: true,
         question: null,
+        timer: null,
+        nativeTimers: false,
       });
       expect(await chatOf(b)).toEqual({
         mode: 'interactive',
@@ -573,6 +577,8 @@ describe('read models', () => {
         state: 'stopped',
         canClose: true,
         question: null,
+        timer: null,
+        nativeTimers: false,
       });
       expect(await chatOf(c)).toEqual({
         mode: 'interactive',
@@ -580,6 +586,8 @@ describe('read models', () => {
         state: 'closing',
         canClose: false,
         question: null,
+        timer: null,
+        nativeTimers: false,
       });
       expect(await chatOf(d)).toEqual({
         mode: 'interactive',
@@ -587,6 +595,8 @@ describe('read models', () => {
         state: 'closed',
         canClose: false,
         question: null,
+        timer: null,
+        nativeTimers: false,
       });
       expect((await read.runDetail(plain))!.thread!.replyBlockedReason).toBeNull();
       expect((await read.runDetail(a))!.thread).toMatchObject({ replyToRunId: a, replyBlockedReason: null });
@@ -623,6 +633,65 @@ describe('read models', () => {
       expect(thread.replyToRunId).toBeNull();
       expect(thread.replyBlockedReason).toBe('Waiting for your answer');
       expect(thread.chat.canClose).toBe(true);
+    });
+
+    test('thread view exposes the pending timer and whether the provider has native timers', async () => {
+      const { db, read } = setup();
+      const piChat = interactiveChat(db, {
+        process_state: 'idle',
+        timer_fire_at: new Date(2026, 9, 21, 22, 0).getTime(), // Wednesday night: outside working hours
+        timer_message: 'check the build',
+        timer_created_at: 1000,
+      });
+      const claudeChat = interactiveChat(db, { provider: 'claude-code' });
+      const closing = interactiveChat(db, {
+        close_requested_at: 5,
+        timer_fire_at: 5000,
+        timer_message: 'stale',
+        timer_created_at: 1000,
+      });
+      const run = (chat: number) => insertRun(db, { ...adhoc, chat_session_id: chat, status: 'finished' });
+
+      const chatOf = async (id: number) => (await read.runDetail(id))!.thread!.chat;
+      expect(await chatOf(run(piChat))).toMatchObject({
+        timer: {
+          fireAt: new Date(2026, 9, 21, 22, 0).getTime(),
+          message: 'check the build',
+          createdAt: 1000,
+          firesAt: new Date(2026, 9, 22, 8, 0).getTime(), // the first working-hours window
+        },
+        nativeTimers: false,
+      });
+      expect(await chatOf(run(claudeChat))).toMatchObject({ timer: null, nativeTimers: true });
+      expect((await chatOf(run(closing))).timer).toBeNull();
+    });
+
+    test('agent and timer turns are labelled in the thread', async () => {
+      const { db, read } = setup();
+      const chat = interactiveChat(db, { process_state: 'idle' });
+      const first = insertRun(db, { ...adhoc, chat_session_id: chat, status: 'finished' });
+      const timer = insertRun(db, {
+        trigger: 'timer',
+        priority: 1,
+        adhoc_prompt: 'Scheduled wake-up (set 2026-10-21T10:00:00.000Z):\n\ncheck the build',
+        chat_session_id: chat,
+        parent_run_id: first,
+        status: 'finished',
+      });
+      const agent = insertRun(db, {
+        trigger: 'agent',
+        priority: 0,
+        chat_session_id: chat,
+        parent_run_id: timer,
+        status: 'finished',
+      });
+
+      const runs = (await read.runDetail(agent))!.thread!.runs;
+      expect(runs.map((r) => [r.id, r.trigger, r.request])).toEqual([
+        [first, 'adhoc', 'p'],
+        [timer, 'timer', 'check the build'], // the wake-up header is not part of the request shown
+        [agent, 'agent', null],
+      ]);
     });
 
     test('runs list and left-menu rows report Waiting for you', () => {

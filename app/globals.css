@@ -960,6 +960,33 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.chat:focus {
+  outline: none;
+}
+
+.timer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.timer-card p {
+  margin: 0;
+}
+
+.timer-title {
+  font-weight: 600;
+}
+
+.timer-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .chat-window {
   display: flex;
   flex-direction: column;

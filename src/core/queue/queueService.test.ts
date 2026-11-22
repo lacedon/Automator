@@ -1007,6 +1007,85 @@ describe('Chat modes', () => {
     expect(queue.claimNext()?.id).toBe(sameChat.id);
   });
 
+  test('claimNext waits for a running agent turn of the same Chat', async () => {
+    const { db, queue } = setup({
+      interactiveSupport: supported,
+      configOverrides: { runs: { isolation: 'copy', maxConcurrent: 3 } },
+    });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    const chat = first.value.run.chatSessionId!;
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    // What ChatSessionManager inserts for a native timer, with the queued turn re-parented under it.
+    const agent = Number(
+      db
+        .prepare(
+          `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, model, provider, parent_run_id, queued_at, started_at, isolation, chat_session_id)
+           VALUES (NULL, 'pages', 'running', 'agent', 0, 'agent', 'm', 'copilot', ?, 1, 1, 'copy', ?)`,
+        )
+        .run(first.value.run.id, chat).lastInsertRowid,
+    );
+    const queued = queue.enqueueAdhoc({
+      repository: 'pages',
+      prompt: 'next',
+      model: 'm',
+      parentRunId: agent,
+      chatSessionId: chat,
+    });
+
+    expect(queue.claimNext()).toBeNull();
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(agent);
+    expect(queue.claimNext()?.id).toBe(queued.id);
+  });
+
+  describe('timers', () => {
+    const withTimer = async (extra: { second?: boolean } = {}) => {
+      const s = setup({ interactiveSupport: supported });
+      const make = async () => {
+        const r = await s.queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+        if (!r.ok) throw new Error('setup');
+        s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(r.value.run.id);
+        s.db
+          .prepare('UPDATE chat_sessions SET timer_fire_at = 9, timer_message = ?, timer_created_at = 1 WHERE id = ?')
+          .run('wake', r.value.run.chatSessionId);
+        return r.value.run;
+      };
+      const first = await make();
+      const second = extra.second ? await make() : null;
+      return { ...s, first, second };
+    };
+    const timerOf = (db: Database, chat: number | null) =>
+      db.prepare('SELECT timer_fire_at AS f FROM chat_sessions WHERE id = ?').get(chat) as { f: number | null };
+
+    test('closing a Chat cancels its timer', async () => {
+      const s = await withTimer();
+      expect(s.queue.requestCloseChat(s.first.id)).toEqual({ ok: true, value: undefined });
+      expect(timerOf(s.db, s.first.chatSessionId)).toEqual({ f: null });
+    });
+
+    test('deleting the last Run of a Chat (which closes it) cancels its timer', async () => {
+      const s = await withTimer();
+      expect(s.queue.deleteAdhoc(s.first.id).ok).toBe(true);
+      expect(timerOf(s.db, s.first.chatSessionId)).toEqual({ f: null });
+    });
+
+    test("cancelChatTimer clears only that Chat's timer", async () => {
+      const s = await withTimer({ second: true });
+      expect(s.queue.cancelChatTimer(s.first.id)).toEqual({ ok: true, value: { cancelled: true } });
+      expect(timerOf(s.db, s.first.chatSessionId)).toEqual({ f: null });
+      expect(timerOf(s.db, s.second!.chatSessionId)).toEqual({ f: 9 });
+      expect(s.queue.cancelChatTimer(s.first.id)).toEqual({ ok: true, value: { cancelled: false } }); // nothing pending
+    });
+
+    test('cancelChatTimer rejects an unknown Run and a Follow-up Chat', () => {
+      const { db, queue } = setup();
+      expect(queue.cancelChatTimer(9999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+      const run = queue.enqueueAdhoc({ repository: 'pages', prompt: 'first', model: 'm' });
+      db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+      expect(queue.cancelChatTimer(run.id)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
+    });
+  });
+
   test('deleting a non-last Run of an Interactive Chat leaves its close unrequested', async () => {
     const { db, queue } = setup({ interactiveSupport: supported });
     const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });

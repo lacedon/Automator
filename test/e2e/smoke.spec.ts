@@ -218,6 +218,27 @@ test('a pending question shows choice buttons and the Chat is Waiting for you in
   await expect(page.locator('.chat').getByLabel('Message')).toHaveCount(0);
 });
 
+test('a pending wake-up is listed and can be cancelled', async ({ page }) => {
+  await page.goto('/runs');
+  await page
+    .locator('.run-history')
+    .getByRole('link', { name: /Deploy and check back later/ })
+    .click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
+
+  const card = page.locator('.chat .timer-card');
+  await expect(card.locator('.timer-title')).toHaveText('Wake-up scheduled');
+  // Plain text only: the HTML in the message is never rendered.
+  await expect(card.locator('.timer-message')).toHaveText('Check the <b>deploy</b> status');
+  await expect(card.locator('b')).toHaveCount(0);
+  // The provider has native timers, so the Chat warns that they are lost with the process.
+  await expect(page.locator('.chat .chat-native-timers')).toContainText('are lost if this session');
+
+  await card.getByRole('button', { name: 'Cancel wake-up' }).click();
+  await card.getByRole('button', { name: 'Cancel wake-up' }).last().click();
+  await expect(page.locator('.chat .timer-card')).toHaveCount(0);
+});
+
 // Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
 test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
   await page.goto('/runs');

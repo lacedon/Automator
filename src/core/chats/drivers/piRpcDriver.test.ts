@@ -251,7 +251,10 @@ describe('pi RPC driver', () => {
       command: '/usr/bin/node',
       args: ['/app/bin/automator.mjs', 'mcp', '--chat-session', '7', '--nonce', 'ab12', '--config', '/c.json'],
       env: { SOME: 'value' },
-      tools: [{ name: 'ask_user', inputSchema: { required: ['question'] } }],
+      tools: [
+        { name: 'ask_user', inputSchema: { required: ['question'] } },
+        { name: 'schedule_wakeup', inputSchema: { required: ['message'] } },
+      ],
     });
   });
 

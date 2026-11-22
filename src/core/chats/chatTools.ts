@@ -4,11 +4,21 @@ import type { ConfigFor } from '../config/resolver';
 import type { Database } from '../db/open';
 import { toChatSession } from '../db/rows';
 import type { Clock } from '../domain/types';
-import { ASK_USER_TOOL, QUESTION_TIMEOUT_REPLY, type ChatToolDefinition, type ToolResult } from './chatToolDefs';
+import { parseDuration } from '../domain/duration';
+import {
+  ASK_USER_TOOL,
+  MAX_WAKEUP_MS,
+  MIN_WAKEUP_MS,
+  QUESTION_TIMEOUT_REPLY,
+  SCHEDULE_WAKEUP_TOOL,
+  type ChatToolDefinition,
+  type ToolResult,
+} from './chatToolDefs';
 import { needsSettling, openQuestion, settleQuestion } from './questions';
+import { nextFiringTime, setTimer } from './timers';
 
 // The Automator tools an Interactive Chat's agent can call. One implementation serves both the stdio MCP server (ACP
-// providers) and `automator chat-tool <name>` (the bundled pi extension). PR 5 adds schedule_wakeup here.
+// providers) and `automator chat-tool <name>` (the bundled pi extension).
 
 export const PROGRESS_EVERY_MS = 30_000;
 export const POLL_MS = 500;
@@ -117,5 +127,57 @@ export type ChatTool = {
   run(ctx: ChatToolContext, input: unknown): Promise<ToolResult>;
 };
 
-// Registry shared by the MCP server and `automator chat-tool`; PR 5 registers schedule_wakeup here.
-export const CHAT_TOOLS: ChatTool[] = [{ definition: ASK_USER_TOOL, run: askUser }];
+const scheduleWakeupInput = z
+  .object({
+    delay: z.string().trim().min(2).max(20).optional(),
+    at: z.iso.datetime({ offset: true }).optional(),
+    message: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+
+export async function scheduleWakeup(ctx: ChatToolContext, input: unknown): Promise<ToolResult> {
+  const parsed = scheduleWakeupInput.safeParse(input);
+  if (!parsed.success) return text(`Invalid schedule_wakeup input: ${z.prettifyError(parsed.error)}`, true);
+  const { delay, at, message } = parsed.data;
+  if ((delay === undefined) === (at === undefined))
+    return text('Give either `delay` or `at`, not both and not neither.', true);
+  const allowed = authorize(ctx);
+  if ('content' in allowed) return allowed;
+
+  const now = ctx.clock.now();
+  let fireAt: number;
+  if (delay !== undefined) {
+    try {
+      fireAt = now + parseDuration(delay);
+    } catch {
+      return text(`Invalid delay "${delay}". Use a number and a unit, for example "15m", "2h" or "1d".`, true);
+    }
+  } else {
+    fireAt = Date.parse(at!);
+  }
+  if (!Number.isFinite(fireAt) || Number.isNaN(new Date(fireAt).getTime())) {
+    return text('That is not a valid time.', true);
+  }
+  if (fireAt - now < MIN_WAKEUP_MS) return text('The wake-up must be at least 1 minute from now.', true);
+  if (fireAt - now > MAX_WAKEUP_MS) return text('The wake-up must be at most 30 days from now.', true);
+
+  const { stored, replaced } = setTimer(ctx.db, ctx.sessionId, { fireAt, message, createdAt: now });
+  if (!stored) return text('This chat is closed.', true);
+  const workingHours = ctx.configFor(allowed.repository).schedule.workingHours;
+  const firing = nextFiringTime(fireAt, workingHours);
+  const notes = [
+    ...(replaced === null ? [] : ['(replaced the previous one)']),
+    ...(firing === null
+      ? ['(no working-hours window is configured, so it will not fire until the schedule has one)']
+      : firing === fireAt
+        ? []
+        : [`(first run within working hours: ${new Date(firing).toISOString()})`]),
+  ];
+  return text([`Wake-up scheduled for ${new Date(fireAt).toISOString()}`, ...notes].join(' '));
+}
+
+// Registry shared by the MCP server and `automator chat-tool`.
+export const CHAT_TOOLS: ChatTool[] = [
+  { definition: ASK_USER_TOOL, run: askUser },
+  { definition: SCHEDULE_WAKEUP_TOOL, run: scheduleWakeup },
+];

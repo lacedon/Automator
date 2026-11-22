@@ -24,7 +24,7 @@ import {
 import { QUESTION_TIMEOUT_REPLY } from './chatToolDefs';
 import { answerQuestion } from './questions';
 import { QueueService } from '../queue/queueService';
-import { ChatSessionManager } from './sessionManager';
+import { ChatSessionManager, type TurnHandle } from './sessionManager';
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -159,6 +159,7 @@ function setup(
     behaviour?: Partial<FakeBehaviour>;
     handshakeTimeoutMs?: number;
     mcp?: boolean;
+    adopt?: boolean;
   } = {},
 ) {
   const t = tempDb();
@@ -179,6 +180,8 @@ function setup(
     return config;
   };
   const queue = new QueueService(t.db, clock, dataDir, config, repositories, sessions);
+  const adopted: { run: Run; handle: TurnHandle }[] = [];
+  const finalized: number[] = [];
   const manager = new ChatSessionManager({
     db: t.db,
     clock,
@@ -189,6 +192,17 @@ function setup(
     queue,
     ...(options.handshakeTimeoutMs === undefined ? {} : { handshakeTimeoutMs: options.handshakeTimeoutMs }),
     closeRetryMs: 60_000,
+    ...(options.adopt === true
+      ? {
+          adoptTurn: (run: Run, handle: TurnHandle) => {
+            adopted.push({ run, handle });
+            // Stands in for the executor: finalizes once the turn settles.
+            return handle.exited.then(() => {
+              finalized.push(run.id);
+            });
+          },
+        }
+      : {}),
     ...(options.mcp === true
       ? {
           mcp: () => ({
@@ -227,6 +241,8 @@ function setup(
     fake,
     manager,
     queue,
+    adopted,
+    finalized,
     newChat,
     newRun,
     turn,
@@ -663,12 +679,16 @@ describe('ChatSessionManager', () => {
     expect(fs.existsSync(copyRoot)).toBe(true);
 
     s.db.prepare("UPDATE runs SET status = 'finished'").run();
+    s.db
+      .prepare('UPDATE chat_sessions SET timer_fire_at = 9, timer_message = ?, timer_created_at = 1 WHERE id = ?')
+      .run('wake', session.id);
     s.db.prepare('UPDATE chat_sessions SET close_requested_at = ? WHERE id = ?').run(s.clock.now(), session.id);
     s.manager.tick();
     await s.manager.drain();
 
     expect(s.fake.handles[0]!.stopped).toBe(true);
     expect(fs.existsSync(copyRoot)).toBe(false);
+    expect(s.sessions.get(session.id)!.timer).toBeNull(); // closing cancels the timer
     expect(s.sessions.get(session.id)).toMatchObject({
       closedAt: s.clock.now(),
       processState: 'stopped',
@@ -846,6 +866,212 @@ describe('ChatSessionManager', () => {
     expect((s.db.prepare('SELECT count(*) AS n FROM runs').get() as { n: number }).n).toBe(before);
     expect(fs.readFileSync(s.dataDir.chatSessionLogPath(session.id), 'utf8')).toContain('unprompted turn');
     expect(s.sessions.get(session.id)!.processState).toBe('idle');
+  });
+
+  describe('unprompted (agent) turns', () => {
+    const finish = async (s: ReturnType<typeof setup>, session: ChatSession, run: Run) => {
+      await (
+        await s.turn(run, session, 'one')
+      ).exited;
+      s.db.prepare("UPDATE runs SET status = 'finished', ended_at = ? WHERE id = ?").run(s.clock.now(), run.id);
+    };
+    const runsOf = (s: ReturnType<typeof setup>) => s.db.prepare('SELECT * FROM runs ORDER BY id').all().map(toRun);
+
+    test('an unprompted turn creates a running agent Run on the Chat tip and streams into its transcript', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      const handle = s.fake.handles[0]!;
+
+      handle.emit({ type: 'turn-start', prompted: false });
+      handle.emit({ type: 'text', delta: 'tick' });
+      handle.emit({ type: 'tool-call', id: 'c1', title: 'bash', status: 'completed' });
+      handle.emit({ type: 'text', delta: ' done' });
+
+      expect(s.adopted).toHaveLength(1);
+      const agent = runsOf(s).at(-1)!;
+      expect(agent).toMatchObject({
+        id: s.adopted[0]!.run.id,
+        status: 'running',
+        trigger: 'agent',
+        priority: 0,
+        reason: 'agent',
+        adhocPrompt: null,
+        parentRunId: run.id,
+        chatSessionId: session.id,
+        repository: 'pages',
+        provider: 'pi',
+        model: 'm',
+        startedAt: s.clock.now(),
+      });
+      expect(s.db.prepare('SELECT isolation FROM runs WHERE id = ?').get(agent.id)).toEqual({ isolation: 'copy' });
+      expect(s.sessions.get(session.id)!.processState).toBe('busy');
+      expect(fs.readFileSync(s.dataDir.transcriptPath(agent.id), 'utf8')).toBe('tick\n\n done');
+      expect(s.adopted[0]!.handle.lastMessage()).toBe(' done');
+      expect(s.adopted[0]!.handle.pid).toBe(handle.pid);
+    });
+
+    test('the agent Run takes the owner of the Chat tip', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      const user = Number(
+        s.db.prepare("INSERT INTO users (username, password_hash, created_at) VALUES ('bob', 'x', 1)").run()
+          .lastInsertRowid,
+      );
+      s.db.prepare('UPDATE runs SET owner_user_id = ? WHERE id = ?').run(user, run.id);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      expect(s.db.prepare('SELECT owner_user_id AS o FROM runs WHERE id = ?').get(s.adopted[0]!.run.id)).toEqual({
+        o: user,
+      });
+    });
+
+    test('a queued turn is re-parented under the agent Run so the chain stays linear', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      const queued = s.queue.enqueueAdhoc({
+        repository: 'pages',
+        prompt: 'next',
+        provider: 'pi',
+        model: 'm',
+        parentRunId: run.id,
+        chatSessionId: session.id,
+      });
+
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+
+      const agent = s.adopted[0]!.run;
+      expect(agent.parentRunId).toBe(run.id);
+      const after = runsOf(s);
+      expect(after.find((r) => r.id === queued.id)!.parentRunId).toBe(agent.id);
+      // exactly one child per Run: no fork
+      const parents = after.map((r) => r.parentRunId).filter((p) => p !== null);
+      expect(new Set(parents).size).toBe(parents.length);
+      // and the queued turn cannot be claimed while the agent turn runs
+      expect(s.queue.claimNext()).toBeNull();
+    });
+
+    test('an unprompted turn ends by the driver signal', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      const handle = s.fake.handles[0]!;
+      handle.emit({ type: 'turn-start', prompted: false });
+      handle.emit({ type: 'text', delta: 'tick' });
+      handle.endTurn();
+
+      expect(await s.adopted[0]!.handle.exited).toEqual({ code: 0, signal: null });
+      expect(s.sessions.get(session.id)!.processState).toBe('idle');
+      // a later unprompted turn is a new Run (once the first one is finalized)
+      s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(s.adopted[0]!.run.id);
+      handle.emit({ type: 'turn-start', prompted: false });
+      expect(s.adopted).toHaveLength(2);
+      expect(s.adopted[1]!.run.id).not.toBe(s.adopted[0]!.run.id);
+    });
+
+    test('a provider that exits during an unprompted turn ends it with an error', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      s.fake.handles[0]!.crash(7);
+      expect((await s.adopted[0]!.handle.exited).error?.code).toBe('PROVIDER_ERROR');
+    });
+
+    test('cancelling the adopted handle cancels the provider turn', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      s.adopted[0]!.handle.kill('SIGTERM');
+      expect(s.fake.handles[0]!.cancelled).toBe(1);
+    });
+
+    test('no agent Run is created while an Automator turn is in flight or claimed', async () => {
+      const s = setup({ adopt: true, behaviour: { onSend: () => {} } });
+      const { session, run } = s.newChat();
+      const turn = await s.turn(run, session, 'hold');
+      const before = runsOf(s).length;
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false }); // the prompted turn owns the output
+      s.fake.handles[0]!.emit({ type: 'text', delta: 'mine' });
+      expect(s.adopted).toHaveLength(0);
+      expect(runsOf(s)).toHaveLength(before);
+      s.fake.handles[0]!.endTurn();
+      await turn.exited;
+      expect(fs.readFileSync(s.dataDir.transcriptPath(run.id), 'utf8')).toBe('mine');
+
+      // Claimed (running in the database) but the executor has not called startTurn yet.
+      s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+      s.newRun(session);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      expect(s.adopted).toHaveLength(0);
+    });
+
+    test('stopAll settles an adopted turn and waits until it is finalized', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      s.fake.handles[0]!.emit({ type: 'text', delta: 'tick' });
+      expect(s.finalized).toEqual([]);
+
+      await s.manager.stopAll();
+
+      expect(s.finalized).toEqual([s.adopted[0]!.run.id]); // stopAll resolved only after the Run was finalized
+      expect((await s.adopted[0]!.handle.exited).error?.code).toBe('PROVIDER_ERROR');
+      expect(s.sessions.get(session.id)!.processState).toBe('stopped');
+    });
+
+    test('a closed Chat records no agent Run', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      s.db.prepare('UPDATE chat_sessions SET closed_at = 1 WHERE id = ?').run(session.id);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      expect(s.adopted).toHaveLength(0);
+    });
+  });
+
+  test('a turn started while a question is pending leaves the question and its expired state alone', async () => {
+    const s = setup();
+    const { session, run } = s.newChat();
+    await (
+      await s.turn(run, session, 'one')
+    ).exited;
+    s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+    // The first turn asked a question and ended without an answer: it stays pending, marked expired.
+    s.db
+      .prepare(
+        `UPDATE chat_sessions SET question_text = 'Which?', question_options_json = '["A","B"]', question_source = 'native',
+           question_request_id = 'r1', question_run_id = ?, question_asked_at = 5, question_expires_at = 9, question_expired_at = 9
+         WHERE id = ?`,
+      )
+      .run(run.id, session.id);
+    const before = s.db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session.id);
+
+    // A timer turn runs and ends (in time and with its own events) while the question waits.
+    const timer = s.newRun(session);
+    s.db.prepare("UPDATE runs SET trigger = 'timer' WHERE id = ?").run(timer.id);
+    const handle = await s.turn(timer, session, 'Scheduled wake-up');
+    await handle.exited;
+    s.manager.tick();
+
+    const after = s.db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session.id) as Record<string, unknown>;
+    for (const column of [
+      'question_text',
+      'question_options_json',
+      'question_source',
+      'question_request_id',
+      'question_run_id',
+      'question_asked_at',
+      'question_expires_at',
+      'question_expired_at',
+      'question_answer',
+    ]) {
+      expect(after[column], column).toEqual((before as Record<string, unknown>)[column]);
+    }
+    expect(s.db.prepare("SELECT count(*) AS n FROM runs WHERE trigger = 'answer'").get()).toEqual({ n: 0 });
   });
 
   describe('questions', () => {

@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { expect, test, vi } from 'vitest';
 import type { ThreadView } from '@core/index';
 import en from '../../messages/en.json';
+import { formatFullDateTime } from '../lib/format';
 import { ChatPane, canClose } from './ChatPane';
 
 vi.mock('../actions/chat', () => ({
@@ -11,6 +12,7 @@ vi.mock('../actions/chat', () => ({
   branchRun: async () => null,
   closeChat: async () => ({ ok: true }),
   answerQuestion: async () => null,
+  cancelChatTimer: async () => ({ ok: true }),
 }));
 vi.mock('../actions/runs', () => ({ closeRun: async () => ({ ok: true }) }));
 
@@ -29,7 +31,16 @@ function render(
   outcome: 'needs-you' | 'acted' | 'done',
   closedAt: number | null,
   branchedFromRunId: number | null = null,
-  chat: ThreadView['chat'] = { mode: 'follow-up', sessionId: null, state: null, canClose: false, question: null },
+  chat: ThreadView['chat'] = {
+    mode: 'follow-up',
+    sessionId: null,
+    state: null,
+    canClose: false,
+    question: null,
+    timer: null,
+    nativeTimers: false,
+  },
+  runOverrides: Partial<ThreadView['runs'][number]> = {},
 ) {
   const thread: ThreadView = {
     runs: [
@@ -47,6 +58,7 @@ function render(
         endedAt: 2,
         trigger: 'adhoc',
         transcript: null,
+        ...runOverrides,
       },
     ],
     replyToRunId: null,
@@ -92,6 +104,8 @@ const interactive = (state: 'live' | 'stopped' | 'closing' | 'closed', canClose:
   state,
   canClose,
   question: null,
+  timer: null,
+  nativeTimers: false,
 });
 
 test('interactive chats show the session state and a Close chat button while closable', () => {
@@ -173,4 +187,62 @@ test('without a question the composer is not replaced', () => {
   const thread = render('done', null, null, interactive('live', false));
   expect(thread).not.toContain('Waiting for you');
   expect(thread).not.toContain('Send answer');
+});
+
+const FIRE_AT = Date.parse('2026-10-21T15:30:00');
+const withTimer = (overrides: Partial<ThreadView['chat']> = {}): ThreadView['chat'] => ({
+  ...interactive('live', true),
+  timer: { fireAt: FIRE_AT, firesAt: FIRE_AT, message: 'check <b>the build</b>', createdAt: 1 },
+  ...overrides,
+});
+
+test('a pending wake-up is listed with its fire time, message and a Cancel action', () => {
+  const markup = render('done', null, null, withTimer());
+  expect(markup).toContain('Wake-up scheduled');
+  // The time is rendered after mount only (no server/browser time zone mismatch): the markup carries the instant.
+  expect(markup).toContain(`dateTime="${new Date(FIRE_AT).toISOString()}"`);
+  expect(markup).not.toContain(formatFullDateTime(FIRE_AT, 'en'));
+  expect(markup).not.toContain('working hours; it waits'); // not deferred
+  // Plain text node: never rendered as HTML.
+  expect(markup).toContain('check &lt;b&gt;the build&lt;/b&gt;');
+  expect(markup).not.toContain('<b>the build</b>');
+  expect(markup).toContain('>Cancel wake-up</button>');
+  expect(markup).toContain('Cancel this wake-up?'); // the ConfirmDialog message
+});
+
+test('a wake-up requested outside working hours shows the time it can fire and says it waits', () => {
+  const requested = Date.parse('2026-10-21T22:00:00');
+  const markup = render(
+    'done',
+    null,
+    null,
+    withTimer({ timer: { fireAt: requested, firesAt: requested + 10 * 3_600_000, message: 'm', createdAt: 1 } }),
+  );
+  expect(markup).toContain(`dateTime="${new Date(requested + 10 * 3_600_000).toISOString()}"`);
+  expect(markup).toContain('outside the Repository&#x27;s working hours');
+});
+
+test('without a pending wake-up no timer card is shown', () => {
+  expect(render('done', null, null, interactive('live', true))).not.toContain('Wake-up scheduled');
+});
+
+test('the native-timer warning is shown only for providers with native timers', () => {
+  const warned = render('done', null, null, { ...interactive('live', true), nativeTimers: true });
+  expect(warned).toContain('are lost if this session&#x27;s process stops');
+  expect(warned).toContain('Automator wake-ups');
+  expect(render('done', null, null, interactive('live', true))).not.toContain('are lost if this session');
+  expect(render('acted', null)).not.toContain('are lost if this session');
+});
+
+test('agent and timer turns are labelled', () => {
+  const agent = render('done', null, null, interactive('live', true), { trigger: 'agent', request: null });
+  expect(agent).toContain('Started by the agent (built-in timer)');
+  const timer = render('done', null, null, interactive('live', true), {
+    trigger: 'timer',
+    request: 'check the build',
+  });
+  expect(timer).toContain('Scheduled wake-up');
+  expect(timer).toContain('check the build');
+  const plain = render('done', null, null, interactive('live', true));
+  expect(plain).not.toContain('Started by the agent');
 });

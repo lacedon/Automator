@@ -1,6 +1,7 @@
 import type {
   ChatProcessState,
   ChatSession,
+  PendingTimer,
   ClosedReason,
   Cursor,
   InitialReview,
@@ -142,6 +143,15 @@ export function toPendingQuestion(row: unknown): PendingQuestion | null {
   };
 }
 
+function toPendingTimer(r: Row): PendingTimer | null {
+  if (r.timer_fire_at === null || r.timer_fire_at === undefined) return null;
+  return {
+    fireAt: r.timer_fire_at as number,
+    message: r.timer_message as string,
+    createdAt: r.timer_created_at as number,
+  };
+}
+
 export function toChatSession(row: unknown): ChatSession {
   const r = row as Row;
   return {
@@ -161,5 +171,6 @@ export function toChatSession(row: unknown): ChatSession {
     copyPath: r.copy_path as string | null,
     mcpNonce: r.mcp_nonce as string | null,
     question: toPendingQuestion(r),
+    timer: toPendingTimer(r),
   };
 }

@@ -4,8 +4,14 @@ import { testConfig } from '../../../test/helpers/config';
 import { tempDb } from '../../../test/helpers/db';
 import { toChatSession } from '../db/rows';
 import { ChatSessionService } from './chatSessionService';
-import { ASK_USER_TOOL, QUESTION_TIMEOUT_REPLY } from './chatToolDefs';
-import { askUser, type ChatToolContext } from './chatTools';
+import {
+  ASK_USER_TOOL,
+  MAX_WAKEUP_MS,
+  MIN_WAKEUP_MS,
+  QUESTION_TIMEOUT_REPLY,
+  SCHEDULE_WAKEUP_TOOL,
+} from './chatToolDefs';
+import { askUser, CHAT_TOOLS, scheduleWakeup, type ChatToolContext } from './chatTools';
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -182,5 +188,146 @@ describe('ask_user', () => {
     s.clock.advance(600_000);
     await pending;
     expect(messages[0]).toMatch(/waiting/i);
+  });
+});
+
+describe('schedule_wakeup', () => {
+  const iso = (t: number) => new Date(t).toISOString();
+
+  test('is registered with the schema from the plan', () => {
+    expect(SCHEDULE_WAKEUP_TOOL.name).toBe('schedule_wakeup');
+    expect(SCHEDULE_WAKEUP_TOOL.inputSchema.required).toEqual(['message']);
+    expect(MIN_WAKEUP_MS).toBe(60_000);
+    expect(MAX_WAKEUP_MS).toBe(30 * 86_400_000);
+    expect(SCHEDULE_WAKEUP_TOOL.description).toContain('30 days');
+    expect(CHAT_TOOLS.map((tool) => tool.definition.name)).toEqual(['ask_user', 'schedule_wakeup']);
+  });
+
+  test('schedule_wakeup accepts a delay or an absolute time', async () => {
+    const s = setup();
+    const now = s.clock.now();
+    const byDelay = await scheduleWakeup(s.ctx, { delay: '15m', message: 'check the build' });
+    expect(byDelay.isError).toBeUndefined();
+    expect(byDelay.content[0]!.text).toContain(`Wake-up scheduled for ${iso(now + 900_000)}`);
+    expect(s.row().timer).toEqual({ fireAt: now + 900_000, message: 'check the build', createdAt: now });
+
+    const at = iso(now + 2 * 3_600_000);
+    const byTime = await scheduleWakeup(s.ctx, { at, message: 'later' });
+    expect(byTime.isError).toBeUndefined();
+    expect(s.row().timer).toEqual({ fireAt: now + 2 * 3_600_000, message: 'later', createdAt: now });
+  });
+
+  test('rejects delays under one minute, past or near times, both or neither fields', async () => {
+    const s = setup();
+    const now = s.clock.now();
+    for (const input of [
+      { delay: '59s', message: 'm' },
+      { delay: '0m', message: 'm' },
+      { delay: 'soon', message: 'm' },
+      { delay: '5m', at: iso(now + 600_000), message: 'm' },
+      { message: 'm' },
+      { at: iso(now - 600_000), message: 'm' },
+      { at: iso(now + 30_000), message: 'm' },
+      { at: 'tomorrow', message: 'm' },
+      { delay: '5m', message: '' },
+      { delay: '5m', message: 'x'.repeat(2001) },
+      { delay: '5m', message: 'm', extra: 1 },
+      null,
+    ]) {
+      const result = await scheduleWakeup(s.ctx, input);
+      expect(result.isError, JSON.stringify(input)).toBe(true);
+    }
+    expect(s.row().timer).toBeNull();
+    // exactly the minimum is accepted
+    expect((await scheduleWakeup(s.ctx, { delay: '1m', message: 'm' })).isError).toBeUndefined();
+  });
+
+  test('rejects a wake-up beyond the maximum before storing anything', async () => {
+    const s = setup();
+    const now = s.clock.now();
+    for (const input of [
+      { delay: '99999999999d', message: 'm' },
+      { delay: '31d', message: 'm' },
+      { at: new Date(now + MAX_WAKEUP_MS + 60_000).toISOString(), message: 'm' },
+      { at: '9999-12-31T23:59:59Z', message: 'm' },
+      { at: '+275760-09-13T00:00:00.000Z', message: 'm' },
+    ]) {
+      const result = await scheduleWakeup(s.ctx, input);
+      expect(result.isError, JSON.stringify(input)).toBe(true);
+      expect(result.content[0]!.text).toMatch(/30 days|valid/);
+    }
+    expect(s.row().timer).toBeNull();
+    expect((await scheduleWakeup(s.ctx, { delay: '30d', message: 'm' })).isError).toBeUndefined(); // exactly the maximum
+  });
+
+  test('a Chat closed while the tool runs gets an error and no timer', async () => {
+    const s = setup();
+    // The session is open when authorize reads it and closed by the time the timer is stored.
+    let closed = false;
+    const clock = {
+      ...s.clock,
+      now: () => {
+        if (!closed) {
+          closed = true;
+          s.db.prepare('UPDATE chat_sessions SET close_requested_at = ? WHERE id = ?').run(1, s.session.id);
+        }
+        return s.clock.now();
+      },
+    };
+    const result = await scheduleWakeup({ ...s.ctx, clock }, { delay: '5m', message: 'm' });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toMatch(/closed/);
+    expect(s.row().timer).toBeNull();
+  });
+
+  test('says so when the working hours define no window instead of reporting a time', async () => {
+    const s = setup();
+    const config = testConfig({ schedule: { workingHours: { days: [1], start: '10:00', end: '10:00' } } });
+    const result = await scheduleWakeup({ ...s.ctx, configFor: () => config }, { delay: '12h', message: 'm' });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0]!.text).toMatch(/Wake-up scheduled for/);
+    expect(result.content[0]!.text).toMatch(/no working-hours window/);
+    expect(result.content[0]!.text).not.toMatch(/first run within working hours/);
+  });
+
+  test('a new wake-up replaces the pending one and says so', async () => {
+    const s = setup();
+    const first = await scheduleWakeup(s.ctx, { delay: '10m', message: 'one' });
+    expect(first.content[0]!.text).not.toContain('replaced');
+    const second = await scheduleWakeup(s.ctx, { delay: '20m', message: 'two' });
+    expect(second.content[0]!.text).toContain('(replaced the previous one)');
+    expect(s.row().timer).toMatchObject({ message: 'two', fireAt: s.clock.now() + 20 * 60_000 });
+    expect(s.db.prepare('SELECT count(*) AS n FROM chat_sessions WHERE timer_fire_at IS NOT NULL').get()).toEqual({
+      n: 1,
+    });
+  });
+
+  test('a rejected call keeps the pending timer', async () => {
+    const s = setup();
+    await scheduleWakeup(s.ctx, { delay: '10m', message: 'one' });
+    expect((await scheduleWakeup(s.ctx, { delay: '5s', message: 'two' })).isError).toBe(true);
+    expect(s.row().timer).toMatchObject({ message: 'one' });
+  });
+
+  test('reports the first firing time inside working hours', async () => {
+    const s = setup();
+    // Wednesday 10:00 + 12h = 22:00, outside 08:00-19:00; the next window opens Thursday 08:00.
+    const result = await scheduleWakeup(s.ctx, { delay: '12h', message: 'night' });
+    const nextWindow = new Date(2026, 9, 22, 8, 0).getTime();
+    expect(result.content[0]!.text).toContain(`(first run within working hours: ${iso(nextWindow)})`);
+    expect(s.row().timer!.fireAt).toBe(s.clock.now() + 12 * 3_600_000); // the requested time is what is stored
+  });
+
+  test('rejects a closed session or wrong nonce', async () => {
+    const s = setup();
+    expect((await scheduleWakeup({ ...s.ctx, nonce: 'nope' }, { delay: '5m', message: 'm' })).isError).toBe(true);
+    expect((await scheduleWakeup({ ...s.ctx, sessionId: 9999 }, { delay: '5m', message: 'm' })).isError).toBe(true);
+    s.db.prepare('UPDATE chat_sessions SET close_requested_at = ? WHERE id = ?').run(s.clock.now(), s.session.id);
+    expect((await scheduleWakeup(s.ctx, { delay: '5m', message: 'm' })).isError).toBe(true);
+    s.db
+      .prepare('UPDATE chat_sessions SET close_requested_at = NULL, closed_at = ? WHERE id = ?')
+      .run(s.clock.now(), s.session.id);
+    expect((await scheduleWakeup(s.ctx, { delay: '5m', message: 'm' })).isError).toBe(true);
+    expect(s.row().timer).toBeNull();
   });
 });

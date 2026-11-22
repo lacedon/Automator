@@ -266,7 +266,16 @@
     "questionAnswer": "Your answer",
     "questionSend": "Send answer",
     "questionSent": "Answer sent.",
-    "questionQueued": "Answer queued as Run #{id}."
+    "questionQueued": "Answer queued as Run #{id}.",
+    "timerTitle": "Wake-up scheduled",
+    "timerFires": "Fires {time}",
+    "timerCancel": "Cancel wake-up",
+    "timerCancelMessage": "Cancel this wake-up? The agent will not be woken up.",
+    "timerCancelConfirm": "Cancel wake-up",
+    "nativeTimerWarning": "Timers set by the agent's built-in tools (for example Claude /loop) are lost if this session's process stops (idle timeout, eviction, restart or close). Ask the agent to use Automator wake-ups for reliable continuation.",
+    "agentTurn": "Started by the agent (built-in timer)",
+    "timerTurn": "Scheduled wake-up",
+    "timerDeferred": "Requested for a time outside the Repository's working hours; it waits for the next window."
   },
   "RunFiles": {
     "transcript": "Transcript",

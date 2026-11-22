@@ -605,6 +605,24 @@ describe('buildInteractivePrompt', () => {
     expect(prompt).not.toContain('Nobody answers questions');
   });
 
+  test('the first interactive prompt prefers schedule_wakeup over native timers', () => {
+    const prompt = buildInteractivePrompt({ ...base(), run: chatRun(), firstTurn: true });
+    expect(prompt).toContain('`schedule_wakeup`');
+    expect(prompt).toMatch(/prefer it over any built-in timer/i);
+    expect(prompt).toContain('lost if the session stops');
+    expect(prompt).toContain('Scheduled wake-up');
+  });
+
+  test('a timer turn sends its stored wake-up message as is', () => {
+    const message = 'Scheduled wake-up (set 2026-10-21T10:00:00.000Z):\n\ncheck the build';
+    const prompt = buildInteractivePrompt({
+      ...base(),
+      run: chatRun({ trigger: 'timer', adhocPrompt: message }),
+      firstTurn: false,
+    });
+    expect(prompt).toBe(message);
+  });
+
   test('later turns send only the message', () => {
     const prompt = buildInteractivePrompt({
       ...base(),

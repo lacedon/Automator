@@ -559,4 +559,12 @@ ALTER TABLE chat_sessions ADD COLUMN question_expired_at INTEGER;
 ALTER TABLE chat_sessions ADD COLUMN question_answer TEXT;
 `,
   },
+  {
+    version: 30,
+    sql: `ALTER TABLE chat_sessions ADD COLUMN timer_fire_at INTEGER;
+ALTER TABLE chat_sessions ADD COLUMN timer_message TEXT;
+ALTER TABLE chat_sessions ADD COLUMN timer_created_at INTEGER;
+CREATE INDEX ix_chat_sessions_timer ON chat_sessions(timer_fire_at) WHERE timer_fire_at IS NOT NULL AND closed_at IS NULL;
+`,
+  },
 ];

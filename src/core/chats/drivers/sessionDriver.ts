@@ -76,4 +76,8 @@ export const DEFAULT_STOP_TIMINGS: StopTimings = { stdinGraceMs: 3_000, killGrac
 // A handshake request (initialize, session/new, session/load, set_config_option, get_state) that gets no answer in
 // this long fails the start; a prompt has no such limit.
 export const HANDSHAKE_REQUEST_TIMEOUT_MS = 60_000;
-export type DriverTimings = Partial<StopTimings> & { requestTimeoutMs?: number };
+export type DriverTimings = Partial<StopTimings> & {
+  requestTimeoutMs?: number;
+  // ACP only: how long without updates ends an unprompted (native timer) turn.
+  agentSettleMs?: number;
+};

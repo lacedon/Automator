@@ -129,7 +129,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -184,7 +184,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     expect(db.prepare('SELECT chat_session_id FROM runs WHERE id = ?').get(runId)).toEqual({ chat_session_id: null });
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBeNull();
     expect(db.pragma('foreign_key_check')).toEqual([]);
@@ -209,7 +209,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session) as Record<string, unknown>;
     for (const column of [
       'mcp_nonce',
@@ -243,6 +243,45 @@ describe('db', () => {
     expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 
+  test('migration 30 adds timer columns', () => {
+    const db = new BetterSqlite3(':memory:');
+    db.pragma('foreign_keys = ON');
+    db.exec('BEGIN');
+    for (const m of [...migrations].filter((m) => m.version < 30).sort((a, b) => a.version - b.version)) db.exec(m.sql);
+    db.pragma('user_version = 29');
+    db.exec('COMMIT');
+    cleanups.push(() => db.close());
+    const session = Number(
+      db
+        .prepare(
+          `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+           VALUES ('interactive', 'pages', 'pi', 'm', ?, ?)`,
+        )
+        .run(T, T).lastInsertRowid,
+    );
+
+    migrate(db);
+
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session) as Record<string, unknown>;
+    for (const column of ['timer_fire_at', 'timer_message', 'timer_created_at']) {
+      expect(row).toHaveProperty(column, null);
+    }
+    expect(toChatSession(row).timer).toBeNull();
+    db.prepare('UPDATE chat_sessions SET timer_fire_at = 5, timer_message = ?, timer_created_at = 1 WHERE id = ?').run(
+      'later',
+      session,
+    );
+    expect(toChatSession(db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session)).timer).toEqual({
+      fireAt: 5,
+      message: 'later',
+      createdAt: 1,
+    });
+    expect(
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'ix_chat_sessions_timer'").get(),
+    ).toBeDefined();
+  });
+
   test('migration 28 rebuilds runs preserving rows, ids, owners and chat links', () => {
     const db = new BetterSqlite3(':memory:');
     db.pragma('foreign_keys = ON');
@@ -273,7 +312,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     expect(db.prepare('SELECT id, owner_user_id, chat_session_id, parent_run_id FROM runs ORDER BY id').all()).toEqual(
       before,
     );
@@ -370,6 +409,7 @@ describe('db', () => {
       copyPath: null,
       mcpNonce: null,
       question: null,
+      timer: null,
     });
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBe(id);
     expect(
@@ -385,10 +425,10 @@ describe('db', () => {
 
   test('migrate is idempotent and sets user_version 23', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -515,7 +555,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    expect(db.pragma('user_version', { simple: true })).toBe(30);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,
