@@ -1,4 +1,5 @@
 import { INTERACTIVE_CAPABILITIES } from '../chats/capabilities';
+import { nextFiringTime, timerMessage } from '../chats/timers';
 import { toChatSession, toRun } from '../db/rows';
 import type {
   ChatMode,
@@ -11,7 +12,7 @@ import type {
   RunStatus,
   Trigger,
 } from '../domain/types';
-import type { ReadDeps } from './deps';
+import { configOf, type ReadDeps } from './deps';
 import { readTranscriptExcerpt, type TranscriptExcerpt } from './transcriptExcerpt';
 
 export type ThreadRun = {
@@ -46,7 +47,8 @@ export type ThreadView = {
     // Waiting for you: the agent asked something and the Chat waits for the answer.
     question: PendingQuestion | null;
     // The Chat's pending Automator wake-up, and whether its provider has built-in timers that die with the process.
-    timer: PendingTimer | null;
+    // firesAt: when it can actually fire (the requested time moved into the Repository's working hours).
+    timer: (PendingTimer & { firesAt: number }) | null;
     nativeTimers: boolean;
   };
 };
@@ -56,7 +58,7 @@ function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
     id: run.id,
     status: run.status,
     outcome: run.outcome,
-    request: run.adhocPrompt,
+    request: run.trigger === 'timer' ? timerMessage(run.adhocPrompt) : run.adhocPrompt,
     ticketKey: run.ticketKey,
     summary: run.summary,
     error: run.error,
@@ -108,7 +110,15 @@ function chatOf(deps: ReadDeps, run: Run, tip: Run): ThreadView['chat'] {
     state,
     canClose: (state === 'live' || state === 'stopped') && tip.status === 'finished',
     question: state === 'closed' || state === 'closing' ? null : session.question,
-    timer: state === 'closed' || state === 'closing' ? null : session.timer,
+    timer:
+      state === 'closed' || state === 'closing' || session.timer === null
+        ? null
+        : {
+            ...session.timer,
+            firesAt:
+              nextFiringTime(session.timer.fireAt, configOf(deps, session.repository).schedule.workingHours) ??
+              session.timer.fireAt,
+          },
     nativeTimers: INTERACTIVE_CAPABILITIES[session.provider].nativeTimers,
   };
 }

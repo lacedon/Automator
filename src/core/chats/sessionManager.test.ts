@@ -181,6 +181,7 @@ function setup(
   };
   const queue = new QueueService(t.db, clock, dataDir, config, repositories, sessions);
   const adopted: { run: Run; handle: TurnHandle }[] = [];
+  const finalized: number[] = [];
   const manager = new ChatSessionManager({
     db: t.db,
     clock,
@@ -195,7 +196,10 @@ function setup(
       ? {
           adoptTurn: (run: Run, handle: TurnHandle) => {
             adopted.push({ run, handle });
-            return Promise.resolve();
+            // Stands in for the executor: finalizes once the turn settles.
+            return handle.exited.then(() => {
+              finalized.push(run.id);
+            });
           },
         }
       : {}),
@@ -238,6 +242,7 @@ function setup(
     manager,
     queue,
     adopted,
+    finalized,
     newChat,
     newRun,
     turn,
@@ -1003,6 +1008,21 @@ describe('ChatSessionManager', () => {
       expect(s.adopted).toHaveLength(0);
     });
 
+    test('stopAll settles an adopted turn and waits until it is finalized', async () => {
+      const s = setup({ adopt: true });
+      const { session, run } = s.newChat();
+      await finish(s, session, run);
+      s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
+      s.fake.handles[0]!.emit({ type: 'text', delta: 'tick' });
+      expect(s.finalized).toEqual([]);
+
+      await s.manager.stopAll();
+
+      expect(s.finalized).toEqual([s.adopted[0]!.run.id]); // stopAll resolved only after the Run was finalized
+      expect((await s.adopted[0]!.handle.exited).error?.code).toBe('PROVIDER_ERROR');
+      expect(s.sessions.get(session.id)!.processState).toBe('stopped');
+    });
+
     test('a closed Chat records no agent Run', async () => {
       const s = setup({ adopt: true });
       const { session, run } = s.newChat();
@@ -1011,6 +1031,47 @@ describe('ChatSessionManager', () => {
       s.fake.handles[0]!.emit({ type: 'turn-start', prompted: false });
       expect(s.adopted).toHaveLength(0);
     });
+  });
+
+  test('a turn started while a question is pending leaves the question and its expired state alone', async () => {
+    const s = setup();
+    const { session, run } = s.newChat();
+    await (
+      await s.turn(run, session, 'one')
+    ).exited;
+    s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+    // The first turn asked a question and ended without an answer: it stays pending, marked expired.
+    s.db
+      .prepare(
+        `UPDATE chat_sessions SET question_text = 'Which?', question_options_json = '["A","B"]', question_source = 'native',
+           question_request_id = 'r1', question_run_id = ?, question_asked_at = 5, question_expires_at = 9, question_expired_at = 9
+         WHERE id = ?`,
+      )
+      .run(run.id, session.id);
+    const before = s.db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session.id);
+
+    // A timer turn runs and ends (in time and with its own events) while the question waits.
+    const timer = s.newRun(session);
+    s.db.prepare("UPDATE runs SET trigger = 'timer' WHERE id = ?").run(timer.id);
+    const handle = await s.turn(timer, session, 'Scheduled wake-up');
+    await handle.exited;
+    s.manager.tick();
+
+    const after = s.db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session.id) as Record<string, unknown>;
+    for (const column of [
+      'question_text',
+      'question_options_json',
+      'question_source',
+      'question_request_id',
+      'question_run_id',
+      'question_asked_at',
+      'question_expires_at',
+      'question_expired_at',
+      'question_answer',
+    ]) {
+      expect(after[column], column).toEqual((before as Record<string, unknown>)[column]);
+    }
+    expect(s.db.prepare("SELECT count(*) AS n FROM runs WHERE trigger = 'answer'").get()).toEqual({ n: 0 });
   });
 
   describe('questions', () => {

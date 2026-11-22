@@ -137,6 +137,11 @@ class AcpSession implements SessionHandle {
   private promptInFlight = false;
   private unpromptedActive = false;
   private settleTimer: NodeJS.Timeout | null = null;
+  // Tool calls of the unprompted turn that have not completed or failed: a long tool is silent, not finished.
+  private readonly pendingTools = new Set<string>();
+  // After a cancelled unprompted turn the adapter may still print its tail; that must not start a new turn.
+  private suppressUnprompted = false;
+  private quietTimer: NodeJS.Timeout | null = null;
   private readonly agentSettleMs: number;
   private cancelRequested = false;
   private turnFinished = true;
@@ -321,6 +326,7 @@ class AcpSession implements SessionHandle {
     const error = this.exitError(exit);
     this.fatal = error;
     if (this.unpromptedActive) this.endUnprompted({ stopReason: 'error', error });
+    this.liftSuppression();
     if (this.promptInFlight) {
       this.finishTurn(this.cancelRequested ? { stopReason: 'cancelled' } : { stopReason: 'error', error });
     }
@@ -333,6 +339,12 @@ class AcpSession implements SessionHandle {
     if (!this.acceptUpdates || !isRecord(params) || !isRecord(params.update)) return;
     const update = params.update;
     const kind = str(update.sessionUpdate) ?? '';
+    if (!this.promptInFlight && this.suppressUnprompted) {
+      // Tail of a cancelled unprompted turn: swallowed until a final usage_update (with cost) or a quiet period.
+      if (kind === 'usage_update' && update.cost !== undefined) this.liftSuppression();
+      else this.armQuiet();
+      return;
+    }
     if (!this.promptInFlight) {
       if (BOOKKEEPING_UPDATES.has(kind)) {
         if (this.unpromptedActive) {
@@ -361,12 +373,32 @@ class AcpSession implements SessionHandle {
     this.toolTitles.set(id, title);
     const status = str(update.status);
     if (status === 'pending' || status === 'in_progress' || status === 'completed' || status === 'failed') {
+      if (this.unpromptedActive && !this.promptInFlight) {
+        if (status === 'completed' || status === 'failed') this.pendingTools.delete(id);
+        else this.pendingTools.add(id);
+        this.armSettle();
+      }
       this.proc.emit({ type: 'tool-call', id, title, status });
     }
   }
 
+  private armQuiet(): void {
+    if (this.quietTimer !== null) clearTimeout(this.quietTimer);
+    this.quietTimer = setTimeout(() => this.liftSuppression(), this.agentSettleMs);
+    this.quietTimer.unref();
+  }
+
+  private liftSuppression(): void {
+    this.suppressUnprompted = false;
+    if (this.quietTimer !== null) clearTimeout(this.quietTimer);
+    this.quietTimer = null;
+  }
+
+  // The silence window only applies while no tool call of the turn is in flight.
   private armSettle(): void {
     if (this.settleTimer !== null) clearTimeout(this.settleTimer);
+    this.settleTimer = null;
+    if (this.pendingTools.size > 0) return;
     this.settleTimer = setTimeout(() => this.endUnprompted({ stopReason: 'end_turn' }), this.agentSettleMs);
     this.settleTimer.unref();
   }
@@ -376,6 +408,7 @@ class AcpSession implements SessionHandle {
     this.unpromptedActive = false;
     if (this.settleTimer !== null) clearTimeout(this.settleTimer);
     this.settleTimer = null;
+    this.pendingTools.clear();
     this.toolTitles.clear();
     this.proc.emit({ type: 'turn-end', ...end });
   }
@@ -400,6 +433,7 @@ class AcpSession implements SessionHandle {
     if (this.promptInFlight) return Promise.reject(new Error('A turn is in flight'));
     this.acceptUpdates = true;
     this.endUnprompted({ stopReason: 'end_turn' }); // a prompt supersedes an unprompted turn that is still open
+    this.liftSuppression();
     this.promptInFlight = true;
     this.cancelRequested = false;
     this.turnFinished = false;
@@ -492,6 +526,8 @@ class AcpSession implements SessionHandle {
     if (this.sessionId !== null && this.unpromptedActive && !this.promptInFlight) {
       this.peer.notify('session/cancel', { sessionId: this.sessionId });
       this.endUnprompted({ stopReason: 'cancelled' });
+      this.suppressUnprompted = true;
+      this.armQuiet();
       return;
     }
     if (this.sessionId === null || !this.promptInFlight) return;

@@ -184,6 +184,35 @@ describe('recoverInterruptedRuns: Interactive Chats', () => {
     });
   });
 
+  test('a crashed running agent Run is interrupted by recovery and no longer blocks its Chat', async () => {
+    const s = setup();
+    const sessionId = chat(s.db);
+    const agentRun = insertRunning(s.db, null, s.clock.now());
+    s.db
+      .prepare(
+        "UPDATE runs SET chat_session_id = ?, trigger = 'agent', reason = 'agent', adhoc_prompt = NULL WHERE id = ?",
+      )
+      .run(sessionId, agentRun);
+    // A message queued behind it (re-parented under the agent Run) waits while the agent turn "runs".
+    const queued = s.deps.queue.enqueueAdhoc({
+      repository: 'pages',
+      prompt: 'next',
+      model: 'm',
+      parentRunId: agentRun,
+      chatSessionId: sessionId,
+    });
+    expect(s.deps.queue.claimNext()).toBeNull();
+
+    expect(await recoverInterruptedRuns(s.deps)).toBe(1);
+
+    expect(toRun(s.db.prepare('SELECT * FROM runs WHERE id = ?').get(agentRun))).toMatchObject({
+      status: 'finished',
+      trigger: 'agent',
+      interrupted: 'worker-restart',
+    });
+    expect(s.deps.queue.claimNext()?.id).toBe(queued.id);
+  });
+
   test('recovery turns an unpicked in-turn answer into one answer turn and expires unanswered questions', async () => {
     const s = setup();
     const sessionId = chat(s.db);

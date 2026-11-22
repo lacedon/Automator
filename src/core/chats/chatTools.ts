@@ -7,6 +7,7 @@ import type { Clock } from '../domain/types';
 import { parseDuration } from '../domain/duration';
 import {
   ASK_USER_TOOL,
+  MAX_WAKEUP_MS,
   MIN_WAKEUP_MS,
   QUESTION_TIMEOUT_REPLY,
   SCHEDULE_WAKEUP_TOOL,
@@ -154,14 +155,23 @@ export async function scheduleWakeup(ctx: ChatToolContext, input: unknown): Prom
   } else {
     fireAt = Date.parse(at!);
   }
+  if (!Number.isFinite(fireAt) || Number.isNaN(new Date(fireAt).getTime())) {
+    return text('That is not a valid time.', true);
+  }
   if (fireAt - now < MIN_WAKEUP_MS) return text('The wake-up must be at least 1 minute from now.', true);
+  if (fireAt - now > MAX_WAKEUP_MS) return text('The wake-up must be at most 30 days from now.', true);
 
-  const { replaced } = setTimer(ctx.db, ctx.sessionId, { fireAt, message, createdAt: now });
+  const { stored, replaced } = setTimer(ctx.db, ctx.sessionId, { fireAt, message, createdAt: now });
+  if (!stored) return text('This chat is closed.', true);
   const workingHours = ctx.configFor(allowed.repository).schedule.workingHours;
   const firing = nextFiringTime(fireAt, workingHours);
   const notes = [
     ...(replaced === null ? [] : ['(replaced the previous one)']),
-    ...(firing === fireAt ? [] : [`(first run within working hours: ${new Date(firing).toISOString()})`]),
+    ...(firing === null
+      ? ['(no working-hours window is configured, so it will not fire until the schedule has one)']
+      : firing === fireAt
+        ? []
+        : [`(first run within working hours: ${new Date(firing).toISOString()})`]),
   ];
   return text([`Wake-up scheduled for ${new Date(fireAt).toISOString()}`, ...notes].join(' '));
 }

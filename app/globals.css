@@ -960,6 +960,10 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.chat:focus {
+  outline: none;
+}
+
 .timer-card {
   display: flex;
   flex-direction: column;

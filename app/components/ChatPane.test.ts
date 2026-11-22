@@ -192,19 +192,34 @@ test('without a question the composer is not replaced', () => {
 const FIRE_AT = Date.parse('2026-10-21T15:30:00');
 const withTimer = (overrides: Partial<ThreadView['chat']> = {}): ThreadView['chat'] => ({
   ...interactive('live', true),
-  timer: { fireAt: FIRE_AT, message: 'check <b>the build</b>', createdAt: 1 },
+  timer: { fireAt: FIRE_AT, firesAt: FIRE_AT, message: 'check <b>the build</b>', createdAt: 1 },
   ...overrides,
 });
 
 test('a pending wake-up is listed with its fire time, message and a Cancel action', () => {
   const markup = render('done', null, null, withTimer());
   expect(markup).toContain('Wake-up scheduled');
-  expect(markup).toContain(formatFullDateTime(FIRE_AT, 'en'));
+  // The time is rendered after mount only (no server/browser time zone mismatch): the markup carries the instant.
+  expect(markup).toContain(`dateTime="${new Date(FIRE_AT).toISOString()}"`);
+  expect(markup).not.toContain(formatFullDateTime(FIRE_AT, 'en'));
+  expect(markup).not.toContain('working hours; it waits'); // not deferred
   // Plain text node: never rendered as HTML.
   expect(markup).toContain('check &lt;b&gt;the build&lt;/b&gt;');
   expect(markup).not.toContain('<b>the build</b>');
   expect(markup).toContain('>Cancel wake-up</button>');
   expect(markup).toContain('Cancel this wake-up?'); // the ConfirmDialog message
+});
+
+test('a wake-up requested outside working hours shows the time it can fire and says it waits', () => {
+  const requested = Date.parse('2026-10-21T22:00:00');
+  const markup = render(
+    'done',
+    null,
+    null,
+    withTimer({ timer: { fireAt: requested, firesAt: requested + 10 * 3_600_000, message: 'm', createdAt: 1 } }),
+  );
+  expect(markup).toContain(`dateTime="${new Date(requested + 10 * 3_600_000).toISOString()}"`);
+  expect(markup).toContain('outside the Repository&#x27;s working hours');
 });
 
 test('without a pending wake-up no timer card is shown', () => {
@@ -224,7 +239,7 @@ test('agent and timer turns are labelled', () => {
   expect(agent).toContain('Started by the agent (built-in timer)');
   const timer = render('done', null, null, interactive('live', true), {
     trigger: 'timer',
-    request: 'Scheduled wake-up (set 2026-10-21T10:00:00.000Z):\n\ncheck the build',
+    request: 'check the build',
   });
   expect(timer).toContain('Scheduled wake-up');
   expect(timer).toContain('check the build');

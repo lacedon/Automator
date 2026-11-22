@@ -245,6 +245,13 @@ test('cancelChatTimer clears the Chat timer', async () => {
 
   expect(core.chats.get(session.id)!.timer).toBeNull();
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+
+  // A second cancel finds nothing pending and says so instead of claiming success.
+  revalidatePath.mockClear();
+  expect(await cancelChatTimer(run.id)).toMatchObject({
+    ok: false,
+    error: { code: 'INVALID_INPUT', message: expect.stringContaining('No wake-up is pending') },
+  });
 });
 
 test('cancelChatTimer needs write on the Run', async () => {

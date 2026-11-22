@@ -26,11 +26,12 @@ import {
 import { closeRun } from '../actions/runs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
+import { useNow } from './useNow';
 import { PromptInput } from './PromptInput';
 import { Pill, RunPill } from './Pill';
 import { TranscriptBox } from './TranscriptBox';
 import { RunFileLinks } from './RunFileLinks';
-import { bubbleTranscript, timerRequestText } from '../lib/chatBubble';
+import { bubbleTranscript } from '../lib/chatBubble';
 import { formatFullDateTime } from '../lib/format';
 import { withSkills } from '../lib/skillSuggestions';
 
@@ -247,25 +248,44 @@ function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['c
   );
 }
 
-// The Chat's pending Automator wake-up. It fires within the Repository's working hours, so the time shown is the
-// earliest one.
-function TimerCard({ timer, runId }: { timer: NonNullable<ThreadView['chat']['timer']>; runId: number }) {
+// The Chat's pending Automator wake-up. `firesAt` is the earliest time it can fire (the requested time moved into the
+// Repository's working hours). The time is formatted after mount only, like RelativeTime, so a server and a browser in
+// different time zones cannot disagree during hydration.
+function TimerCard({
+  timer,
+  runId,
+  onCancelled,
+}: {
+  timer: NonNullable<ThreadView['chat']['timer']>;
+  runId: number;
+  onCancelled: () => void;
+}) {
   const t = useTranslations('Chat');
   const locale = useLocale();
+  const now = useNow(60_000);
   const titleId = useId();
   return (
     <section className="timer-card" aria-labelledby={titleId}>
       <p id={titleId} className="timer-title">
         {t('timerTitle')}
       </p>
-      <p className="muted">{t('timerFires', { time: formatFullDateTime(timer.fireAt, locale) })}</p>
+      <p className="muted">
+        <time dateTime={new Date(timer.firesAt).toISOString()}>
+          {now === null ? '' : t('timerFires', { time: formatFullDateTime(timer.firesAt, locale) })}
+        </time>
+      </p>
+      {timer.firesAt !== timer.fireAt && <p className="muted timer-deferred">{t('timerDeferred')}</p>}
       <p className="timer-message">{timer.message}</p>
       <div className="actions">
         <ConfirmDialog
           label={t('timerCancel')}
           message={t('timerCancelMessage')}
           confirmLabel={t('timerCancelConfirm')}
-          action={() => cancelChatTimer(runId)}
+          action={async () => {
+            const result = await cancelChatTimer(runId);
+            if (result.ok) onCancelled();
+            return result;
+          }}
         />
       </div>
     </section>
@@ -298,7 +318,7 @@ function RunExchange({ run, current, waiting }: { run: ThreadRun; current: boole
       ) : run.trigger === 'timer' ? (
         <div className="chat-bubble chat-request">
           <div className="muted">{t('timerTurn')}</div>
-          {timerRequestText(run.request)}
+          {run.request}
         </div>
       ) : (
         <div className="chat-bubble chat-request">{run.request ?? run.ticketKey}</div>
@@ -373,8 +393,11 @@ export function ChatPane({
 
   const failed = state?.ok === false ? state.error : null;
 
+  // The wake-up card disappears when cancelled; focus moves to the chat so keyboard users are not left on nothing.
+  const chatRef = useRef<HTMLDivElement>(null);
+
   return (
-    <div className="chat">
+    <div className="chat" ref={chatRef} tabIndex={-1}>
       {thread.runs[0]?.trigger === 'adhoc' && (
         <p className="muted chat-mode">
           {thread.chat.mode === 'interactive' ? t('modeInteractive') : t('modeFollowUp')}
@@ -407,7 +430,11 @@ export function ChatPane({
         />
       ))}
       {thread.chat.timer !== null && (
-        <TimerCard timer={thread.chat.timer} runId={thread.runs[thread.runs.length - 1]!.id} />
+        <TimerCard
+          timer={thread.chat.timer}
+          runId={thread.runs[thread.runs.length - 1]!.id}
+          onCancelled={() => chatRef.current?.focus()}
+        />
       )}
       {thread.chat.question !== null ? (
         <QuestionCard question={thread.chat.question} runId={thread.runs[thread.runs.length - 1]!.id} />

@@ -639,7 +639,7 @@ describe('read models', () => {
       const { db, read } = setup();
       const piChat = interactiveChat(db, {
         process_state: 'idle',
-        timer_fire_at: 5000,
+        timer_fire_at: new Date(2026, 9, 21, 22, 0).getTime(), // Wednesday night: outside working hours
         timer_message: 'check the build',
         timer_created_at: 1000,
       });
@@ -654,7 +654,12 @@ describe('read models', () => {
 
       const chatOf = async (id: number) => (await read.runDetail(id))!.thread!.chat;
       expect(await chatOf(run(piChat))).toMatchObject({
-        timer: { fireAt: 5000, message: 'check the build', createdAt: 1000 },
+        timer: {
+          fireAt: new Date(2026, 9, 21, 22, 0).getTime(),
+          message: 'check the build',
+          createdAt: 1000,
+          firesAt: new Date(2026, 9, 22, 8, 0).getTime(), // the first working-hours window
+        },
         nativeTimers: false,
       });
       expect(await chatOf(run(claudeChat))).toMatchObject({ timer: null, nativeTimers: true });
@@ -684,7 +689,7 @@ describe('read models', () => {
       const runs = (await read.runDetail(agent))!.thread!.runs;
       expect(runs.map((r) => [r.id, r.trigger, r.request])).toEqual([
         [first, 'adhoc', 'p'],
-        [timer, 'timer', 'Scheduled wake-up (set 2026-10-21T10:00:00.000Z):\n\ncheck the build'],
+        [timer, 'timer', 'check the build'], // the wake-up header is not part of the request shown
         [agent, 'agent', null],
       ]);
     });

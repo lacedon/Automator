@@ -186,6 +186,11 @@ async function handle(message) {
     if (step.unprompted) {
       await sleep(step.unprompted.afterMs ?? 20);
       for (const item of step.unprompted.updates) emitUpdate(params.sessionId, item);
+      // Further unprompted updates, each after its own pause (a tool that finishes later, tail output after a cancel).
+      for (const later of step.unprompted.later ?? []) {
+        await sleep(later.afterMs ?? 20);
+        for (const item of later.updates) emitUpdate(params.sessionId, item);
+      }
     }
     return undefined;
   }

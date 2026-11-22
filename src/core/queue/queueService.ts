@@ -561,21 +561,23 @@ export class QueueService {
       .immediate();
   }
 
-  // Drops the Chat's pending Automator timer (the dashboard's Cancel). Idempotent.
-  cancelChatTimer(runId: number): Result<void> {
+  // Drops the Chat's pending Automator timer (the dashboard's Cancel). `cancelled` is false when none was pending
+  // (it fired or was cancelled already).
+  cancelChatTimer(runId: number): Result<{ cancelled: boolean }> {
     return this.db
-      .transaction((): Result<void> => {
+      .transaction((): Result<{ cancelled: boolean }> => {
         const row = this.db.prepare('SELECT chat_session_id FROM runs WHERE id = ?').get(runId) as
           { chat_session_id: number | null } | undefined;
         if (!row) return err({ code: 'NOT_FOUND' });
         if (row.chat_session_id === null)
           return err({ code: 'INVALID_INPUT', field: 'run', message: 'Only Interactive Chats have timers' });
-        this.db
+        const cleared = this.db
           .prepare(
-            `UPDATE chat_sessions SET timer_fire_at = NULL, timer_message = NULL, timer_created_at = NULL WHERE id = ?`,
+            `UPDATE chat_sessions SET timer_fire_at = NULL, timer_message = NULL, timer_created_at = NULL
+             WHERE id = ? AND timer_fire_at IS NOT NULL`,
           )
           .run(row.chat_session_id);
-        return ok(undefined);
+        return ok({ cancelled: cleared.changes > 0 });
       })
       .immediate();
   }

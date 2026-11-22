@@ -91,6 +91,16 @@ export async function cancelChatTimer(runId: number): Promise<{ ok: true } | { o
   if (!guard.ok) return guard;
   const result = getCore().queue.cancelChatTimer(runId);
   if (!result.ok) return result;
+  if (!result.value.cancelled) {
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_INPUT',
+        field: 'run',
+        message: 'No wake-up is pending: it already fired or was cancelled',
+      },
+    };
+  }
   revalidatePath('/', 'layout');
   return { ok: true };
 }

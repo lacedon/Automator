@@ -268,13 +268,14 @@
     "questionSent": "回答已发送。",
     "questionQueued": "回答已作为运行 #{id} 排队。",
     "timerTitle": "已安排唤醒",
-    "timerFires": "将于 {time} 触发，在仓库的工作时间内",
+    "timerFires": "将于 {time} 触发",
     "timerCancel": "取消唤醒",
     "timerCancelMessage": "取消此唤醒？代理将不会被唤醒。",
     "timerCancelConfirm": "取消唤醒",
     "nativeTimerWarning": "由代理内置工具设置的定时器（例如 Claude /loop）会在此会话的进程停止时丢失（空闲超时、被驱逐、重启或关闭）。请让代理使用 Automator 唤醒以实现可靠的继续。",
     "agentTurn": "由代理启动（内置定时器）",
-    "timerTurn": "计划唤醒"
+    "timerTurn": "计划唤醒",
+    "timerDeferred": "请求的时间不在仓库的工作时间内；将等待下一个时间窗口。"
   },
   "RunFiles": {
     "transcript": "记录",

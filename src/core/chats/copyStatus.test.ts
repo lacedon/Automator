@@ -31,6 +31,74 @@ function cloneWithRemote(): string {
   return copy;
 }
 
+describe('copyWork: commands named in the git config of the copy', () => {
+  // The agent writes the copy, so its .git/config and .gitattributes are untrusted. Every driver below would run a
+  // command with the dashboard's permissions if git were allowed to use it.
+  function armedCopy(configure: (copy: string, hook: string) => void) {
+    const copy = cloneWithRemote();
+    const marker = path.join(path.dirname(copy), 'ran');
+    const hook = path.join(path.dirname(copy), 'hook.sh');
+    fs.writeFileSync(hook, `#!/bin/sh\ntouch '${marker}'\ncat\n`, { mode: 0o755 });
+    configure(copy, hook);
+    // Same size, new content: git cannot tell from the stat data alone, so it hashes the file (and so runs its clean
+    // filter, if it is allowed to).
+    fs.writeFileSync(path.join(copy, 'a.txt'), 'b');
+    return { copy, marker };
+  }
+
+  test('a filter.<name>.clean command is never executed, and the change is still reported', async () => {
+    const { copy, marker } = armedCopy((dir, hook) => {
+      fs.writeFileSync(path.join(dir, '.gitattributes'), '* filter=evil\n');
+      git(dir, 'config', 'filter.evil.clean', hook);
+    });
+    const work = await copyWork(copy);
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(work).toMatchObject({ uncommitted: true });
+  });
+
+  test('filter smudge and process commands, also from an included config file, are never executed', async () => {
+    const { copy, marker } = armedCopy((dir, hook) => {
+      fs.writeFileSync(path.join(dir, '.gitattributes'), '* filter=evil\n');
+      fs.writeFileSync(
+        path.join(dir, 'extra.cfg'),
+        `[filter "evil"]\n\tprocess = ${hook}\n\tsmudge = ${hook}\n\tclean = ${hook}\n\trequired = true\n`,
+      );
+      git(dir, 'config', 'include.path', path.join(dir, 'extra.cfg'));
+    });
+    const work = await copyWork(copy);
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(work).not.toBeNull();
+  });
+
+  test('a filter named in .git/info/attributes is not run either', async () => {
+    const { copy, marker } = armedCopy((dir, hook) => {
+      fs.writeFileSync(path.join(dir, '.git', 'info', 'attributes'), '* filter=evil\n');
+      git(dir, 'config', 'filter.evil.clean', hook);
+    });
+    await copyWork(copy);
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+
+  test('the checks do not read the global git config of the dashboard user', async () => {
+    const copy = cloneWithRemote();
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-status-home-'));
+    dirs.push(home);
+    const marker = path.join(home, 'ran');
+    const hook = path.join(home, 'hook.sh');
+    fs.writeFileSync(hook, `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 });
+    fs.writeFileSync(path.join(home, '.gitconfig'), `[core]\n\tfsmonitor = ${hook}\n`);
+    const previous = { HOME: process.env.HOME, XDG: process.env.XDG_CONFIG_HOME };
+    process.env.HOME = home;
+    try {
+      await copyWork(copy);
+    } finally {
+      if (previous.HOME === undefined) delete process.env.HOME;
+      else process.env.HOME = previous.HOME;
+    }
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+});
+
 describe('copyWork', () => {
   // The copy is written by the agent, and the dashboard runs git in it with its own environment: the checks must not
   // execute commands named in the copy's git config.

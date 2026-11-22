@@ -18,12 +18,13 @@ export const ASK_USER_TOOL = {
 } as const;
 
 export const MIN_WAKEUP_MS = 60_000;
+export const MAX_WAKEUP_MS = 30 * 86_400_000;
 
 export const SCHEDULE_WAKEUP_TOOL = {
   name: 'schedule_wakeup',
   description:
     'Continue this chat later. Give either `delay` (e.g. "15m", "2h", "1d"; at least 1 minute) or `at` ' +
-    '(ISO 8601 date-time, at least 1 minute from now), plus the message you will receive when it fires. ' +
+    '(ISO 8601 date-time), at least 1 minute and at most 30 days from now, plus the message you will receive when it fires. ' +
     'Only one wake-up is kept per chat: a new one replaces the previous one. It fires within the ' +
     "Repository's working hours. Prefer this over built-in timers, which are lost if the session stops.",
   inputSchema: {

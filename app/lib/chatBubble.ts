@@ -7,10 +7,3 @@ import type { ThreadRun } from '@core/index';
 export function bubbleTranscript(run: Pick<ThreadRun, 'transcript'>): string | null {
   return run.transcript?.text ?? null;
 }
-
-// A timer turn's stored prompt is `Scheduled wake-up (set <ISO>):\n\n<message>` (core timerPrompt). The bubble is labelled
-// as a wake-up already, so it shows only the message.
-const TIMER_HEADER = /^Scheduled wake-up \(set [^)\n]*\):\n\n/;
-export function timerRequestText(request: string | null): string | null {
-  return request === null ? null : request.replace(TIMER_HEADER, '');
-}

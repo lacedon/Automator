@@ -1071,10 +1071,10 @@ describe('Chat modes', () => {
 
     test("cancelChatTimer clears only that Chat's timer", async () => {
       const s = await withTimer({ second: true });
-      expect(s.queue.cancelChatTimer(s.first.id)).toEqual({ ok: true, value: undefined });
+      expect(s.queue.cancelChatTimer(s.first.id)).toEqual({ ok: true, value: { cancelled: true } });
       expect(timerOf(s.db, s.first.chatSessionId)).toEqual({ f: null });
       expect(timerOf(s.db, s.second!.chatSessionId)).toEqual({ f: 9 });
-      expect(s.queue.cancelChatTimer(s.first.id)).toEqual({ ok: true, value: undefined }); // idempotent
+      expect(s.queue.cancelChatTimer(s.first.id)).toEqual({ ok: true, value: { cancelled: false } }); // nothing pending
     });
 
     test('cancelChatTimer rejects an unknown Run and a Follow-up Chat', () => {

@@ -268,13 +268,14 @@
     "questionSent": "Respuesta enviada.",
     "questionQueued": "Respuesta en cola como Ejecución #{id}.",
     "timerTitle": "Reactivación programada",
-    "timerFires": "Se activa {time}, dentro del horario laboral del Repositorio",
+    "timerFires": "Se activa {time}",
     "timerCancel": "Cancelar reactivación",
     "timerCancelMessage": "¿Cancelar esta reactivación? No se despertará al agente.",
     "timerCancelConfirm": "Cancelar reactivación",
     "nativeTimerWarning": "Los temporizadores creados con las herramientas integradas del agente (por ejemplo /loop de Claude) se pierden si se detiene el proceso de esta sesión (tiempo de inactividad, expulsión, reinicio o cierre). Pide al agente que use las reactivaciones de Automator para continuar de forma fiable.",
     "agentTurn": "Iniciado por el agente (temporizador integrado)",
-    "timerTurn": "Reactivación programada"
+    "timerTurn": "Reactivación programada",
+    "timerDeferred": "Se pidió para una hora fuera del horario laboral del Repositorio; espera a la siguiente ventana."
   },
   "RunFiles": {
     "transcript": "Transcripción",
