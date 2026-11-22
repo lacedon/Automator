@@ -193,6 +193,31 @@ test("chat shows a running Run's transcript inline", async ({ page }) => {
   await expect(page.locator('.chat b')).toHaveCount(0);
 });
 
+test('a pending question shows choice buttons and the Chat is Waiting for you in the left menu', async ({ page }) => {
+  await page.goto('/runs');
+  const row = page.locator('.run-history').getByRole('link', { name: /Pick a color for the/ });
+  // The Chats list and the left menu both say Waiting for you.
+  await expect(page.locator('.run-history tr', { hasText: 'Pick a color' }).locator('.pill-needs-you')).toHaveText(
+    'Waiting for you',
+  );
+  await expect(page.locator('.sidebar .nav-chat', { hasText: 'Pick a color' }).locator('.pill-needs-you')).toHaveText(
+    'Waiting for you',
+  );
+  await row.click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
+
+  const card = page.locator('.chat .question-card');
+  await expect(card.locator('.pill-needs-you')).toHaveText('Waiting for you');
+  // Plain text only: the HTML in the question is never rendered.
+  await expect(card.locator('.question-text')).toHaveText('Which <b>color</b> for the banner?');
+  await expect(card.locator('b')).toHaveCount(0);
+  await expect(card.getByRole('button', { name: 'Red', exact: true })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Blue', exact: true })).toBeVisible();
+  await expect(card.getByLabel('Other answer')).toBeVisible();
+  // The question card replaces the composer.
+  await expect(page.locator('.chat').getByLabel('Message')).toHaveCount(0);
+});
+
 // Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
 test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
   await page.goto('/runs');

@@ -17,9 +17,13 @@ import {
   type SessionDriver,
   type SessionEvent,
   type SessionHandle,
+  type QuestionAnswer,
   type SessionStartOptions,
   type ToolPolicy,
 } from './drivers/sessionDriver';
+import { QUESTION_TIMEOUT_REPLY } from './chatTools';
+import { answerQuestion } from './questions';
+import { QueueService } from '../queue/queueService';
 import { ChatSessionManager } from './sessionManager';
 
 const cleanups: (() => void)[] = [];
@@ -32,6 +36,7 @@ const open: ToolPolicy = { allowAll: true, allowed: [], blocked: [], denyTools: 
 class FakeHandle implements SessionHandle {
   pid: number;
   sent: string[] = [];
+  responses: [string, QuestionAnswer][] = [];
   cancelled = 0;
   stopped = false;
   killed = false;
@@ -94,7 +99,9 @@ class FakeHandle implements SessionHandle {
     this.resolveExit(exit);
   }
 
-  respond(): void {}
+  respond(requestId: string, answer: QuestionAnswer): void {
+    this.responses.push([requestId, answer]);
+  }
   cancelTurn(): void {
     this.cancelled += 1;
   }
@@ -151,6 +158,7 @@ function setup(
     config?: Partial<Config['runs']>;
     behaviour?: Partial<FakeBehaviour>;
     handshakeTimeoutMs?: number;
+    mcp?: boolean;
   } = {},
 ) {
   const t = tempDb();
@@ -170,6 +178,7 @@ function setup(
     void repository;
     return config;
   };
+  const queue = new QueueService(t.db, clock, dataDir, config, repositories, sessions);
   const manager = new ChatSessionManager({
     db: t.db,
     clock,
@@ -177,8 +186,18 @@ function setup(
     drivers: { pi: fake.driver },
     configFor,
     repositories,
+    queue,
     ...(options.handshakeTimeoutMs === undefined ? {} : { handshakeTimeoutMs: options.handshakeTimeoutMs }),
     closeRetryMs: 60_000,
+    ...(options.mcp === true
+      ? {
+          mcp: () => ({
+            command: '/usr/bin/node',
+            scriptPath: '/app/bin/automator.mjs',
+            configPath: '/cfg/automator.config.json',
+          }),
+        }
+      : {}),
   });
   const newRun = (session: ChatSession): Run => {
     const info = t.db
@@ -207,6 +226,7 @@ function setup(
     sessions,
     fake,
     manager,
+    queue,
     newChat,
     newRun,
     turn,
@@ -527,6 +547,7 @@ describe('ChatSessionManager', () => {
       drivers: { pi: restarted.driver },
       configFor: () => s.config,
       repositories: s.repositories,
+      queue: s.queue,
     });
     expect(manager.liveCount()).toBe(0);
 
@@ -586,6 +607,7 @@ describe('ChatSessionManager', () => {
       drivers: { pi: s.fake.driver },
       configFor: (repository) => (repository === 'api' ? apiConfig : s.config),
       repositories: s.repositories,
+      queue: s.queue,
     });
     const start = { model: 'm', env: {}, tools: open };
     const a = s.newChat('pages');
@@ -739,6 +761,7 @@ describe('ChatSessionManager', () => {
       drivers: {},
       configFor: () => s.config,
       repositories: s.repositories,
+      queue: s.queue,
     }).startTurn(run, session, 'one', { model: 'm', env: {}, tools: open });
 
     expect(await turn.exited).toMatchObject({ error: { code: 'PROVIDER_CAPABILITY_UNSUPPORTED' } });
@@ -823,5 +846,208 @@ describe('ChatSessionManager', () => {
     expect((s.db.prepare('SELECT count(*) AS n FROM runs').get() as { n: number }).n).toBe(before);
     expect(fs.readFileSync(s.dataDir.chatSessionLogPath(session.id), 'utf8')).toContain('unprompted turn');
     expect(s.sessions.get(session.id)!.processState).toBe('idle');
+  });
+
+  describe('questions', () => {
+    const WAIT_MS = 60_000;
+    const asking = {
+      onSend(handle: FakeHandle) {
+        handle.emit({ type: 'turn-start', prompted: true });
+        handle.emit({ type: 'text', delta: 'Let me ask. ' });
+        handle.emit({ type: 'question', requestId: 'r1', text: 'Which color?', options: ['Red', 'Blue'] });
+      },
+    };
+    const questionOf = (s: ReturnType<typeof setup>, id: number) => s.sessions.get(id)!.question;
+
+    test('a native question puts the Chat in Waiting for you and an in-time answer resolves it in-turn', async () => {
+      const s = setup({ config: { questionWaitMs: WAIT_MS }, behaviour: asking });
+      const { session, run } = s.newChat();
+      const turn = await s.turn(run, session, 'go');
+      await until(() => questionOf(s, session.id) !== null, 'the question');
+
+      expect(questionOf(s, session.id)).toMatchObject({
+        text: 'Which color?',
+        options: ['Red', 'Blue'],
+        source: 'native',
+        requestId: 'r1',
+        runId: run.id,
+        expiresAt: s.clock.now() + WAIT_MS,
+        expiredAt: null,
+      });
+      s.manager.tick();
+      expect(s.fake.handles[0]!.responses).toEqual([]);
+
+      // What the dashboard stores for an in-time answer.
+      expect(answerQuestion(s.db, s.queue, { runId: run.id, answer: 'Blue', now: s.clock.now() })).toEqual({
+        ok: true,
+        value: { delivered: 'in-turn' },
+      });
+      s.manager.tick();
+      expect(s.fake.handles[0]!.responses).toEqual([['r1', { kind: 'answer', text: 'Blue' }]]);
+      expect(questionOf(s, session.id)).toBeNull();
+      s.manager.tick();
+      expect(s.fake.handles[0]!.responses).toHaveLength(1); // delivered once
+
+      s.fake.handles[0]!.emit({ type: 'text', delta: 'Blue it is.' });
+      s.fake.handles[0]!.endTurn();
+      expect(await turn.exited).toEqual({ code: 0, signal: null });
+      expect(s.queue.claimNext()).toBeNull();
+    });
+
+    test('a native question times out with the timeout response and the turn ends done while the Chat stays waiting', async () => {
+      const s = setup({ config: { questionWaitMs: WAIT_MS }, behaviour: asking });
+      const { session, run } = s.newChat();
+      const turn = await s.turn(run, session, 'go');
+      await until(() => questionOf(s, session.id) !== null, 'the question');
+
+      s.clock.advance(WAIT_MS);
+      s.manager.tick();
+      expect(s.fake.handles[0]!.responses).toEqual([['r1', { kind: 'timeout', text: QUESTION_TIMEOUT_REPLY }]]);
+      expect(questionOf(s, session.id)).toMatchObject({ expiredAt: s.clock.now() });
+
+      s.fake.handles[0]!.endTurn();
+      expect(await turn.exited).toEqual({ code: 0, signal: null });
+      expect(questionOf(s, session.id)).toMatchObject({ requestId: 'r1', expiredAt: s.clock.now() });
+      s.manager.tick();
+      expect(s.fake.handles[0]!.responses).toHaveLength(1);
+
+      // The late answer starts exactly one answer turn.
+      s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+      const late = answerQuestion(s.db, s.queue, { runId: run.id, answer: 'Red', now: s.clock.now() });
+      expect(late).toMatchObject({ ok: true, value: { delivered: 'new-turn' } });
+      expect(answerQuestion(s.db, s.queue, { runId: run.id, answer: 'Red', now: s.clock.now() })).toMatchObject({
+        ok: false,
+      });
+      const queued = s.db
+        .prepare("SELECT trigger, adhoc_prompt, parent_run_id FROM runs WHERE status = 'queued'")
+        .all();
+      expect(queued).toEqual([
+        {
+          trigger: 'answer',
+          adhoc_prompt: 'Answer to your earlier question "Which color?":\n\nRed',
+          parent_run_id: run.id,
+        },
+      ]);
+    });
+
+    test('an in-turn answer not picked up before the turn ends starts exactly one answer turn', async () => {
+      const s = setup({ config: { questionWaitMs: WAIT_MS }, behaviour: asking });
+      const { session, run } = s.newChat();
+      const turn = await s.turn(run, session, 'go');
+      await until(() => questionOf(s, session.id) !== null, 'the question');
+      expect(answerQuestion(s.db, s.queue, { runId: run.id, answer: 'Blue', now: s.clock.now() })).toMatchObject({
+        value: { delivered: 'in-turn' },
+      });
+
+      s.fake.handles[0]!.endTurn(); // before any tick delivered the answer
+      await turn.exited;
+
+      expect(s.fake.handles[0]!.responses).toEqual([]);
+      expect(questionOf(s, session.id)).toBeNull();
+      const queued = s.db
+        .prepare("SELECT trigger, adhoc_prompt, parent_run_id FROM runs WHERE status = 'queued'")
+        .all();
+      expect(queued).toEqual([
+        {
+          trigger: 'answer',
+          adhoc_prompt: 'Answer to your earlier question "Which color?":\n\nBlue',
+          parent_run_id: run.id,
+        },
+      ]);
+    });
+
+    test('a turn that ends while its question is unanswered leaves it pending for an answer turn', async () => {
+      const s = setup({ config: { questionWaitMs: WAIT_MS }, behaviour: asking });
+      const { session, run } = s.newChat();
+      const turn = await s.turn(run, session, 'go');
+      await until(() => questionOf(s, session.id) !== null, 'the question');
+
+      s.fake.handles[0]!.endTurn();
+      await turn.exited;
+
+      expect(questionOf(s, session.id)).toMatchObject({ requestId: 'r1', expiredAt: s.clock.now() });
+      s.db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+      expect(answerQuestion(s.db, s.queue, { runId: run.id, answer: 'Red', now: s.clock.now() })).toMatchObject({
+        ok: true,
+        value: { delivered: 'new-turn' },
+      });
+    });
+
+    test('close clears a pending question', async () => {
+      const s = setup({ config: { questionWaitMs: WAIT_MS }, behaviour: asking });
+      const { session, run } = s.newChat();
+      const turn = await s.turn(run, session, 'go');
+      await until(() => questionOf(s, session.id) !== null, 'the question');
+      s.fake.handles[0]!.endTurn();
+      await turn.exited;
+      s.db.prepare("UPDATE runs SET status = 'finished'").run();
+
+      s.db.prepare('UPDATE chat_sessions SET close_requested_at = ? WHERE id = ?').run(s.clock.now(), session.id);
+      s.manager.tick();
+      await s.manager.drain();
+
+      expect(s.sessions.get(session.id)).toMatchObject({ closedAt: s.clock.now(), question: null });
+    });
+
+    test('a question that cannot be opened is declined to the provider', async () => {
+      const s = setup({ config: { questionWaitMs: WAIT_MS }, behaviour: asking });
+      const { session, run } = s.newChat();
+      // An Automator ask_user is already waiting.
+      s.db
+        .prepare(
+          `UPDATE chat_sessions SET question_text = 'Other?', question_source = 'automator', question_request_id = 'x', question_run_id = ?,
+             question_asked_at = ?, question_expires_at = ? WHERE id = ?`,
+        )
+        .run(run.id, s.clock.now(), s.clock.now() + WAIT_MS, session.id);
+      await s.turn(run, session, 'go');
+      await until(() => s.fake.handles[0]!.responses.length > 0, 'the decline');
+
+      expect(s.fake.handles[0]!.responses).toEqual([['r1', { kind: 'cancel' }]]);
+      expect(questionOf(s, session.id)).toMatchObject({ requestId: 'x' });
+    });
+
+    test('the Automator tools reach the provider as an MCP server with a stored per-Chat nonce', async () => {
+      const s = setup({ mcp: true });
+      const { session, run } = s.newChat();
+      await (
+        await s.turn(run, session, 'one')
+      ).exited;
+
+      const nonce = s.sessions.get(session.id)!.mcpNonce;
+      expect(nonce).toMatch(/^[0-9a-f]{32}$/);
+      expect(s.fake.handles[0]!.options.mcpServer).toEqual({
+        name: 'automator',
+        command: '/usr/bin/node',
+        args: [
+          '/app/bin/automator.mjs',
+          'mcp',
+          '--chat-session',
+          String(session.id),
+          '--nonce',
+          nonce,
+          '--config',
+          '/cfg/automator.config.json',
+        ],
+        env: {},
+      });
+
+      // After a restart the same nonce is used, so a resumed provider session keeps a working server.
+      s.fake.handles[0]!.finish({ code: 0, signal: null });
+      await until(() => s.manager.liveCount() === 0, 'the process to be gone');
+      await (
+        await s.turn(s.newRun(session), session, 'two')
+      ).exited;
+      expect(s.fake.handles[1]!.options.mcpServer?.args).toContain(nonce);
+    });
+
+    test('without an MCP launch configuration no server is passed', async () => {
+      const s = setup();
+      const { session, run } = s.newChat();
+      await (
+        await s.turn(run, session, 'one')
+      ).exited;
+      expect(s.fake.handles[0]!.options.mcpServer).toBeUndefined();
+      expect(s.sessions.get(session.id)!.mcpNonce).toBeNull();
+    });
   });
 });

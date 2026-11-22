@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Env, Secrets } from '../../config/load';
 import { providerOptions } from '../../config/providers';
 import type { Config } from '../../config/schema';
 import type { RunError } from '../../domain/types';
 import type { ProviderExit } from '../../runs/providerLauncher';
 import { lineSplitter } from '../../runs/liveTranscript';
+import { CHAT_TOOLS } from '../chatTools';
 import { MAX_LINE_CHARS } from './jsonRpc';
 import {
   DriverError,
+  type QuestionAnswer,
   type SessionDriver,
   type SessionEvent,
   type SessionHandle,
@@ -25,6 +29,12 @@ const STDERR_TAIL = 2_000;
 
 // Fire-and-forget extension UI methods need no answer; dialogs block pi until the client replies.
 const DIALOG_METHODS = new Set(['select', 'confirm', 'input', 'editor']);
+
+// The bundled extension is plain JavaScript next to the other chat sources, so it resolves from the installed app
+// without a build step (see README, Interactive Chats). Resolved when a session starts, never at import time.
+export function automatorExtensionPath(): string {
+  return path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'pi', 'automatorExtension.mjs');
+}
 
 type Rec = Record<string, unknown>;
 const isRecord = (value: unknown): value is Rec => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -61,6 +71,8 @@ class PiSession implements SessionHandle {
   private turnFinished = true;
   private abortRequested = false;
   private abortTimer: NodeJS.Timeout | null = null;
+  // Open extension dialogs by request id; pi blocks the tool until the client answers.
+  private readonly dialogs = new Map<string, string>();
   private providerFailure: string | null = null;
   private fatal: RunError | null = null;
   private readonly abortDeadlineMs: number;
@@ -76,8 +88,10 @@ class PiSession implements SessionHandle {
     const args = [
       '--mode',
       'rpc',
-      // The user's own extensions would emit UI requests and change behaviour; ours is added with -e in PR 4.
+      // The user's own extensions would emit UI requests and change behaviour; only Automator's is loaded.
       '--no-extensions',
+      '-e',
+      automatorExtensionPath(),
       '--model',
       options.model,
       ...(options.sessionDir === undefined ? [] : ['--session-dir', options.sessionDir]),
@@ -92,7 +106,20 @@ class PiSession implements SessionHandle {
       bin,
       args,
       cwd: options.cwd,
-      env: { ...options.env, PWD: options.cwd } as Env,
+      env: {
+        ...options.env,
+        PWD: options.cwd,
+        ...(options.mcpServer === undefined
+          ? {}
+          : {
+              AUTOMATOR_CHAT_TOOL: JSON.stringify({
+                command: options.mcpServer.command,
+                args: options.mcpServer.args,
+                env: options.mcpServer.env,
+                tools: CHAT_TOOLS.map((tool) => tool.definition),
+              }),
+            }),
+      } as Env,
       secrets,
       logPath: options.logPath,
       onStdout: (chunk) => splitter.push(chunk),
@@ -283,13 +310,31 @@ class PiSession implements SessionHandle {
     }
   }
 
-  // Extension dialogs are declined until PR 4 maps them to questions; everything else is fire-and-forget.
+  // select/confirm/input/editor block pi until the client answers; they become question events. Everything else
+  // (notify, setStatus, setWidget, setTitle, set_editor_text) is fire-and-forget and ignored.
   private onUiRequest(record: Rec): void {
     const method = str(record.method);
     const id = str(record.id);
     if (method === undefined || id === undefined || !DIALOG_METHODS.has(method)) return;
-    this.proc.log(`declined extension dialog (${method}): ${str(record.title) ?? ''}`);
-    this.write({ type: 'extension_ui_response', id, cancelled: true });
+    if (!this.promptInFlight) {
+      this.write({ type: 'extension_ui_response', id, cancelled: true });
+      return;
+    }
+    const title = str(record.title) ?? '';
+    const message = str(record.message);
+    const options =
+      method === 'select' && Array.isArray(record.options)
+        ? record.options.filter((option): option is string => typeof option === 'string')
+        : method === 'confirm'
+          ? ['Yes', 'No']
+          : null;
+    this.dialogs.set(id, method);
+    this.proc.emit({
+      type: 'question',
+      requestId: id,
+      text: [title, message].filter((part) => part !== undefined && part !== '').join('\n'),
+      options: options !== null && options.length > 0 ? options : null,
+    });
   }
 
   private onSettled(aborted: boolean): void {
@@ -338,6 +383,7 @@ class PiSession implements SessionHandle {
     this.turnFinished = true;
     this.promptInFlight = false;
     this.clearAbortTimer();
+    this.cancelDialogs();
     this.proc.emit({ type: 'turn-end', ...end });
   }
 
@@ -346,14 +392,34 @@ class PiSession implements SessionHandle {
     this.abortTimer = null;
   }
 
-  respond(): void {
-    // Extension dialogs are declined inside the driver until PR 4.
+  respond(requestId: string, answer: QuestionAnswer): void {
+    const method = this.dialogs.get(requestId);
+    if (method === undefined) return;
+    this.dialogs.delete(requestId);
+    // pi has no free-text escape on a timeout, so a timeout cancels like an explicit cancel.
+    if (answer.kind !== 'answer') {
+      this.write({ type: 'extension_ui_response', id: requestId, cancelled: true });
+    } else if (method === 'confirm') {
+      this.write({
+        type: 'extension_ui_response',
+        id: requestId,
+        confirmed: /^(yes|y|true|ok|confirm)$/i.test(answer.text.trim()),
+      });
+    } else {
+      this.write({ type: 'extension_ui_response', id: requestId, value: answer.text });
+    }
+  }
+
+  private cancelDialogs(): void {
+    for (const id of this.dialogs.keys()) this.write({ type: 'extension_ui_response', id, cancelled: true });
+    this.dialogs.clear();
   }
 
   cancelTurn(): void {
     if (!this.promptInFlight || this.abortRequested) return;
     this.abortRequested = true;
     this.write({ type: 'abort' });
+    this.cancelDialogs();
     // A tool that ignores its abort signal can hold the settle back; stop the process after the deadline.
     this.abortTimer = setTimeout(() => {
       this.abortTimer = null;

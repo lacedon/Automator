@@ -6,6 +6,7 @@ import type {
   InitialReview,
   Interrupted,
   NeedsYouEvent,
+  PendingQuestion,
   Outcome,
   ProviderName,
   ResultStatus,
@@ -126,6 +127,21 @@ function chatMode(value: unknown): 'interactive' {
   return value;
 }
 
+export function toPendingQuestion(row: unknown): PendingQuestion | null {
+  const r = row as Row;
+  if (r.question_text === null || r.question_text === undefined) return null;
+  return {
+    text: r.question_text as string,
+    options: r.question_options_json === null ? null : (JSON.parse(r.question_options_json as string) as string[]),
+    source: r.question_source as 'automator' | 'native',
+    requestId: r.question_request_id as string,
+    runId: r.question_run_id as number | null,
+    askedAt: r.question_asked_at as number,
+    expiresAt: r.question_expires_at as number,
+    expiredAt: r.question_expired_at as number | null,
+  };
+}
+
 export function toChatSession(row: unknown): ChatSession {
   const r = row as Row;
   return {
@@ -143,5 +159,7 @@ export function toChatSession(row: unknown): ChatSession {
     processState: r.process_state as ChatProcessState,
     pid: r.pid as number | null,
     copyPath: r.copy_path as string | null,
+    mcpNonce: r.mcp_nonce as string | null,
+    question: toPendingQuestion(r),
   };
 }

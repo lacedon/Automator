@@ -173,7 +173,8 @@
     "state_active": "Activa",
     "state_paused": "En pausa",
     "state_closed": "Cerrada",
-    "outcomeDone": "Respondió"
+    "outcomeDone": "Respondió",
+    "waiting": "Esperando tu respuesta"
   },
   "RunMeta": {
     "adhoc": "ad hoc:",
@@ -258,7 +259,15 @@
     "closeChatWorkUnknown": "Automator no pudo comprobar si la copia de trabajo de este chat tiene trabajo sin guardar (cambios sin confirmar o commits sin subir). Al cerrar se elimina la copia. ¿Cerrar de todos modos?",
     "workUncommitted": "cambios sin confirmar",
     "workUnpushed": "{count, plural, one {# commit sin subir} other {# commits sin subir}}",
-    "sessionState": "{state, select, live {Sesión en marcha} stopped {Sesión detenida; se reanuda con tu próximo mensaje} closing {Cerrando…} other {Chat cerrado}}"
+    "sessionState": "{state, select, live {Sesión en marcha} stopped {Sesión detenida; se reanuda con tu próximo mensaje} closing {Cerrando…} other {Chat cerrado}}",
+    "waitingForYou": "Esperando tu respuesta",
+    "questionWaiting": "El agente está esperando tu respuesta.",
+    "questionExpired": "El agente dejó de esperar esta respuesta. Tu respuesta inicia un nuevo turno.",
+    "questionOther": "Otra respuesta",
+    "questionAnswer": "Tu respuesta",
+    "questionSend": "Enviar respuesta",
+    "questionSent": "Respuesta enviada.",
+    "questionQueued": "Respuesta en cola como Ejecución #{id}."
   },
   "RunFiles": {
     "transcript": "Transcripción",

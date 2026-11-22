@@ -44,7 +44,7 @@ A Chat mode in which one long-lived provider process per Chat can ask the user q
 The stored record of an Interactive Chat: provider, model, Agent, provider session id and close state. The Runs of one Interactive Chat all refer to it.
 
 **Waiting for you**:
-A Chat-session state (planned) in which an Interactive Chat's turn is paused on a question to the user. Distinct from **Needs you**, which is an Automation state.
+The state of an Interactive Chat whose agent asked the user a question (the Automator `ask_user` tool or a provider's native question) and has not been answered yet. The turn waits for `runs.questionWaitMs`; after that the turn ends and the Chat keeps waiting, and the answer starts an `answer` turn. Distinct from **Needs you**, which is an Automation state.
 
 **Follow-up run**:
 An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same provider session.

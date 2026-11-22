@@ -127,9 +127,13 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     expect(events).toContainEqual({ type: 'session', providerSessionId: 'fake-session-1' });
     const inbound = s.received().filter((r) => r.type === 'in');
     expect(inbound[0]!.message.method).toBe('initialize');
-    // Native questions arrive in PR 4: elicitation must not be advertised yet.
+    // Elicitation is advertised only for providers whose native questions are mapped (nativeQuestions 'acp-elicitation').
     expect(inbound[0]!.message.params).toMatchObject({ protocolVersion: 1 });
-    expect(JSON.stringify(inbound[0]!.message.params)).not.toContain('elicitation');
+    if (provider === 'claude-code') {
+      expect(inbound[0]!.message.params).toMatchObject({ clientCapabilities: { elicitation: { form: {} } } });
+    } else {
+      expect(JSON.stringify(inbound[0]!.message.params)).not.toContain('elicitation');
+    }
     expect(inbound[1]!.message).toMatchObject({
       method: 'session/new',
       params: {
@@ -148,6 +152,20 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     } else {
       expect(config.filter((c) => (c as { configId: string }).configId === 'mode')).toEqual([]);
     }
+  });
+
+  test('session/load passes the Automator MCP server too', async () => {
+    const s = setup(provider, { sessionId: 'stored-1' });
+    const { handle } = s.start({
+      providerSessionId: 'stored-1',
+      mcpServer: { name: 'automator', command: 'node', args: ['mcp.mjs'], env: { A: 'b' } },
+    });
+    await handle.ready;
+    const load = s.received().find((r) => r.type === 'in' && r.message.method === 'session/load');
+    expect(load!.message.params).toMatchObject({
+      sessionId: 'stored-1',
+      mcpServers: [{ name: 'automator', command: 'node', args: ['mcp.mjs'], env: [{ name: 'A', value: 'b' }] }],
+    });
   });
 
   test('resume uses session/load with the stored id', async () => {
@@ -299,7 +317,8 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     expect(await b.handle.stop()).toMatchObject({ signal: 'SIGKILL' });
   });
 
-  test('native questions are declined until PR 4 and logged', async () => {
+  test('native questions are declined and logged for providers that do not advertise elicitation', async () => {
+    if (provider === 'claude-code') return;
     const s = setup(provider, { prompts: [{ elicitation: { message: 'Which color?' } }] });
     const { handle, events } = s.start();
     await handle.ready;
@@ -432,5 +451,146 @@ describe('acpCommand', () => {
       args: ['--acp', '--model', 'chosen', '--allow-all-tools', '--secret-env-vars', 'GITLAB_TOKEN'],
       preserveCopilotAuth: true,
     });
+  });
+});
+
+// The Claude adapter shape of the spike (items g and h): `elicitation/create` with a form whose question_0 is a oneOf.
+const colorForm = {
+  type: 'object',
+  properties: {
+    question_0: {
+      type: 'string',
+      title: 'Color',
+      oneOf: [
+        { const: 'Red', title: 'Red', description: 'The color red' },
+        { const: 'Blue', title: 'Blue', description: 'The color blue' },
+      ],
+    },
+    question_0_custom: { type: 'string', title: 'Other' },
+  },
+};
+
+describe('ACP driver native questions (claude-code)', () => {
+  const ask = async (script: Script = {}) => {
+    const s = setup('claude-code', {
+      prompts: [{ elicitation: { message: 'Which color?', requestedSchema: colorForm } }],
+      ...script,
+    });
+    const started = s.start();
+    await started.handle.ready;
+    await started.handle.send('ask');
+    const question = await until(() => started.events.find((e) => e.type === 'question'));
+    const answerOf = () =>
+      (
+        s.received().find((r) => r.type === ('elicitation-answer' as string)) as unknown as
+          { answer: unknown } | undefined
+      )?.answer;
+    return { ...s, ...started, question, answerOf };
+  };
+
+  test('elicitation requests become question events with the oneOf titles as options', async () => {
+    const q = await ask();
+    expect(q.question).toMatchObject({ type: 'question', text: 'Which color?', options: ['Red', 'Blue'] });
+    expect(turnEnd(q.events)).toBeUndefined(); // the turn waits for the user
+  });
+
+  test('a choice answer maps back to the option const', async () => {
+    const q = await ask();
+    const requestId = (q.question as Extract<SessionEvent, { type: 'question' }>).requestId;
+    q.handle.respond(requestId, { kind: 'answer', text: 'Blue' });
+    await until(() => turnEnd(q.events));
+    expect(q.answerOf()).toEqual({ action: 'accept', content: { question_0: 'Blue' } });
+  });
+
+  test('a choice answer matches the option title and const when they differ', async () => {
+    const form = structuredClone(colorForm);
+    form.properties.question_0.oneOf = [
+      { const: 'opt-red', title: 'Red', description: '' },
+      { const: 'opt-blue', title: 'Blue', description: '' },
+    ];
+    const q = await ask({ prompts: [{ elicitation: { message: 'Which color?', requestedSchema: form } }] });
+    q.handle.respond((q.question as Extract<SessionEvent, { type: 'question' }>).requestId, {
+      kind: 'answer',
+      text: 'Blue',
+    });
+    await until(() => turnEnd(q.events));
+    expect(q.answerOf()).toEqual({ action: 'accept', content: { question_0: 'opt-blue' } });
+  });
+
+  test('free text goes to question_0_custom', async () => {
+    const q = await ask();
+    q.handle.respond((q.question as Extract<SessionEvent, { type: 'question' }>).requestId, {
+      kind: 'answer',
+      text: 'Green please',
+    });
+    await until(() => turnEnd(q.events));
+    expect(q.answerOf()).toEqual({ action: 'accept', content: { question_0_custom: 'Green please' } });
+  });
+
+  test('a free-text question (no oneOf) is answered in question_0', async () => {
+    const q = await ask({
+      prompts: [
+        {
+          elicitation: {
+            message: 'Name?',
+            requestedSchema: { type: 'object', properties: { question_0: { type: 'string', title: 'Name' } } },
+          },
+        },
+      ],
+    });
+    expect(q.question).toMatchObject({ text: 'Name?', options: null });
+    q.handle.respond((q.question as Extract<SessionEvent, { type: 'question' }>).requestId, {
+      kind: 'answer',
+      text: 'Ada',
+    });
+    await until(() => turnEnd(q.events));
+    expect(q.answerOf()).toEqual({ action: 'accept', content: { question_0: 'Ada' } });
+  });
+
+  test('a timeout response sends the timeout text as the custom answer, and cancels when the form has no custom field', async () => {
+    const q = await ask();
+    q.handle.respond((q.question as Extract<SessionEvent, { type: 'question' }>).requestId, {
+      kind: 'timeout',
+      text: 'No answer yet. Stop and wait for the user',
+    });
+    await until(() => turnEnd(q.events));
+    expect(q.answerOf()).toEqual({
+      action: 'accept',
+      content: { question_0_custom: 'No answer yet. Stop and wait for the user' },
+    });
+
+    const bare = await ask({
+      prompts: [
+        {
+          elicitation: {
+            message: 'Name?',
+            requestedSchema: { type: 'object', properties: { question_0: { type: 'string' } } },
+          },
+        },
+      ],
+    });
+    bare.handle.respond((bare.question as Extract<SessionEvent, { type: 'question' }>).requestId, {
+      kind: 'timeout',
+      text: 'No answer yet. Stop and wait for the user',
+    });
+    await until(() => turnEnd(bare.events));
+    expect(bare.answerOf()).toEqual({ action: 'cancel' });
+  });
+
+  test('a cancel response declines', async () => {
+    const q = await ask();
+    q.handle.respond((q.question as Extract<SessionEvent, { type: 'question' }>).requestId, { kind: 'cancel' });
+    await until(() => turnEnd(q.events));
+    expect(q.answerOf()).toEqual({ action: 'cancel' });
+  });
+
+  test('cancelling the turn declines a pending question and the turn ends cancelled', async () => {
+    const q = await ask({
+      prompts: [{ elicitation: { message: 'Which color?', requestedSchema: colorForm }, waitForCancel: true }],
+    });
+    q.handle.cancelTurn();
+    await until(() => turnEnd(q.events));
+    expect(turnEnd(q.events)).toMatchObject({ stopReason: 'cancelled' });
+    expect(q.answerOf()).toEqual({ action: 'cancel' });
   });
 });

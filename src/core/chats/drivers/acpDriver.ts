@@ -5,6 +5,7 @@ import type { Config } from '../../config/schema';
 import type { ProviderName, RunError } from '../../domain/types';
 import { copilotAuthEnvNames } from '../../runs/childProcess';
 import type { ProviderExit } from '../../runs/providerLauncher';
+import { INTERACTIVE_CAPABILITIES } from '../capabilities';
 import { createJsonRpcPeer, JsonRpcError, JsonRpcTimeoutError } from './jsonRpc';
 import {
   asRunError,
@@ -14,6 +15,7 @@ import {
   type SessionDriver,
   type SessionEvent,
   type SessionHandle,
+  type QuestionAnswer,
   type SessionStartOptions,
   type ToolPolicy,
   type TurnStopReason,
@@ -59,6 +61,12 @@ export function acpCommand(
       return { bin: options.acpBin ?? options.bin, args: [] };
   }
 }
+
+type PendingElicitation = {
+  choices: { value: string; label: string }[];
+  hasCustom: boolean;
+  resolve(result: unknown): void;
+};
 
 const STOP_REASONS: Record<string, TurnStopReason> = {
   end_turn: 'end_turn',
@@ -123,6 +131,10 @@ class AcpSession implements SessionHandle {
   private fatal: RunError | null = null;
   private readonly toolTitles = new Map<string, string>();
   private readonly requestTimeoutMs: number;
+  // Native questions (elicitation/create) are mapped only for providers whose capabilities say so.
+  private readonly elicitation: boolean;
+  private readonly questions = new Map<string, PendingElicitation>();
+  private nextQuestion = 1;
 
   constructor(
     private readonly provider: AcpProvider,
@@ -133,6 +145,7 @@ class AcpSession implements SessionHandle {
   ) {
     const input = new PassThrough();
     this.requestTimeoutMs = timings.requestTimeoutMs ?? HANDSHAKE_REQUEST_TIMEOUT_MS;
+    this.elicitation = INTERACTIVE_CAPABILITIES[provider].nativeQuestions === 'acp-elicitation';
     this.proc = spawnSessionProcess({
       bin: command.bin,
       args: command.args,
@@ -164,9 +177,10 @@ class AcpSession implements SessionHandle {
   private install(): void {
     this.peer.onNotification('session/update', (params) => this.onUpdate(params));
     this.peer.onRequest('session/request_permission', (params) => this.onPermission(params));
-    // Native questions arrive in PR 4. Until then every elicitation is declined and logged.
+    // A provider that does not advertise elicitation gets every question declined and logged.
     for (const method of ['elicitation/create', 'session/elicitation']) {
       this.peer.onRequest(method, (params) => {
+        if (this.elicitation && method === 'elicitation/create') return this.onElicitation(params);
         const message = isRecord(params) ? str(params.message) : undefined;
         this.proc.log(`declined native question (${method}): ${message ?? ''}`);
         return { action: 'cancel' };
@@ -193,8 +207,7 @@ class AcpSession implements SessionHandle {
     try {
       const init = await this.call<Rec>('initialize', {
         protocolVersion: 1,
-        // Elicitation is not advertised until PR 4 handles questions.
-        clientCapabilities: {},
+        clientCapabilities: this.elicitation ? { elicitation: { form: {} } } : {},
         clientInfo: { name: 'automator', version: '1' },
       });
       const mcpServers = this.options.mcpServer
@@ -385,17 +398,67 @@ class AcpSession implements SessionHandle {
     this.turnFinished = true;
     this.promptInFlight = false;
     this.toolTitles.clear();
+    this.cancelQuestions();
     this.proc.emit({ type: 'turn-end', ...end });
   }
 
-  respond(): void {
-    // Native questions are declined inside the driver until PR 4.
+  // The form of the spike (Claude item h): question_0 is a string, with `oneOf` {const, title} for choices, and
+  // question_0_custom takes free text. Only the first question is mapped; the request stays open until respond().
+  private onElicitation(params: unknown): Promise<unknown> {
+    const request = isRecord(params) ? params : {};
+    const schema = isRecord(request.requestedSchema) ? request.requestedSchema : {};
+    const properties = isRecord(schema.properties) ? schema.properties : {};
+    const field = isRecord(properties.question_0) ? properties.question_0 : {};
+    const choices = (Array.isArray(field.oneOf) ? field.oneOf : []).filter(isRecord).flatMap((choice) => {
+      const value = str(choice.const);
+      return value === undefined ? [] : [{ value, label: str(choice.title) ?? value }];
+    });
+    const text = str(request.message) ?? str(field.title) ?? '';
+    const requestId = `elicitation-${this.nextQuestion++}`;
+    return new Promise((resolve) => {
+      this.questions.set(requestId, {
+        choices,
+        hasCustom: isRecord(properties.question_0_custom),
+        resolve,
+      });
+      this.proc.emit({
+        type: 'question',
+        requestId,
+        text,
+        options: choices.length > 0 ? choices.map((choice) => choice.label) : null,
+      });
+    });
+  }
+
+  respond(requestId: string, answer: QuestionAnswer): void {
+    const pending = this.questions.get(requestId);
+    if (pending === undefined) return;
+    this.questions.delete(requestId);
+    if (answer.kind === 'cancel') return pending.resolve({ action: 'cancel' });
+    const choice = pending.choices.find(
+      (candidate) => candidate.label === answer.text || candidate.value === answer.text,
+    );
+    if (answer.kind === 'answer' && choice !== undefined) {
+      return pending.resolve({ action: 'accept', content: { question_0: choice.value } });
+    }
+    // Free text, and the timeout reply (verified in the PR 4 spike: the model then stops and ends its turn).
+    if (pending.hasCustom) return pending.resolve({ action: 'accept', content: { question_0_custom: answer.text } });
+    if (answer.kind === 'answer' && pending.choices.length === 0) {
+      return pending.resolve({ action: 'accept', content: { question_0: answer.text } });
+    }
+    pending.resolve({ action: 'cancel' });
+  }
+
+  private cancelQuestions(): void {
+    for (const pending of this.questions.values()) pending.resolve({ action: 'cancel' });
+    this.questions.clear();
   }
 
   cancelTurn(): void {
     if (this.sessionId === null || !this.promptInFlight) return;
     this.cancelRequested = true;
     this.peer.notify('session/cancel', { sessionId: this.sessionId });
+    this.cancelQuestions();
   }
 
   stop(): Promise<ProviderExit> {

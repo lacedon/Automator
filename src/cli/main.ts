@@ -6,6 +6,8 @@ import {
   formatDuration,
   intervalFor,
   parseDuration,
+  runChatMcpServer,
+  runChatTool,
   type AppError,
   type Core,
   type Run,
@@ -16,6 +18,9 @@ export interface CliIo {
   out(s: string): void;
   err(s: string): void;
   confirm(prompt: string): Promise<boolean>;
+  // The hidden `mcp` and `chat-tool` subcommands speak on stdio (stdout is the protocol channel there).
+  stdin?: NodeJS.ReadableStream;
+  stdout?: NodeJS.WritableStream;
 }
 
 const USAGE_ERROR = 2;
@@ -265,6 +270,52 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
       });
       if (!r.ok) return fail(r.error, { watchId: id });
       queued(r.value);
+    });
+
+  // Launched by the provider of an Interactive Chat, never by a person: `mcp` is the stdio MCP server handed to ACP
+  // providers, `chat-tool` is called by the bundled pi extension.
+  const chatProcess = (name: string) =>
+    program
+      .command(name, { hidden: true })
+      .requiredOption('--chat-session <id>', 'Chat session ID', idArg)
+      .requiredOption('--nonce <hex>', 'session nonce')
+      .option('--config <path>', 'config file (default: AUTOMATOR_CONFIG or ./automator.config.json)');
+  const configPath = (opts: { config?: string }) =>
+    path.resolve(opts.config ?? process.env.AUTOMATOR_CONFIG ?? 'automator.config.json');
+  chatProcess('mcp').action(async (opts: { chatSession: number; nonce: string; config?: string }) => {
+    await runChatMcpServer({
+      configPath: configPath(opts),
+      sessionId: opts.chatSession,
+      nonce: opts.nonce,
+      input: io.stdin ?? process.stdin,
+      output: io.stdout ?? process.stdout,
+    });
+  });
+  chatProcess('chat-tool')
+    .argument('<name>', 'tool name')
+    .action(async (name: string, opts: { chatSession: number; nonce: string; config?: string }) => {
+      let args: unknown;
+      try {
+        const chunks: Buffer[] = [];
+        for await (const chunk of io.stdin ?? process.stdin) chunks.push(Buffer.from(chunk as Buffer | string));
+        const text = Buffer.concat(chunks).toString('utf8').trim();
+        args = text === '' ? {} : JSON.parse(text);
+      } catch (e) {
+        io.err(`Invalid tool input: ${(e as Error).message}`);
+        code = DOMAIN_ERROR;
+        return;
+      }
+      io.out(
+        JSON.stringify(
+          await runChatTool({
+            configPath: configPath(opts),
+            sessionId: opts.chatSession,
+            nonce: opts.nonce,
+            name,
+            args,
+          }),
+        ),
+      );
     });
 
   try {

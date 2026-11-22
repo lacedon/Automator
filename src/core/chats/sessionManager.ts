@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -7,11 +7,16 @@ import type { Database } from '../db/open';
 import { toChatSession } from '../db/rows';
 import type { ChatProcessState, ChatSession, Clock, Run, RunError } from '../domain/types';
 import { CHAT_COPYING_PREFIX as COPYING_PREFIX, type DataDir } from '../files/dataDir';
+import type { QueueService } from '../queue/queueService';
 import type { RepositoryService } from '../repositories/repositoryService';
 import { createLiveTranscript, reportLiveFailure, type LiveTranscript } from '../runs/liveTranscript';
 import type { ProviderExit, RunningProcess } from '../runs/providerLauncher';
+import { INTERACTIVE_CAPABILITIES } from './capabilities';
+import { QUESTION_TIMEOUT_REPLY } from './chatTools';
+import { clearQuestion, expireQuestionsOfRun, openQuestion, settleQuestion } from './questions';
 import {
   asRunError,
+  type McpServerSpec,
   type SessionDrivers,
   type SessionEvent,
   type SessionHandle,
@@ -25,10 +30,16 @@ export interface ChatSessionManagerDeps {
   drivers: SessionDrivers;
   configFor: ConfigFor;
   repositories: RepositoryService;
+  // Starts the `answer` turn for an in-turn answer that was not picked up before its turn ended.
+  queue: QueueService;
   // How long a provider process may take to become ready (initialize + session/new|load) before it is killed.
   handshakeTimeoutMs?: number;
   // How long a failed close waits before it is retried.
   closeRetryMs?: number;
+  // How the Automator tools are launched for a provider: `process.execPath bin/automator.mjs mcp|chat-tool`. Without
+  // it no tools are passed (unit tests, or a process that has no CLI entry).
+  // A function, so nothing is resolved in the dashboard process, which never starts a provider.
+  mcp?: () => { command: string; scriptPath: string; configPath: string };
 }
 
 export const SESSION_HANDSHAKE_TIMEOUT_MS = 60_000;
@@ -61,6 +72,9 @@ type Live = {
   stopping: Promise<ProviderExit> | null;
   exited: boolean;
   unpromptedLogged: boolean;
+  // The native question (driver request id) the current turn is waiting on; the Automator ask_user is polled by its
+  // own process and never appears here.
+  nativeQuestion: string | null;
   unsubscribe: () => void;
 };
 
@@ -150,6 +164,7 @@ export class ChatSessionManager {
   // Idle timeout, eviction and close requests. Cheap enough to run on every worker iteration.
   tick(): void {
     const now = this.deps.clock.now();
+    for (const live of this.live.values()) this.settleNativeQuestion(live, now);
     for (const live of this.live.values()) {
       if (live.exited || live.stopping !== null || live.turn !== null || this.starting.has(live.id)) continue;
       const idleMs = this.deps.configFor(live.repository).runs.interactiveIdleMinutes * 60_000;
@@ -292,6 +307,7 @@ export class ChatSessionManager {
         logPath: this.deps.dataDir.chatSessionLogPath(row.id),
         sessionDir: this.deps.dataDir.chatPiSessionsDir(),
         ...(row.providerSessionId === null ? {} : { providerSessionId: row.providerSessionId }),
+        ...this.automatorTools(row),
       });
     } catch (e) {
       this.setProcess(row.id, 'stopped', null);
@@ -306,6 +322,7 @@ export class ChatSessionManager {
       stopping: null,
       exited: false,
       unpromptedLogged: false,
+      nativeQuestion: null,
       unsubscribe: () => {},
     };
     live.unsubscribe = handle.onEvent((event) => this.onEvent(live, event));
@@ -343,6 +360,66 @@ export class ChatSessionManager {
     }
     this.setProcess(row.id, 'idle', handle.pid);
     return { live };
+  }
+
+  // The nonce is generated on the first start and kept, so a resumed provider session keeps a working tool server.
+  private automatorTools(row: ChatSession): { mcpServer: McpServerSpec } | Record<string, never> {
+    const mcp = this.deps.mcp?.();
+    if (mcp === undefined || INTERACTIVE_CAPABILITIES[row.provider].automatorTools === 'none') return {};
+    let nonce = this.row(row.id)?.mcpNonce ?? row.mcpNonce;
+    if (nonce === null) {
+      nonce = randomBytes(16).toString('hex');
+      this.deps.db
+        .prepare('UPDATE chat_sessions SET mcp_nonce = ? WHERE id = ? AND mcp_nonce IS NULL')
+        .run(nonce, row.id);
+      nonce = this.row(row.id)?.mcpNonce ?? nonce;
+    }
+    return {
+      mcpServer: {
+        name: 'automator',
+        command: mcp.command,
+        args: [mcp.scriptPath, 'mcp', '--chat-session', String(row.id), '--nonce', nonce, '--config', mcp.configPath],
+        env: {},
+      },
+    };
+  }
+
+  // A native question: the driver emits it, the dashboard answers through the database, and the next tick resolves it
+  // (answer in time, or the timeout reply once questionWaitMs has passed).
+  private openNativeQuestion(live: Live, event: Extract<SessionEvent, { type: 'question' }>): void {
+    const turn = live.turn;
+    const repository = this.row(live.id)?.repository ?? live.repository;
+    const opened =
+      turn === null
+        ? null
+        : openQuestion(this.deps.db, {
+            sessionId: live.id,
+            runId: turn.runId,
+            text: event.text,
+            options: event.options,
+            source: 'native',
+            requestId: event.requestId,
+            now: this.deps.clock.now(),
+            waitMs: this.deps.configFor(repository).runs.questionWaitMs,
+          });
+    if (opened === null || !opened.ok) {
+      this.log(live.id, `question declined: ${event.text}`);
+      live.handle.respond(event.requestId, { kind: 'cancel' });
+      return;
+    }
+    live.nativeQuestion = event.requestId;
+  }
+
+  private settleNativeQuestion(live: Live, now: number): void {
+    const requestId = live.nativeQuestion;
+    if (requestId === null || live.exited) return;
+    const settled = settleQuestion(this.deps.db, live.id, requestId, now);
+    if (settled.kind === 'pending') return;
+    live.nativeQuestion = null;
+    if (settled.kind === 'answered') live.handle.respond(requestId, { kind: 'answer', text: settled.text });
+    else if (settled.kind === 'expired')
+      live.handle.respond(requestId, { kind: 'timeout', text: QUESTION_TIMEOUT_REPLY });
+    else live.handle.respond(requestId, { kind: 'cancel' }); // gone: the question was cleared (closed Chat or answered elsewhere)
   }
 
   private storeProviderSession(id: number, providerSessionId: string): void {
@@ -439,8 +516,7 @@ export class ChatSessionManager {
         this.log(live.id, `permission ${event.decision}: ${event.tool}`);
         return;
       case 'question':
-        // Native questions are mapped in PR 4; the drivers decline them before this point.
-        this.log(live.id, `question ignored: ${event.text}`);
+        this.openNativeQuestion(live, event);
         return;
       case 'error':
         this.log(live.id, `error: ${event.error.code}: ${event.error.message}`);
@@ -481,6 +557,9 @@ export class ChatSessionManager {
     const turn = live.turn;
     if (turn === null) return;
     live.turn = null;
+    live.nativeQuestion = null;
+    // Nobody waits on a question of a turn that ended; it stays pending and the next answer starts an `answer` turn.
+    expireQuestionsOfRun(this.deps.db, this.deps.queue, turn.runId, this.deps.clock.now());
     live.lastUsedAt = this.deps.clock.now();
     if (!live.exited) this.setProcess(live.id, 'idle');
     turn.settle(exit);
@@ -548,6 +627,7 @@ export class ChatSessionManager {
       await live.stopping?.catch(() => {});
     }
     this.deps.dataDir.removeChatWorkspace(id);
+    clearQuestion(this.deps.db, id);
     this.deps.db
       .prepare(
         `UPDATE chat_sessions SET closed_at = ?, process_state = 'stopped', pid = NULL, copy_path = NULL WHERE id = ?`,

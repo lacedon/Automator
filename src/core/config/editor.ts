@@ -7,6 +7,7 @@ import { migrateLegacyConfig } from './migrate';
 import {
   createConfigSchema,
   DEFAULT_INTERACTIVE_IDLE_MINUTES,
+  DEFAULT_QUESTION_WAIT_MS,
   DEFAULT_MAX_INTERACTIVE_SESSIONS,
   type ConfigInput,
 } from './schema';
@@ -31,6 +32,7 @@ const runFields = [
   'maxConcurrent',
   'maxInteractiveSessions',
   'interactiveIdleMinutes',
+  'questionWaitMs',
 ] as const;
 const providerFields = ['bin', 'acpBin', 'defaultModel', 'models'] as const;
 const providers = ['copilot', 'claude-code', 'codex', 'opencode', 'pi'] as const;
@@ -70,6 +72,7 @@ function projectConfig(
   const runs = isRecord(raw.runs) ? pick(raw.runs, runFields) : {};
   runs.maxInteractiveSessions ??= DEFAULT_MAX_INTERACTIVE_SESSIONS;
   runs.interactiveIdleMinutes ??= DEFAULT_INTERACTIVE_IDLE_MINUTES;
+  runs.questionWaitMs ??= DEFAULT_QUESTION_WAIT_MS;
   result.runs = runs;
   if (isRecord(raw.cleanup)) result.cleanup = pick(raw.cleanup, cleanupFields);
   if (isRecord(raw.teams)) result.teams = pick(raw.teams, teamsFields);

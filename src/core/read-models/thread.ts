@@ -1,5 +1,14 @@
 import { toChatSession, toRun } from '../db/rows';
-import type { ChatMode, Interrupted, Outcome, Run, RunError, RunStatus, Trigger } from '../domain/types';
+import type {
+  ChatMode,
+  Interrupted,
+  PendingQuestion,
+  Outcome,
+  Run,
+  RunError,
+  RunStatus,
+  Trigger,
+} from '../domain/types';
 import type { ReadDeps } from './deps';
 import { readTranscriptExcerpt, type TranscriptExcerpt } from './transcriptExcerpt';
 
@@ -20,14 +29,21 @@ export type ThreadRun = {
 };
 
 // live: a provider process is up; stopped: it will resume on the next message; closing/closed: no more messages.
-export type ChatState = 'live' | 'stopped' | 'closing' | 'closed';
+export type ThreadChatState = 'live' | 'stopped' | 'closing' | 'closed';
 
 export type ThreadView = {
   runs: ThreadRun[];
   replyToRunId: number | null;
   replyBlockedReason: string | null;
   branchedFromRunId: number | null;
-  chat: { mode: ChatMode; sessionId: number | null; state: ChatState | null; canClose: boolean };
+  chat: {
+    mode: ChatMode;
+    sessionId: number | null;
+    state: ThreadChatState | null;
+    canClose: boolean;
+    // Waiting for you: the agent asked something and the Chat waits for the answer.
+    question: PendingQuestion | null;
+  };
 };
 
 function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
@@ -51,11 +67,13 @@ function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
 
 // The Chat's mode is fixed at creation; every Run of an Interactive Chat shares the session of its root.
 function chatOf(deps: ReadDeps, run: Run, tip: Run): ThreadView['chat'] {
-  if (run.chatSessionId === null) return { mode: 'follow-up', sessionId: null, state: null, canClose: false };
+  if (run.chatSessionId === null)
+    return { mode: 'follow-up', sessionId: null, state: null, canClose: false, question: null };
   const row = deps.db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(run.chatSessionId);
-  if (row === undefined) return { mode: 'interactive', sessionId: run.chatSessionId, state: 'closed', canClose: false };
+  if (row === undefined)
+    return { mode: 'interactive', sessionId: run.chatSessionId, state: 'closed', canClose: false, question: null };
   const session = toChatSession(row);
-  const state: ChatState =
+  const state: ThreadChatState =
     session.closedAt !== null
       ? 'closed'
       : session.closeRequestedAt !== null
@@ -68,6 +86,7 @@ function chatOf(deps: ReadDeps, run: Run, tip: Run): ThreadView['chat'] {
     sessionId: run.chatSessionId,
     state,
     canClose: (state === 'live' || state === 'stopped') && tip.status === 'finished',
+    question: state === 'closed' || state === 'closing' ? null : session.question,
   };
 }
 
@@ -85,6 +104,7 @@ function replyBlock(deps: ReadDeps, tip: Run, chat: ThreadView['chat']): string 
   if (chat.state === 'closed') return 'This chat is closed';
   if (chat.state === 'closing') return 'This chat is closing';
   if (tip.status !== 'finished') return `Waiting for Run #${tip.id} to finish`;
+  if (chat.question !== null) return 'Waiting for your answer';
   // An Interactive Chat's provider session belongs to the Chat; only Follow-up needs one on the Run.
   if (chat.mode === 'follow-up' && tip.sessionId === null) return 'No Copilot session to continue';
   const repository = deps.repositories.get(tip.repository);

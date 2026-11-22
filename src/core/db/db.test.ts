@@ -129,7 +129,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(28);
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -184,9 +184,62 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(28);
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
     expect(db.prepare('SELECT chat_session_id FROM runs WHERE id = ?').get(runId)).toEqual({ chat_session_id: null });
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBeNull();
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  test('migration 29 adds question columns', () => {
+    const db = new BetterSqlite3(':memory:');
+    db.pragma('foreign_keys = ON');
+    db.exec('BEGIN');
+    for (const m of [...migrations].filter((m) => m.version < 29).sort((a, b) => a.version - b.version)) db.exec(m.sql);
+    db.pragma('user_version = 28');
+    db.exec('COMMIT');
+    cleanups.push(() => db.close());
+    const session = Number(
+      db
+        .prepare(
+          `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+           VALUES ('interactive', 'pages', 'pi', 'm', ?, ?)`,
+        )
+        .run(T, T).lastInsertRowid,
+    );
+
+    migrate(db);
+
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
+    const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session) as Record<string, unknown>;
+    for (const column of [
+      'mcp_nonce',
+      'question_text',
+      'question_options_json',
+      'question_source',
+      'question_request_id',
+      'question_run_id',
+      'question_asked_at',
+      'question_expires_at',
+      'question_expired_at',
+      'question_answer',
+    ]) {
+      expect(row).toHaveProperty(column, null);
+    }
+    expect(() => db.prepare("UPDATE chat_sessions SET question_source = 'bogus' WHERE id = ?").run(session)).toThrow();
+    db.prepare(
+      `UPDATE chat_sessions SET question_text = 'Q?', question_options_json = '["a","b"]', question_source = 'native',
+         question_request_id = 'r', question_asked_at = 1, question_expires_at = 2 WHERE id = ?`,
+    ).run(session);
+    expect(toChatSession(db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session)).question).toEqual({
+      text: 'Q?',
+      options: ['a', 'b'],
+      source: 'native',
+      requestId: 'r',
+      runId: null,
+      askedAt: 1,
+      expiresAt: 2,
+      expiredAt: null,
+    });
     expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 
@@ -220,7 +273,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(28);
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
     expect(db.prepare('SELECT id, owner_user_id, chat_session_id, parent_run_id FROM runs ORDER BY id').all()).toEqual(
       before,
     );
@@ -315,6 +368,8 @@ describe('db', () => {
       processState: 'stopped',
       pid: null,
       copyPath: null,
+      mcpNonce: null,
+      question: null,
     });
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBe(id);
     expect(
@@ -330,10 +385,10 @@ describe('db', () => {
 
   test('migrate is idempotent and sets user_version 23', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(28);
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(28);
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -460,7 +515,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(28);
+    expect(db.pragma('user_version', { simple: true })).toBe(29);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

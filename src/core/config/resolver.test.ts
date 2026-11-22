@@ -67,6 +67,19 @@ describe('ConfigResolver', () => {
     }
   });
 
+  test('questionWaitMs is Project-overridable as a duration and validated', () => {
+    const { config, configs, web, apps } = setup();
+    expect(configs.setValues(web, { 'runs/questionWaitMs': '2m' })).toMatchObject({ ok: true });
+    expect(configs.forProject(web).runs.questionWaitMs).toBe(120_000);
+    expect(configs.forProject(apps).runs.questionWaitMs).toBe(config.runs.questionWaitMs);
+    for (const value of ['soon', '0s']) {
+      expect(configs.setValues(web, { 'runs/questionWaitMs': value })).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_INPUT', field: 'runs/questionWaitMs' },
+      });
+    }
+  });
+
   test('without overrides the effective config equals the global one', () => {
     const { config, configs } = setup();
     expect(configs.forRepository('pages')).toEqual(config);

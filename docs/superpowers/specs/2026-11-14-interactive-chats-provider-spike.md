@@ -221,3 +221,32 @@ A provider whose resume, streaming or turn completion is not VERIFIED stays `int
 | `copilot`     | `false`     | `acp`    | `false` | `none`         | `none`            | `false`      | `Interactive mode is not available for Copilot yet: its ACP session resume is not verified`  |
 | `codex`       | `false`     | `acp`    | `false` | `none`         | `none`            | `false`      | `Interactive mode is not available for Codex yet: its ACP session resume is not verified`    |
 | `opencode`    | `false`     | `acp`    | `false` | `none`         | `none`            | `false`      | `Interactive mode is not available for OpenCode yet: its ACP session resume is not verified` |
+
+## PR 4 follow-up
+
+Run on 2026-11-22 against the same versions as above (`claude` 2.1.330 with `@agentclientprotocol/claude-agent-acp` 0.109.1, `pi` 1.6.0), in a scratch git repo and a scratch Data Dir under `/tmp/pr4`. Models: `claude-haiku-4-5-20251001` (Claude) and `anthropic/claude-haiku-4-5` (pi), minimal prompts, `PI_*` variables stripped. The question tables were seeded by hand (a `chat_sessions` row with `mcp_nonce`, and one `running` Run).
+
+The earlier spike already verified that both providers hold a 660 s tool call, so no new long-wait run was made. Neither check below needs the 10-minute wait to be shortened, and no provider is dropped.
+
+### (a) The real `automator mcp` server from the Claude adapter: VERIFIED
+
+- Launch: `mcpServers: [{name: "automator", command: process.execPath, args: [<repo>/bin/automator.mjs, "mcp", "--chat-session", "1", "--nonce", "deadbeef", "--config", <config.json>], env: []}]` in `session/new`.
+- The adapter listed the server and the model reached the tool the same way as in the earlier spike (`ToolSearch`, then `automator: ask_user`). The permission mode was `bypassPermissions`, so no permission request was sent.
+- `ask_user` with `{question: "Which color?", options: ["Red", "Blue"]}` wrote the question row (`question_text`, `question_options_json`). When `question_answer` was set to `Blue` (what the dashboard's `answerQuestion` stores), the tool returned `Blue` and the model replied `ANSWER=Blue`. `stopReason: end_turn`, 5.7 s for the whole prompt, so starting the MCP process through `bin/automator.mjs` (tsx and the core import) is fast enough for the adapter's MCP startup.
+
+### (b) The bundled pi extension and `automator chat-tool`: VERIFIED
+
+- `pi --mode rpc --no-extensions -e src/core/chats/pi/automatorExtension.mjs` loaded the plain JavaScript extension. It registers the tools named in the `AUTOMATOR_CHAT_TOOL` environment variable (a JSON spec passed by the driver) and runs each by spawning `node bin/automator.mjs chat-tool <name> --chat-session … --nonce … --config …`, with the arguments on stdin and a JSON tool result on stdout.
+- `ask_user` round-tripped: `tool_execution_start ask_user`, the question appeared in the database, the answer `Blue` made `tool_execution_end` return `{"content":[{"type":"text","text":"Blue"}]}`, and the model replied `ANSWER=Blue` (5.2 s).
+- Abort: sending `{"type":"abort"}` while the question was pending made the extension kill its `chat-tool` child; the `abort` response arrived 5 ms later, `agent_settled {aborted: true}` followed, and no `chat-tool` process was left. This confirms the extension honours its `AbortSignal`.
+
+### (c) Timeout response for a native Claude question (`elicitation/create`): decision
+
+Each candidate was run 3 times, once with a prompt that told the model to stop when the tool gave no answer, and once with a neutral prompt ("ask me which color I prefer using AskUserQuestion, then write my answer into color.txt"). Every run ended with `stopReason: end_turn`, no second `AskUserQuestion`, and no `color.txt`, so both stop the model reliably (12/12 each way).
+
+| Response                                                                                        | Tool result in the transcript | What the model told the user (neutral prompt, 3 runs)                                                                                                                               |
+| ----------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{action: "cancel"}`                                                                            | `failed` ("Tool use aborted") | "I'm unable to use the AskUserQuestion tool in this non-interactive session …" and an invitation to switch to an interactive session. Misleading: the user just did not answer yet. |
+| `{action: "accept", content: {question_0_custom: "No answer yet. Stop and wait for the user"}}` | `completed`                   | "I've asked you to choose between Red and Blue. Please select your preference and I'll write it to color.txt." Consistent with a Chat that is Waiting for you.                      |
+
+**Decision:** the timeout response is `accept` with `QUESTION_TIMEOUT_REPLY` in `question_0_custom`. The driver falls back to `{action: "cancel"}` only when the form has no `question_0_custom` property (and for the explicit `cancel` answer kind). The answer to a choice maps to `question_0` (the option's `const`), and free text maps to `question_0_custom`.

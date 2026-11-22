@@ -362,6 +362,25 @@ export function overrideFields(base: Config): OverrideField[] {
       },
     },
     {
+      id: 'runs/questionWaitMs',
+      group: 'Runs',
+      label: 'How long an Interactive Chat question waits for an answer',
+      kind: 'text',
+      hint: 'e.g. 90s, 10m',
+      read: (c) => formatDuration(c.runs.questionWaitMs),
+      apply(draft, value) {
+        let ms: number;
+        try {
+          ms = parseDuration(value);
+        } catch {
+          return `Invalid duration "${value}" (expected e.g. 90s, 10m)`;
+        }
+        if (ms <= 0) return 'Duration must be greater than zero';
+        draft.runs.questionWaitMs = ms;
+        return null;
+      },
+    },
+    {
       id: 'runs/denyTools',
       group: 'Runs',
       label: 'Denied tools',

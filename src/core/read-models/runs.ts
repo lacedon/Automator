@@ -1,6 +1,7 @@
 import { toRun } from '../db/rows';
 import type { Config } from '../config/schema';
 import type {
+  ChatState,
   Interrupted,
   ProjectScope,
   Outcome,
@@ -61,6 +62,8 @@ export type RunRow = {
   error: RunError | null;
   transcriptPath: string | null;
   resultPath: string | null;
+  // Only the Chats list fills this in: the state of the Interactive Chat the Run belongs to (null for Follow-up).
+  chatState: ChatState | null;
 };
 
 export type RunFilter = {
@@ -88,7 +91,12 @@ export function tookMs(run: Run): number | null {
   return run.endedAt - run.startedAt;
 }
 
-export function toRunRow(run: RunWithTitle, config: Config, repositories: RepositoryService): RunRow {
+export function toRunRow(
+  run: RunWithTitle,
+  config: Config,
+  repositories: RepositoryService,
+  chatState: ChatState | null = null,
+): RunRow {
   return {
     id: run.id,
     watchId: run.watchId,
@@ -111,6 +119,7 @@ export function toRunRow(run: RunWithTitle, config: Config, repositories: Reposi
     error: run.error,
     transcriptPath: run.transcriptPath,
     resultPath: run.resultPath,
+    chatState,
   };
 }
 
@@ -135,6 +144,23 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
       run.summary,
       run.error?.message,
     ].some((value) => value != null && String(value).toLowerCase().includes(query!));
+  const sessions = new Map(
+    (
+      db.prepare('SELECT id, closed_at, question_text FROM chat_sessions').all() as {
+        id: number;
+        closed_at: number | null;
+        question_text: string | null;
+      }[]
+    ).map((row) => [row.id, row]),
+  );
+  // Waiting for you comes first: the Chat needs an answer whether or not its turn is still running.
+  const chatStateOf = (tip: RunWithTitle, newest: RunWithTitle): ChatState | null => {
+    const session = tip.chatSessionId === null ? undefined : sessions.get(tip.chatSessionId);
+    if (session === undefined) return null;
+    if (session.closed_at !== null) return 'closed';
+    if (session.question_text !== null) return 'waiting';
+    return newest.status === 'finished' ? 'idle' : 'running';
+  };
   const rows: RunRow[] = [];
   for (const root of runs) {
     if (root.parentRunId !== null && byId.has(root.parentRunId)) continue;
@@ -154,7 +180,14 @@ export function runList(deps: ReadDeps, f: RunFilter): RunRow[] {
       (query && !chain.some(matches))
     )
       continue;
-    rows.push(toRunRow({ ...tip, adhocPrompt: root.adhocPrompt ?? tip.adhocPrompt }, config, deps.repositories));
+    rows.push(
+      toRunRow(
+        { ...tip, adhocPrompt: root.adhocPrompt ?? tip.adhocPrompt },
+        config,
+        deps.repositories,
+        chatStateOf(tip, chain[chain.length - 1]!),
+      ),
+    );
   }
   return rows.sort((a, b) => b.id - a.id).slice(0, f.limit);
 }

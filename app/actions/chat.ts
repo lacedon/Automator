@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { copyWork, type AppError, type CopyWork } from '@core/index';
+import { answerQuestion as deliverAnswer, copyWork, type AppError, type CopyWork } from '@core/index';
 import { getCore } from '../lib/core';
 import { requireWriteOnRun } from '../lib/guard';
 import { parseInput } from './parse';
@@ -77,4 +77,37 @@ export async function closeChat(runId: number, confirmed: boolean): Promise<Clos
   if (!result.ok) return result;
   revalidatePath('/', 'layout');
   return { ok: true };
+}
+
+export type AnswerFormState =
+  | { ok: true; value: { delivered: 'in-turn' } | { delivered: 'new-turn'; runId: number } }
+  | { ok: false; error: AppError; values: { answer?: string } }
+  | null;
+
+const answerSchema = z.object({
+  runId: z
+    .string()
+    .regex(/^[1-9]\d*$/, 'Run id must be a positive integer')
+    .transform(Number),
+  answer: z.string(),
+});
+
+// Any Run of the Chat identifies it. An answer in time reaches the waiting turn; a late one starts an `answer` turn.
+export async function answerQuestion(_prev: AnswerFormState, formData: FormData): Promise<AnswerFormState> {
+  const answer = formData.get('answer');
+  const values = typeof answer === 'string' ? { answer } : {};
+  const input = parseInput(answerSchema, { runId: formData.get('runId'), answer });
+  if (!input.ok) return { ...input, values };
+  const guard = await requireWriteOnRun(input.value.runId);
+  if (!guard.ok) return { ...guard, values };
+  const core = getCore();
+  const result = deliverAnswer(core.db, core.queue, {
+    runId: input.value.runId,
+    answer: input.value.answer,
+    now: core.deps.clock.now(),
+  });
+  if (!result.ok) return { ...result, values };
+  if (result.value.delivered === 'new-turn') core.access.setOwner('runs', result.value.runId, guard.userId);
+  revalidatePath('/', 'layout');
+  return { ok: true, value: result.value };
 }

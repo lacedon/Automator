@@ -925,6 +925,34 @@ textarea:focus {
   background: var(--surface);
 }
 
+.question-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.question-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.question-text {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.question-options {
+  flex-wrap: wrap;
+}
+
 .chat-window {
   display: flex;
   flex-direction: column;

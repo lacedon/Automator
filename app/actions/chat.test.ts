@@ -28,7 +28,7 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-const { sendRunMessage, branchRun, closeChat } = await import('./chat');
+const { sendRunMessage, branchRun, closeChat, answerQuestion } = await import('./chat');
 
 let core: Core;
 
@@ -233,4 +233,69 @@ test('closeChat rejects a Follow-up Chat and a running turn', async () => {
   const { run } = interactiveChat();
   core.db.prepare("UPDATE runs SET status = 'running' WHERE id = ?").run(run.id);
   expect(await closeChat(run.id, true)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
+});
+
+function waitingChat(opts: { runStatus?: 'running' | 'finished'; expired?: boolean } = {}) {
+  const session = core.chats.create({ repository: 'pages', provider: 'pi', model: 'm', agentId: null });
+  const run = finishedAdhoc();
+  core.db
+    .prepare('UPDATE runs SET chat_session_id = ?, status = ? WHERE id = ?')
+    .run(session.id, opts.runStatus ?? 'running', run.id);
+  core.db
+    .prepare(
+      `UPDATE chat_sessions SET question_text = 'Which color?', question_options_json = '["Red","Blue"]', question_source = 'automator',
+         question_request_id = 'q1', question_run_id = ?, question_asked_at = 1, question_expires_at = 2, question_expired_at = ? WHERE id = ?`,
+    )
+    .run(run.id, opts.expired === true ? 3 : null, session.id);
+  return { run, session };
+}
+
+const questionRow = (id: number) =>
+  core.db.prepare('SELECT question_text AS text, question_answer AS answer FROM chat_sessions WHERE id = ?').get(id);
+
+test('answerQuestion delivers an in-time answer to the waiting turn', async () => {
+  const { run, session } = waitingChat();
+
+  const result = await answerQuestion(null, form({ runId: String(run.id), answer: ' Blue ' }));
+
+  expect(result).toEqual({ ok: true, value: { delivered: 'in-turn' } });
+  expect(questionRow(session.id)).toEqual({ text: 'Which color?', answer: 'Blue' });
+  expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+});
+
+test('answerQuestion queues one answer turn owned by the user when the turn already ended', async () => {
+  const { run, session } = waitingChat({ runStatus: 'finished', expired: true });
+
+  const result = await answerQuestion(null, form({ runId: String(run.id), answer: 'Red' }));
+
+  expect(result).toEqual({ ok: true, value: { delivered: 'new-turn', runId: run.id + 1 } });
+  expect(core.access.ownerOf('runs', run.id + 1)).toBe(1);
+  expect(
+    core.db
+      .prepare('SELECT trigger, status, chat_session_id AS chat, parent_run_id AS parent FROM runs WHERE id = ?')
+      .get(run.id + 1),
+  ).toEqual({ trigger: 'answer', status: 'queued', chat: session.id, parent: run.id });
+  expect(questionRow(session.id)).toEqual({ text: null, answer: null });
+  expect(await answerQuestion(null, form({ runId: String(run.id), answer: 'Red' }))).toMatchObject({ ok: false });
+});
+
+test('answerQuestion needs write on the Run, validates input and echoes the answer on failure', async () => {
+  const { run, session } = waitingChat();
+  guardState.denyWrite = true;
+  expect(await answerQuestion(null, form({ runId: String(run.id), answer: 'Blue' }))).toMatchObject({
+    ok: false,
+    error: { code: 'FORBIDDEN' },
+  });
+  expect(questionRow(session.id)).toEqual({ text: 'Which color?', answer: null });
+  guardState.denyWrite = false;
+
+  expect(await answerQuestion(null, form({ runId: 'abc', answer: 'Blue' }))).toMatchObject({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'runId' },
+  });
+  expect(await answerQuestion(null, form({ runId: String(run.id), answer: '  ' }))).toEqual({
+    ok: false,
+    error: { code: 'INVALID_INPUT', field: 'answer', message: 'Answer is required' },
+    values: { answer: '  ' },
+  });
 });

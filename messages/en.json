@@ -173,7 +173,8 @@
     "state_active": "Active",
     "state_paused": "Paused",
     "state_closed": "Closed",
-    "outcomeDone": "Replied"
+    "outcomeDone": "Replied",
+    "waiting": "Waiting for you"
   },
   "RunMeta": {
     "adhoc": "ad-hoc:",
@@ -258,7 +259,15 @@
     "closeChatWorkUnknown": "Automator could not check this chat's working copy for unsaved work (uncommitted changes or unpushed commits). Closing deletes the copy. Close anyway?",
     "workUncommitted": "uncommitted changes",
     "workUnpushed": "{count, plural, one {# unpushed commit} other {# unpushed commits}}",
-    "sessionState": "{state, select, live {Session running} stopped {Session stopped; it resumes on your next message} closing {Closing…} other {Chat closed}}"
+    "sessionState": "{state, select, live {Session running} stopped {Session stopped; it resumes on your next message} closing {Closing…} other {Chat closed}}",
+    "waitingForYou": "Waiting for you",
+    "questionWaiting": "The agent is waiting for your answer.",
+    "questionExpired": "The agent stopped waiting for this answer. Your answer starts a new turn.",
+    "questionOther": "Other answer",
+    "questionAnswer": "Your answer",
+    "questionSend": "Send answer",
+    "questionSent": "Answer sent.",
+    "questionQueued": "Answer queued as Run #{id}."
   },
   "RunFiles": {
     "transcript": "Transcript",

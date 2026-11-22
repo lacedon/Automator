@@ -894,6 +894,38 @@ describe('Chat modes', () => {
     });
   });
 
+  test('enqueueAdhoc defaults to the adhoc trigger and queues answer turns on request', () => {
+    const { queue } = setup();
+    expect(queue.enqueueAdhoc({ repository: 'pages', prompt: 'a', model: 'm' })).toMatchObject({
+      trigger: 'adhoc',
+      priority: 0,
+      reason: 'ad-hoc',
+    });
+    expect(queue.enqueueAdhoc({ repository: 'pages', prompt: 'b', model: 'm', trigger: 'answer' })).toMatchObject({
+      trigger: 'answer',
+      priority: 0,
+      reason: 'answer',
+      adhocPrompt: 'b',
+    });
+  });
+
+  test('a reply is rejected while a question is waiting for an answer', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    db.prepare(
+      `UPDATE chat_sessions SET question_text = 'Which?', question_source = 'native', question_request_id = 'r',
+         question_asked_at = 1, question_expires_at = 2, question_expired_at = 3`,
+    ).run();
+    expect(queue.requestFollowUp(first.value.run.id, 'more')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'message', message: 'Answer the waiting question first' },
+    });
+    db.prepare('UPDATE chat_sessions SET question_text = NULL').run();
+    expect(queue.requestFollowUp(first.value.run.id, 'more').ok).toBe(true);
+  });
+
   test('a closed or close-requested Chat rejects replies', async () => {
     const { db, queue } = setup({ interactiveSupport: supported });
     const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });

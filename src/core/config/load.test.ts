@@ -146,6 +146,7 @@ describe('loadConfig', () => {
     const config = loadConfig({ path: file, env: {} });
     expect(config.runs.maxInteractiveSessions).toBe(3);
     expect(config.runs.interactiveIdleMinutes).toBe(30);
+    expect(config.runs.questionWaitMs).toBe(600_000);
     expect(config.providers['claude-code'].acpBin).toBe('claude-agent-acp');
     expect(config.providers.codex.acpBin).toBe('codex-acp');
     expect(config.providers.copilot).not.toHaveProperty('acpBin');
@@ -153,7 +154,7 @@ describe('loadConfig', () => {
   });
 
   test('interactive Run settings are validated', () => {
-    for (const runs of [{ maxInteractiveSessions: 0 }, { interactiveIdleMinutes: 1.5 }]) {
+    for (const runs of [{ maxInteractiveSessions: 0 }, { interactiveIdleMinutes: 1.5 }, { questionWaitMs: 0 }]) {
       const { file } = writeConfig({ repositories: {}, gitlab: {}, runs });
       expect(() => loadConfig({ path: file, env: {} })).toThrow(/runs\./);
     }

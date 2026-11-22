@@ -181,6 +181,49 @@ describe('recoverInterruptedRuns: Interactive Chats', () => {
     });
   });
 
+  test('recovery turns an unpicked in-turn answer into one answer turn and expires unanswered questions', async () => {
+    const s = setup();
+    const sessionId = chat(s.db);
+    const runId = insertRunning(s.db, null, s.clock.now());
+    s.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(sessionId, runId);
+    const ask = s.db.prepare(
+      `UPDATE chat_sessions SET question_text = 'Which?', question_options_json = '["A","B"]', question_source = 'automator',
+         question_request_id = 'q', question_run_id = ?, question_asked_at = ?, question_expires_at = ?, question_answer = ? WHERE id = ?`,
+    );
+    ask.run(runId, s.clock.now(), s.clock.now() + 600_000, 'unpicked', sessionId);
+    const other = chat(s.db);
+    const finished = insertRunning(s.db, null, s.clock.now());
+    s.db.prepare("UPDATE runs SET status = 'finished', chat_session_id = ? WHERE id = ?").run(other, finished);
+    s.db
+      .prepare(
+        `UPDATE chat_sessions SET question_text = 'Later?', question_source = 'native', question_request_id = 'n', question_run_id = ?,
+           question_asked_at = ?, question_expires_at = ?, question_expired_at = ? WHERE id = ?`,
+      )
+      .run(finished, 1, 2, 3, other);
+
+    await recoverInterruptedRuns(s.deps);
+
+    // The in-turn answer nobody picked up became exactly one answer turn on the Chat tip.
+    expect(
+      s.db
+        .prepare('SELECT question_text, question_expired_at, question_answer FROM chat_sessions WHERE id = ?')
+        .get(sessionId),
+    ).toEqual({ question_text: null, question_expired_at: null, question_answer: null });
+    expect(
+      s.db.prepare("SELECT trigger, adhoc_prompt, parent_run_id FROM runs WHERE trigger = 'answer'").all(),
+    ).toEqual([
+      {
+        trigger: 'answer',
+        adhoc_prompt: 'Answer to your earlier question "Which?":\n\nunpicked',
+        parent_run_id: runId,
+      },
+    ]);
+    // An already expired question keeps its original expiry time.
+    expect(s.db.prepare('SELECT question_expired_at FROM chat_sessions WHERE id = ?').get(other)).toEqual({
+      question_expired_at: 3,
+    });
+  });
+
   test('an idle session process left behind is killed and marked stopped', async () => {
     const s = setup();
     const child = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });

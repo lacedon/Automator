@@ -10,6 +10,7 @@ vi.mock('../actions/chat', () => ({
   sendRunMessage: async () => null,
   branchRun: async () => null,
   closeChat: async () => ({ ok: true }),
+  answerQuestion: async () => null,
 }));
 vi.mock('../actions/runs', () => ({ closeRun: async () => ({ ok: true }) }));
 
@@ -28,7 +29,7 @@ function render(
   outcome: 'needs-you' | 'acted' | 'done',
   closedAt: number | null,
   branchedFromRunId: number | null = null,
-  chat: ThreadView['chat'] = { mode: 'follow-up', sessionId: null, state: null, canClose: false },
+  chat: ThreadView['chat'] = { mode: 'follow-up', sessionId: null, state: null, canClose: false, question: null },
 ) {
   const thread: ThreadView = {
     runs: [
@@ -90,6 +91,7 @@ const interactive = (state: 'live' | 'stopped' | 'closing' | 'closed', canClose:
   sessionId: 3,
   state,
   canClose,
+  question: null,
 });
 
 test('interactive chats show the session state and a Close chat button while closable', () => {
@@ -109,4 +111,55 @@ test('Follow-up chats show no session state or Close chat for a done Run', () =>
   const markup = render('acted', null);
   expect(markup).not.toContain('Session running');
   expect(markup).not.toContain('Close chat');
+});
+
+const question = (overrides: Partial<NonNullable<ThreadView['chat']['question']>> = {}) => ({
+  text: 'Which <b>color</b>?',
+  options: ['Red', 'Blue'] as string[] | null,
+  source: 'automator' as const,
+  requestId: 'q1',
+  runId: 1,
+  askedAt: 1,
+  expiresAt: 2,
+  expiredAt: null as number | null,
+  ...overrides,
+});
+
+const waiting = (q: ReturnType<typeof question>): ThreadView['chat'] => ({
+  ...interactive('live', false),
+  question: q,
+});
+
+test('a pending question replaces the composer with choice buttons and an Other answer input', () => {
+  const markup = render('done', null, null, waiting(question()));
+  expect(markup).toContain('Waiting for you');
+  // Plain text node: the markup in the question is escaped, never rendered.
+  expect(markup).toContain('Which &lt;b&gt;color&lt;/b&gt;?');
+  expect(markup).not.toContain('<b>color</b>');
+  expect(markup).toContain('>Red</button>');
+  expect(markup).toContain('>Blue</button>');
+  expect(markup).toContain('Other answer');
+  expect(markup).toContain('Send answer');
+  expect(markup).not.toContain('id="chat-message"');
+});
+
+test('a free-text question shows a text field and no choice buttons', () => {
+  const markup = render('done', null, null, waiting(question({ options: null })));
+  expect(markup).toContain('Waiting for you');
+  expect(markup).toContain('Your answer');
+  expect(markup).not.toContain('Other answer');
+  expect(markup).not.toContain('>Red</button>');
+  expect(markup).toContain('Send answer');
+});
+
+test('an expired question says the answer starts a new turn', () => {
+  const markup = render('done', null, null, waiting(question({ expiredAt: 5 })));
+  expect(markup).toContain('stopped waiting');
+  expect(render('done', null, null, waiting(question()))).toContain('is waiting for your answer');
+});
+
+test('without a question the composer is not replaced', () => {
+  const thread = render('done', null, null, interactive('live', false));
+  expect(thread).not.toContain('Waiting for you');
+  expect(thread).not.toContain('Send answer');
 });

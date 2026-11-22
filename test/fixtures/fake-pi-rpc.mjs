@@ -144,6 +144,8 @@ function handle(command) {
   if (command.type === 'abort') {
     aborted = true;
     if (script.ignoreAbort) return undefined;
+    // An aborted tool stops waiting for its dialog (the real extension honours its AbortSignal).
+    for (const wake of uiPending.values()) wake();
     abortWake?.();
     return respond();
   }

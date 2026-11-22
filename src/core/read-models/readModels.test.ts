@@ -553,13 +553,96 @@ describe('read models', () => {
       const [a, b, c, d] = [run(live), run(stopped), run(closing), run(closed)];
 
       const chatOf = async (id: number) => (await read.runDetail(id))!.thread!.chat;
-      expect(await chatOf(plain)).toEqual({ mode: 'follow-up', sessionId: null, state: null, canClose: false });
-      expect(await chatOf(a)).toEqual({ mode: 'interactive', sessionId: live, state: 'live', canClose: true });
-      expect(await chatOf(b)).toEqual({ mode: 'interactive', sessionId: stopped, state: 'stopped', canClose: true });
-      expect(await chatOf(c)).toEqual({ mode: 'interactive', sessionId: closing, state: 'closing', canClose: false });
-      expect(await chatOf(d)).toEqual({ mode: 'interactive', sessionId: closed, state: 'closed', canClose: false });
+      expect(await chatOf(plain)).toEqual({
+        mode: 'follow-up',
+        sessionId: null,
+        state: null,
+        canClose: false,
+        question: null,
+      });
+      expect(await chatOf(a)).toEqual({
+        mode: 'interactive',
+        sessionId: live,
+        state: 'live',
+        canClose: true,
+        question: null,
+      });
+      expect(await chatOf(b)).toEqual({
+        mode: 'interactive',
+        sessionId: stopped,
+        state: 'stopped',
+        canClose: true,
+        question: null,
+      });
+      expect(await chatOf(c)).toEqual({
+        mode: 'interactive',
+        sessionId: closing,
+        state: 'closing',
+        canClose: false,
+        question: null,
+      });
+      expect(await chatOf(d)).toEqual({
+        mode: 'interactive',
+        sessionId: closed,
+        state: 'closed',
+        canClose: false,
+        question: null,
+      });
       expect((await read.runDetail(plain))!.thread!.replyBlockedReason).toBeNull();
       expect((await read.runDetail(a))!.thread).toMatchObject({ replyToRunId: a, replyBlockedReason: null });
+    });
+
+    const question = (extra: Record<string, unknown> = {}) => ({
+      question_text: 'Which color?',
+      question_options_json: '["Red","Blue"]',
+      question_source: 'automator',
+      question_request_id: 'q1',
+      question_asked_at: 10,
+      question_expires_at: 610,
+      ...extra,
+    });
+
+    test('thread view exposes the pending question and waiting state', async () => {
+      const { db, read } = setup();
+      const chat = interactiveChat(db, { process_state: 'idle', ...question({ question_expired_at: 700 }) });
+      const tip = insertRun(db, { ...adhoc, chat_session_id: chat, status: 'finished' });
+      db.prepare('UPDATE chat_sessions SET question_run_id = ? WHERE id = ?').run(tip, chat);
+
+      const thread = (await read.runDetail(tip))!.thread!;
+      expect(thread.chat.question).toEqual({
+        text: 'Which color?',
+        options: ['Red', 'Blue'],
+        source: 'automator',
+        requestId: 'q1',
+        runId: tip,
+        askedAt: 10,
+        expiresAt: 610,
+        expiredAt: 700,
+      });
+      // The question card replaces the composer, and Waiting for you does not stop Close chat.
+      expect(thread.replyToRunId).toBeNull();
+      expect(thread.replyBlockedReason).toBe('Waiting for your answer');
+      expect(thread.chat.canClose).toBe(true);
+    });
+
+    test('runs list and left-menu rows report Waiting for you', () => {
+      const { db, read } = setup();
+      const waiting = interactiveChat(db, { process_state: 'idle', ...question() });
+      const idle = interactiveChat(db, { process_state: 'idle' });
+      const busy = interactiveChat(db, { process_state: 'busy' });
+      const closed = interactiveChat(db, { closed_at: 4 });
+      const a = insertRun(db, { ...adhoc, chat_session_id: waiting, status: 'running' });
+      const b = insertRun(db, { ...adhoc, chat_session_id: idle, status: 'finished', outcome: 'done' });
+      const c = insertRun(db, { ...adhoc, chat_session_id: busy, status: 'running' });
+      const d = insertRun(db, { ...adhoc, chat_session_id: closed, status: 'finished', outcome: 'done' });
+      const plain = insertRun(db, { ...adhoc, session_id: 's', status: 'finished' });
+
+      const states = new Map(read.runList({}).map((row) => [row.id, row.chatState]));
+      expect(states.get(a)).toBe('waiting'); // even while the turn is still running
+      expect(states.get(b)).toBe('idle');
+      expect(states.get(c)).toBe('running');
+      expect(states.get(d)).toBe('closed');
+      expect(states.get(plain)).toBeNull();
     });
 
     test('reply is blocked with a reason while a turn runs or after close', async () => {

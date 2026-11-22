@@ -225,20 +225,112 @@ describe('pi RPC driver', () => {
     expect(s.argv()).not.toContain('--session-id');
   });
 
-  test('extension UI noise is ignored and dialogs are declined until PR 4', async () => {
-    const s = setup({
-      noise: true,
-      prompts: [{ text: 'done', ui: { method: 'select', title: 'Pick one', options: ['red', 'blue'] } }],
+  test('the Automator extension is loaded with --no-extensions and the chat tool spec', async () => {
+    const s = setup();
+    const { handle } = s.start({
+      mcpServer: {
+        name: 'automator',
+        command: '/usr/bin/node',
+        args: ['/app/bin/automator.mjs', 'mcp', '--chat-session', '7', '--nonce', 'ab12', '--config', '/c.json'],
+        env: { SOME: 'value' },
+      },
     });
-    const { handle, events } = s.start();
     await handle.ready;
-    await handle.send('ask');
-    await until(() => turnEnd(events));
 
-    const response = s.received().find((r) => r.type === 'ui-response')!.response;
-    expect(response).toEqual({ type: 'extension_ui_response', id: 'ui-1', cancelled: true });
-    expect(events.some((e) => e.type === 'question')).toBe(false);
-    expect(fs.readFileSync(s.logPath, 'utf8')).toContain('declined extension dialog (select)');
+    const argv = s.argv();
+    expect(argv).toContain('--no-extensions');
+    const extension = argv[argv.indexOf('-e') + 1]!;
+    expect(extension).toMatch(/automatorExtension\.mjs$/);
+    expect(path.isAbsolute(extension)).toBe(true);
+    expect(fs.existsSync(extension)).toBe(true);
+    // pi must not see the user's own extensions: -e comes after --no-extensions.
+    expect(argv.indexOf('--no-extensions')).toBeLessThan(argv.indexOf('-e'));
+    const env = s.received().find((r) => r.type === 'start')!.env!;
+    const spec = JSON.parse(env.AUTOMATOR_CHAT_TOOL!);
+    expect(spec).toMatchObject({
+      command: '/usr/bin/node',
+      args: ['/app/bin/automator.mjs', 'mcp', '--chat-session', '7', '--nonce', 'ab12', '--config', '/c.json'],
+      env: { SOME: 'value' },
+      tools: [{ name: 'ask_user', inputSchema: { required: ['question'] } }],
+    });
+  });
+
+  test('without an Automator tool spec no chat tools are advertised', async () => {
+    const s = setup();
+    const { handle } = s.start();
+    await handle.ready;
+    expect(s.received().find((r) => r.type === 'start')!.env!.AUTOMATOR_CHAT_TOOL).toBeUndefined();
+  });
+
+  const ask = async (ui: Record<string, unknown>) => {
+    const s = setup({ noise: true, prompts: [{ text: 'done', ui }] });
+    const started = s.start();
+    await started.handle.ready;
+    await started.handle.send('ask');
+    const question = (await until(() => started.events.find((e) => e.type === 'question'))) as Extract<
+      SessionEvent,
+      { type: 'question' }
+    >;
+    const response = () => s.received().find((r) => r.type === 'ui-response')?.response;
+    return { ...s, ...started, question, response };
+  };
+
+  test('extension UI noise is ignored and a select dialog becomes a question event', async () => {
+    const q = await ask({ method: 'select', title: 'Pick one', options: ['red', 'blue'] });
+    expect(q.question).toEqual({ type: 'question', requestId: 'ui-1', text: 'Pick one', options: ['red', 'blue'] });
+    expect(q.events.filter((e) => e.type === 'question')).toHaveLength(1); // notify/setStatus are fire-and-forget
+    expect(q.response()).toBeUndefined();
+    expect(turnEnd(q.events)).toBeUndefined();
+  });
+
+  test('confirm becomes a Yes/No question, input and editor become free-text questions', async () => {
+    const confirm = await ask({ method: 'confirm', title: 'Delete?', message: 'This removes the file' });
+    expect(confirm.question).toMatchObject({ text: 'Delete?\nThis removes the file', options: ['Yes', 'No'] });
+    const input = await ask({ method: 'input', title: 'Name?', placeholder: 'x' });
+    expect(input.question).toMatchObject({ text: 'Name?', options: null });
+    const editor = await ask({ method: 'editor', title: 'Edit text', prefill: 'abc' });
+    expect(editor.question).toMatchObject({ text: 'Edit text', options: null });
+  });
+
+  test('respond sends extension_ui_response with value, confirmed or cancelled', async () => {
+    const select = await ask({ method: 'select', title: 'Pick one', options: ['red', 'blue'] });
+    select.handle.respond('ui-1', { kind: 'answer', text: 'blue' });
+    await until(() => turnEnd(select.events));
+    expect(select.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', value: 'blue' });
+
+    const yes = await ask({ method: 'confirm', title: 'Delete?' });
+    yes.handle.respond('ui-1', { kind: 'answer', text: 'Yes' });
+    await until(() => turnEnd(yes.events));
+    expect(yes.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', confirmed: true });
+
+    const no = await ask({ method: 'confirm', title: 'Delete?' });
+    no.handle.respond('ui-1', { kind: 'answer', text: 'No' });
+    await until(() => turnEnd(no.events));
+    expect(no.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', confirmed: false });
+
+    const input = await ask({ method: 'input', title: 'Name?' });
+    input.handle.respond('ui-1', { kind: 'answer', text: 'Ada' });
+    await until(() => turnEnd(input.events));
+    expect(input.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', value: 'Ada' });
+  });
+
+  test('a timeout or cancel response cancels the dialog', async () => {
+    const timeout = await ask({ method: 'select', title: 'Pick one', options: ['red', 'blue'] });
+    timeout.handle.respond('ui-1', { kind: 'timeout', text: 'No answer yet. Stop and wait for the user' });
+    await until(() => turnEnd(timeout.events));
+    expect(timeout.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', cancelled: true });
+
+    const cancel = await ask({ method: 'input', title: 'Name?' });
+    cancel.handle.respond('ui-1', { kind: 'cancel' });
+    await until(() => turnEnd(cancel.events));
+    expect(cancel.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', cancelled: true });
+  });
+
+  test('aborting the turn cancels a pending dialog', async () => {
+    const q = await ask({ method: 'select', title: 'Pick one', options: ['red', 'blue'] });
+    q.handle.cancelTurn();
+    await until(() => turnEnd(q.events));
+    expect(q.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', cancelled: true });
   });
 
   test('a get_state that is never answered fails the start and stops the process', async () => {

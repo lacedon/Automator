@@ -132,7 +132,10 @@ export function createJsonRpcPeer(
           write({
             jsonrpc: '2.0',
             id,
-            error: { code: -32603, message: error instanceof Error ? error.message : String(error) },
+            error: {
+              code: error instanceof JsonRpcError ? error.code : -32603,
+              message: error instanceof Error ? error.message : String(error),
+            },
           });
         }
       })();
