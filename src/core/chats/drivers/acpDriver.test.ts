@@ -18,6 +18,11 @@ afterEach(async () => {
 });
 
 type Script = Record<string, unknown>;
+type Received = {
+  type: string;
+  message: { method?: string; params?: Record<string, unknown>; id?: number };
+  answer?: unknown; // the client's reply to an elicitation (type 'elicitation-answer')
+};
 
 function setup(
   provider: AcpProvider,
@@ -65,10 +70,7 @@ function setup(
     handle.onEvent((event) => events.push(event));
     return { handle, events };
   };
-  const received = (): {
-    type: string;
-    message: { method?: string; params?: Record<string, unknown>; id?: number };
-  }[] =>
+  const received = (): Received[] =>
     fs.existsSync(record)
       ? fs
           .readFileSync(record, 'utf8')
@@ -325,10 +327,8 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     await handle.send('ask');
     await until(() => turnEnd(events));
 
-    const answer = s.received().find((r) => r.type === ('elicitation-answer' as string)) as unknown as {
-      answer: unknown;
-    };
-    expect(answer.answer).toEqual({ action: 'cancel' });
+    const answer = s.received().find((r) => r.type === 'elicitation-answer');
+    expect(answer?.answer).toEqual({ action: 'cancel' });
     expect(events.some((e) => e.type === 'question')).toBe(false);
     expect(fs.readFileSync(s.logPath, 'utf8')).toContain('declined native question');
   });
@@ -480,11 +480,7 @@ describe('ACP driver native questions (claude-code)', () => {
     await started.handle.ready;
     await started.handle.send('ask');
     const question = await until(() => started.events.find((e) => e.type === 'question'));
-    const answerOf = () =>
-      (
-        s.received().find((r) => r.type === ('elicitation-answer' as string)) as unknown as
-          { answer: unknown } | undefined
-      )?.answer;
+    const answerOf = () => s.received().find((r) => r.type === 'elicitation-answer')?.answer;
     return { ...s, ...started, question, answerOf };
   };
 

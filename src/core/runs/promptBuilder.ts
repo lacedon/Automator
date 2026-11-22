@@ -1,4 +1,4 @@
-import { QUESTION_TIMEOUT_REPLY } from '../chats/chatTools';
+import { QUESTION_TIMEOUT_REPLY } from '../chats/chatToolDefs';
 import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
 import { tryParseUrl } from '../domain/targets';

@@ -1,5 +1,5 @@
 import { createJsonRpcPeer, JsonRpcError } from './drivers/jsonRpc';
-import type { ToolResult } from './chatTools';
+import type { ToolResult } from './chatToolDefs';
 
 // Minimal MCP server over stdio (newline-delimited JSON-RPC 2.0), written by hand: initialize, tools/list, tools/call
 // and notifications/progress. It shares its framing with the ACP client.
@@ -18,6 +18,8 @@ export function serveMcp(
   output: NodeJS.WritableStream,
   tools: McpTool[],
 ): { closed: Promise<void> } {
+  // A client that is gone makes writes fail with EPIPE; that must not crash the process with an unhandled error.
+  output.on('error', () => {});
   const peer = createJsonRpcPeer(input, output);
   const aborted = new AbortController();
   void peer.closed.then(() => aborted.abort());
@@ -32,7 +34,13 @@ export function serveMcp(
   });
   peer.onRequest('ping', () => ({}));
   peer.onRequest('tools/list', () => ({ tools: tools.map((tool) => tool.definition) }));
-  peer.onRequest('tools/call', async (params) => {
+  // A call the client cancelled (notifications/cancelled) stops its tool; it must not keep polling or consume an answer.
+  const calls = new Map<number | string, AbortController>();
+  peer.onNotification('notifications/cancelled', (params) => {
+    const requestId = isRecord(params) ? params.requestId : undefined;
+    if (typeof requestId === 'string' || typeof requestId === 'number') calls.get(requestId)?.abort();
+  });
+  peer.onRequest('tools/call', async (params, { id }) => {
     const call = isRecord(params) ? params : {};
     const tool = tools.find((candidate) => candidate.definition.name === call.name);
     if (tool === undefined) throw new JsonRpcError(-32602, `Unknown tool: ${String(call.name)}`);
@@ -40,6 +48,8 @@ export function serveMcp(
     const token =
       typeof meta.progressToken === 'string' || typeof meta.progressToken === 'number' ? meta.progressToken : null;
     let progress = 0;
+    const cancelled = new AbortController();
+    calls.set(id, cancelled);
     try {
       return await tool.call(
         call.arguments ?? {},
@@ -48,13 +58,15 @@ export function serveMcp(
           progress += 1;
           peer.notify('notifications/progress', { progressToken: token, progress, message });
         },
-        aborted.signal,
+        AbortSignal.any([aborted.signal, cancelled.signal]),
       );
     } catch (error) {
       return {
         content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
         isError: true,
       } satisfies ToolResult;
+    } finally {
+      calls.delete(id);
     }
   });
   return { closed: peer.closed };

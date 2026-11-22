@@ -21,7 +21,7 @@ import {
   type SessionStartOptions,
   type ToolPolicy,
 } from './drivers/sessionDriver';
-import { QUESTION_TIMEOUT_REPLY } from './chatTools';
+import { QUESTION_TIMEOUT_REPLY } from './chatToolDefs';
 import { answerQuestion } from './questions';
 import { QueueService } from '../queue/queueService';
 import { ChatSessionManager } from './sessionManager';

@@ -60,7 +60,7 @@ export { ChatSessionService } from './chats/chatSessionService';
 export { ChatSessionManager } from './chats/sessionManager';
 export { runChatMcpServer, runChatTool } from './chats/chatToolEntry';
 export { answerQuestion } from './chats/questions';
-export { QUESTION_TIMEOUT_REPLY } from './chats/chatTools';
+export { QUESTION_TIMEOUT_REPLY } from './chats/chatToolDefs';
 export { copyWork, type CopyWork } from './chats/copyStatus';
 export type { SessionDrivers } from './chats/drivers/sessionDriver';
 export { CleanupService } from './cleanup/cleanupService';

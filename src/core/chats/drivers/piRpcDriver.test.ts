@@ -308,6 +308,14 @@ describe('pi RPC driver', () => {
     await until(() => turnEnd(no.events));
     expect(no.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', confirmed: false });
 
+    // Free text is not an option of a confirm: it cancels instead of being guessed at.
+    for (const text of ['ok', 'yes please', 'y']) {
+      const other = await ask({ method: 'confirm', title: 'Delete?' });
+      other.handle.respond('ui-1', { kind: 'answer', text });
+      await until(() => turnEnd(other.events));
+      expect(other.response()).toEqual({ type: 'extension_ui_response', id: 'ui-1', cancelled: true });
+    }
+
     const input = await ask({ method: 'input', title: 'Name?' });
     input.handle.respond('ui-1', { kind: 'answer', text: 'Ada' });
     await until(() => turnEnd(input.events));

@@ -568,6 +568,25 @@ describe('runCli', () => {
       expect(JSON.parse(out[0]!)).toEqual({ content: [{ type: 'text', text: 'forty-two' }] });
     });
 
+    test('chat-tool exits when its parent closes stdin after sending the input line', async () => {
+      const core = setup();
+      const { configFile, session } = chatSetup(core);
+      const stdin = new PassThrough();
+      const out: string[] = [];
+      const done = runCli(
+        ['chat-tool', 'ask_user', '--chat-session', String(session.id), '--nonce', 'ab12', '--config', configFile],
+        { out: (s) => out.push(s), err: () => {}, confirm: async () => false, stdin },
+        core,
+      );
+      stdin.write(`${JSON.stringify({ question: 'Still there?' })}\n`);
+      await waitFor(() => core.chats.get(session.id)?.question !== null);
+      stdin.end(); // the parent died
+      expect(await done).toBe(0);
+      expect(JSON.parse(out[0]!)).toMatchObject({ isError: true });
+      // It did not consume an answer given afterwards.
+      expect(core.chats.get(session.id)?.question).not.toBeNull();
+    });
+
     test('chat-tool rejects an unknown tool and malformed input', async () => {
       const core = setup();
       const { configFile, session } = chatSetup(core);

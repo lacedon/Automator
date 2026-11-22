@@ -4,7 +4,8 @@ import { testConfig } from '../../../test/helpers/config';
 import { tempDb } from '../../../test/helpers/db';
 import { toChatSession } from '../db/rows';
 import { ChatSessionService } from './chatSessionService';
-import { ASK_USER_TOOL, QUESTION_TIMEOUT_REPLY, askUser, type ChatToolContext } from './chatTools';
+import { ASK_USER_TOOL, QUESTION_TIMEOUT_REPLY } from './chatToolDefs';
+import { askUser, type ChatToolContext } from './chatTools';
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -135,6 +136,37 @@ describe('ask_user', () => {
     await until(() => s.row().question !== null);
     controller.abort();
     expect((await pending).isError).toBe(true);
+  });
+
+  test('polling while pending takes no write transaction', async () => {
+    const s = setup();
+    let transactions = 0;
+    const original = s.db.transaction.bind(s.db);
+    s.db.transaction = ((fn: never) => {
+      transactions += 1;
+      return original(fn);
+    }) as typeof s.db.transaction;
+    const pending = askUser(s.ctx, { question: 'q' });
+    await until(() => s.row().question !== null);
+    const afterOpen = transactions;
+    await sleep(40); // many polls at pollMs 2
+    expect(transactions).toBe(afterOpen);
+    s.db.prepare('UPDATE chat_sessions SET question_answer = ? WHERE id = ?').run('Blue', s.session.id);
+    expect(await pending).toEqual({ content: [{ type: 'text', text: 'Blue' }] });
+    expect(transactions).toBe(afterOpen + 1); // exactly the settle
+  });
+
+  test('a cancelled call stops polling and cannot consume a later answer', async () => {
+    const s = setup();
+    const controller = new AbortController();
+    const pending = askUser({ ...s.ctx, signal: controller.signal }, { question: 'q' });
+    await until(() => s.row().question !== null);
+    controller.abort();
+    expect((await pending).isError).toBe(true);
+    s.db.prepare('UPDATE chat_sessions SET question_answer = ? WHERE id = ?').run('late', s.session.id);
+    await sleep(20);
+    expect(s.row().question).not.toBeNull(); // still there for the next turn
+    expect(s.db.prepare('SELECT question_answer AS a FROM chat_sessions').get()).toEqual({ a: 'late' });
   });
 
   test('reports progress while waiting', async () => {

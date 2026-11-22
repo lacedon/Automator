@@ -143,6 +143,17 @@ test('a pending question replaces the composer with choice buttons and an Other 
   expect(markup).not.toContain('id="chat-message"');
 });
 
+test('the question card is labelled by the question text and its field by its own label, with generated ids', () => {
+  const markup = render('done', null, null, waiting(question()));
+  const labelledBy = /aria-labelledby="([^"]+)"/.exec(markup)?.[1];
+  expect(labelledBy).toBeDefined();
+  expect(markup).toMatch(new RegExp(`<p id="${labelledBy!.replace(/:/g, ':')}"[^>]*>Which`));
+  const htmlFor = /<label for="([^"]+)"/.exec(markup)?.[1];
+  expect(markup).toContain(`id="${htmlFor}"`);
+  expect(htmlFor).not.toBe('question-answer');
+  expect(markup).toContain('tabindex="-1"');
+});
+
 test('a free-text question shows a text field and no choice buttons', () => {
   const markup = render('done', null, null, waiting(question({ options: null })));
   expect(markup).toContain('Waiting for you');

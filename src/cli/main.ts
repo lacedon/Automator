@@ -27,6 +27,27 @@ const USAGE_ERROR = 2;
 const DOMAIN_ERROR = 1;
 const WATCH_STATES: WatchState[] = ['active', 'paused', 'needs_you', 'closed'];
 
+// Resolves with the first line of `stream` (or everything up to EOF). `onClosedAfterLine` runs if the stream ends after
+// a full line was read.
+function readFirstLine(stream: NodeJS.ReadableStream, onClosedAfterLine: () => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let gotLine = false;
+    stream.on('data', (chunk: Buffer | string) => {
+      if (gotLine) return;
+      buffer += chunk.toString();
+      const newline = buffer.indexOf('\n');
+      if (newline !== -1) {
+        gotLine = true;
+        resolve(buffer.slice(0, newline));
+      }
+    });
+    stream.on('end', () => (gotLine ? onClosedAfterLine() : resolve(buffer)));
+    stream.on('close', () => gotLine && onClosedAfterLine());
+    stream.on('error', (error) => (gotLine ? onClosedAfterLine() : reject(error)));
+  });
+}
+
 function durationArg(value: string): number {
   try {
     return parseDuration(value);
@@ -294,12 +315,17 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
   chatProcess('chat-tool')
     .argument('<name>', 'tool name')
     .action(async (name: string, opts: { chatSession: number; nonce: string; config?: string }) => {
+      // The first line of stdin is the JSON input. A caller that keeps stdin open after the newline (the pi extension)
+      // is the tool's parent: when that stdin closes the parent is gone, so the call is aborted and the process exits
+      // instead of polling for up to questionWaitMs. A caller that sends the input without a newline and closes
+      // (one-shot use) is not treated as gone.
+      // A write after the parent is gone fails with EPIPE; that must not surface as an unhandled stream error.
+      (io.stdout ?? process.stdout).on('error', () => {});
+      const controller = new AbortController();
       let args: unknown;
       try {
-        const chunks: Buffer[] = [];
-        for await (const chunk of io.stdin ?? process.stdin) chunks.push(Buffer.from(chunk as Buffer | string));
-        const text = Buffer.concat(chunks).toString('utf8').trim();
-        args = text === '' ? {} : JSON.parse(text);
+        const input = await readFirstLine(io.stdin ?? process.stdin, () => controller.abort());
+        args = input.trim() === '' ? {} : JSON.parse(input);
       } catch (e) {
         io.err(`Invalid tool input: ${(e as Error).message}`);
         code = DOMAIN_ERROR;
@@ -313,6 +339,7 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
             nonce: opts.nonce,
             name,
             args,
+            signal: controller.signal,
           }),
         ),
       );

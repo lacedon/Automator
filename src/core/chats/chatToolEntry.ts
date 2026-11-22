@@ -3,7 +3,8 @@ import { ConfigResolver } from '../config/resolver';
 import { openDb } from '../db/open';
 import { systemClock } from '../domain/types';
 import { DataDir } from '../files/dataDir';
-import { CHAT_TOOLS, type ChatToolContext, type ToolResult } from './chatTools';
+import type { ToolResult } from './chatToolDefs';
+import { CHAT_TOOLS, type ChatToolContext } from './chatTools';
 import { serveMcp } from './mcpServer';
 
 // Entry points for the processes the agent's provider launches: `automator mcp` (ACP providers) and
@@ -31,6 +32,7 @@ function open(options: ChatToolProcessOptions): { ctx: ChatToolContext; close():
 export async function runChatMcpServer(
   options: ChatToolProcessOptions & { input: NodeJS.ReadableStream; output: NodeJS.WritableStream },
 ): Promise<void> {
+  options.output.on('error', () => {}); // EPIPE once the provider is gone
   const { ctx, close } = open(options);
   try {
     const server = serveMcp(

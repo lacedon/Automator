@@ -25,7 +25,21 @@ export type OpenQuestionInput = {
   waitMs: number;
 };
 
-export function openQuestion(db: Database, input: OpenQuestionInput): Result<PendingQuestion> {
+// The limits of the ask_user schema, enforced for native questions too: unbounded provider text must not be stored,
+// shown whole, or embedded in the next prompt.
+export const MAX_QUESTION_CHARS = 2000;
+export const MAX_OPTION_CHARS = 200;
+export const MAX_OPTIONS = 10;
+
+export function openQuestion(db: Database, rawInput: OpenQuestionInput): Result<PendingQuestion> {
+  const input = {
+    ...rawInput,
+    text: rawInput.text.slice(0, MAX_QUESTION_CHARS),
+    options:
+      rawInput.options === null
+        ? null
+        : rawInput.options.slice(0, MAX_OPTIONS).map((option) => option.slice(0, MAX_OPTION_CHARS)),
+  };
   return db
     .transaction((): Result<PendingQuestion> => {
       const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(input.sessionId);
@@ -75,6 +89,19 @@ export function openQuestion(db: Database, input: OpenQuestionInput): Result<Pen
 
 export type SettleResult =
   { kind: 'answered'; text: string } | { kind: 'expired' } | { kind: 'pending' } | { kind: 'gone' };
+
+// Read-only (no write lock): true when settleQuestion has something to do, that is when the question was answered,
+// is due to expire, is already expired, or is gone. A waiter polls this and only then takes the IMMEDIATE transaction.
+export function needsSettling(db: Database, sessionId: number, requestId: string, now: number): boolean {
+  const row = db
+    .prepare(
+      'SELECT question_request_id AS id, question_answer AS answer, question_expired_at AS expiredAt, question_expires_at AS expiresAt FROM chat_sessions WHERE id = ?',
+    )
+    .get(sessionId) as
+    { id: string | null; answer: string | null; expiredAt: number | null; expiresAt: number | null } | undefined;
+  if (row === undefined || row.id !== requestId) return true;
+  return row.answer !== null || row.expiredAt !== null || now >= (row.expiresAt ?? 0);
+}
 
 // Called by the waiter. Exactly one of: answered (the answer is handed over and the question cleared), expired (the
 // timeout reply is due; the question stays pending for a later `answer` turn), pending, or gone.

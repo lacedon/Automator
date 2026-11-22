@@ -35,7 +35,10 @@ export interface JsonRpcPeer {
   // `timeoutMs` bounds the wait for the response; long-running requests (session/prompt) pass none.
   request<T>(method: string, params: unknown, options?: { timeoutMs?: number }): Promise<T>;
   notify(method: string, params: unknown): void;
-  onRequest(method: string, handler: (params: unknown) => Promise<unknown> | unknown): void;
+  onRequest(
+    method: string,
+    handler: (params: unknown, meta: { id: number | string }) => Promise<unknown> | unknown,
+  ): void;
   onNotification(method: string, handler: (params: unknown) => void): void;
   close(): void;
   // Resolves once the input stream ended or the peer was closed.
@@ -64,7 +67,10 @@ export function createJsonRpcPeer(
   let nextId = 1;
   let closed = false;
   const pending = new Map<number | string, { resolve(value: unknown): void; reject(error: Error): void }>();
-  const requestHandlers = new Map<string, (params: unknown) => Promise<unknown> | unknown>();
+  const requestHandlers = new Map<
+    string,
+    (params: unknown, meta: { id: number | string }) => Promise<unknown> | unknown
+  >();
   const notificationHandlers = new Map<string, (params: unknown) => void>();
   let resolveClosed!: () => void;
   const closedPromise = new Promise<void>((resolve) => {
@@ -127,7 +133,7 @@ export function createJsonRpcPeer(
       }
       void (async () => {
         try {
-          write({ jsonrpc: '2.0', id, result: (await handler(message.params)) ?? {} });
+          write({ jsonrpc: '2.0', id, result: (await handler(message.params, { id })) ?? {} });
         } catch (error) {
           write({
             jsonrpc: '2.0',

@@ -125,4 +125,39 @@ describe('serveMcp', () => {
     await c.server.closed;
     expect(signal?.aborted).toBe(true);
   });
+
+  test('a failing output stream (EPIPE) does not throw', () => {
+    const output = new PassThrough();
+    serveMcp(new PassThrough(), output, [echo]);
+    expect(() => output.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }))).not.toThrow();
+  });
+
+  test('notifications/cancelled aborts only that request', async () => {
+    const signals = new Map<string, AbortSignal>();
+    const tool: McpTool = {
+      definition: { name: 't', description: 'x', inputSchema: { type: 'object' } },
+      call(args, _progress, signal) {
+        signals.set((args as { n: string }).n, signal);
+        return new Promise(() => {});
+      },
+    };
+    const c = connect([tool]);
+    c.send({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 't', arguments: { n: 'a' } } });
+    c.send({ jsonrpc: '2.0', id: 'b', method: 'tools/call', params: { name: 't', arguments: { n: 'b' } } });
+    for (let i = 0; i < 200 && signals.size < 2; i += 1) await new Promise((resolve) => setTimeout(resolve, 2));
+    c.send({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 7, reason: 'user' } });
+    for (let i = 0; i < 200 && !signals.get('a')!.aborted; i += 1)
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    expect(signals.get('a')!.aborted).toBe(true);
+    expect(signals.get('b')!.aborted).toBe(false);
+    c.send({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 'unknown' } }); // ignored
+  });
+
+  test('a failing stdout (EPIPE) closes the server instead of throwing', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const server = serveMcp(input, output, []);
+    expect(() => output.emit('error', new Error('write EPIPE'))).not.toThrow();
+    await server.closed;
+  });
 });

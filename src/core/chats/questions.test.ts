@@ -4,6 +4,7 @@ import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { tempDb } from '../../../test/helpers/db';
 import { testRepositories } from '../../../test/helpers/repositories';
+import { openDb } from '../db/open';
 import { toChatSession } from '../db/rows';
 import { DataDir } from '../files/dataDir';
 import { MAX_FOLLOW_UP_CHARS, QueueService } from '../queue/queueService';
@@ -71,6 +72,29 @@ function setup() {
 }
 
 describe('questions', () => {
+  test('question text and options are capped for every source', () => {
+    for (const source of ['automator', 'native'] as const) {
+      const s = setup();
+      const opened = s.ask({
+        source,
+        text: 'q'.repeat(5000),
+        options: Array.from({ length: 15 }, (_, i) => `${i}${'o'.repeat(500)}`),
+      });
+      if (!opened.ok) throw new Error('open failed');
+      expect(opened.value.text).toHaveLength(2000);
+      expect(opened.value.options).toHaveLength(10);
+      expect(opened.value.options!.every((option) => option.length === 200)).toBe(true);
+      const stored = s.row().question!;
+      expect(stored.text).toHaveLength(2000);
+      expect(stored.options).toHaveLength(10);
+      // The framing of the later answer turn uses the capped text.
+      s.finish(s.runId);
+      expireQuestionsOfRun(s.db, s.queue, s.runId, s.clock.now());
+      s.answer('A');
+      expect((s.queuedRuns()[0]!.adhoc_prompt as string).length).toBeLessThan(2100);
+    }
+  });
+
   test('opening a question while one is pending is rejected', () => {
     const s = setup();
     expect(s.ask()).toMatchObject({
@@ -124,6 +148,42 @@ describe('questions', () => {
     expect(settleQuestion(s.db, s.session.id, 'q1', s.clock.now())).toEqual({ kind: 'expired' });
     expect(s.row().question).toMatchObject({ expiredAt: s.clock.now() });
     expect(settleQuestion(s.db, s.session.id, 'q1', s.clock.now())).toEqual({ kind: 'expired' });
+  });
+
+  test('two connections on one file see exactly one outcome whichever of answer and settle goes first', () => {
+    // The dashboard and the MCP process are separate processes with their own handles on the same SQLite file.
+    const s = setup();
+    const waiter = openDb(s.file);
+    cleanups.push(() => waiter.close());
+    for (let i = 0; i < 20; i += 1) {
+      const requestId = `r${i}`;
+      s.ask({ requestId });
+      s.clock.advance(WAIT_MS); // the answer and the expiry now race
+      const dashboardFirst = i % 2 === 0;
+      let settled;
+      let answered;
+      if (dashboardFirst) {
+        answered = s.answer(`a${i}`);
+        settled = settleQuestion(waiter, s.session.id, requestId, s.clock.now());
+      } else {
+        settled = settleQuestion(waiter, s.session.id, requestId, s.clock.now());
+        answered = s.answer(`a${i}`);
+      }
+      const queued = s
+        .queuedRuns()
+        .filter((run) => run.adhoc_prompt === `Answer to your earlier question "Which color?":\n\na${i}`);
+      if (dashboardFirst) {
+        expect(answered).toEqual({ ok: true, value: { delivered: 'in-turn' } });
+        expect(settled).toEqual({ kind: 'answered', text: `a${i}` });
+        expect(queued).toHaveLength(0);
+      } else {
+        expect(settled).toEqual({ kind: 'expired' });
+        expect(answered).toMatchObject({ ok: true, value: { delivered: 'new-turn' } });
+        expect(queued).toHaveLength(1);
+      }
+      expect(s.row().question).toBeNull();
+      s.db.prepare("DELETE FROM runs WHERE status = 'queued'").run();
+    }
   });
 
   test('an answer racing the timeout lands in-turn when it comes first', () => {

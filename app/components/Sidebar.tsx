@@ -15,7 +15,7 @@ const STATUS_PILL = {
   error: 'needs-you',
   queued: 'info',
   running: 'running',
-  waiting: 'needs-you',
+  waiting: 'waiting',
 } as const;
 
 function NavigationItems({

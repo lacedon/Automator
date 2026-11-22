@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import type { NextCheck, RunRow, Trigger, WatchState } from '@core/index';
 import { Elapsed } from './Elapsed';
 
-export type PillVariant = 'needs-you' | 'good' | 'running' | 'neutral' | 'paused' | 'closed' | 'info' | 'interrupted';
+export type PillVariant =
+  'needs-you' | 'waiting' | 'good' | 'running' | 'neutral' | 'paused' | 'closed' | 'info' | 'interrupted';
 
 export function Pill({ variant, children }: { variant: PillVariant; children: ReactNode }) {
   return <span className={`pill pill-${variant}`}>{children}</span>;
@@ -27,7 +28,7 @@ type RunPillRun = Pick<RunRow, 'status' | 'outcome' | 'resultStatus' | 'interrup
 export function RunPill({ run }: { run: RunPillRun }) {
   const t = useTranslations('Pill');
   // The Chat needs an answer, whatever its latest Run did.
-  if (run.chatState === 'waiting') return <Pill variant="needs-you">{t('waiting')}</Pill>;
+  if (run.chatState === 'waiting') return <Pill variant="waiting">{t('waiting')}</Pill>;
   if (run.closedAt != null) return <Pill variant="closed">{t('done')}</Pill>;
   if (run.interrupted !== null) return <Pill variant="interrupted">{t(run.interrupted)}</Pill>;
   if (run.resultStatus === 'error') return <Pill variant="needs-you">{t('error')}</Pill>;

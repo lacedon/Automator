@@ -22,6 +22,8 @@
 
   --pill-needs-you-bg: #5a1e22;
   --pill-needs-you-text: #ff9492;
+  --pill-waiting-bg: #3a2468;
+  --pill-waiting-text: #e0c8ff;
   --pill-good-bg: #12361f;
   --pill-good-text: #56d364;
   --pill-running-bg: #3b2e0a;
@@ -337,6 +339,11 @@ code {
 .pill-needs-you {
   background: var(--pill-needs-you-bg);
   color: var(--pill-needs-you-text);
+}
+
+.pill-waiting {
+  background: var(--pill-waiting-bg);
+  color: var(--pill-waiting-text);
 }
 
 .pill-good {
@@ -2028,6 +2035,8 @@ dialog.file-dialog::backdrop {
 
   --pill-needs-you-bg: #ffebe9;
   --pill-needs-you-text: #a40e26;
+  --pill-waiting-bg: #f1e8ff;
+  --pill-waiting-text: #5a32a3;
   --pill-good-bg: #dafbe1;
   --pill-good-text: #116329;
   --pill-running-bg: #fff8c5;

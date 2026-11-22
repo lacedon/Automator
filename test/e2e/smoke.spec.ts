@@ -197,17 +197,17 @@ test('a pending question shows choice buttons and the Chat is Waiting for you in
   await page.goto('/runs');
   const row = page.locator('.run-history').getByRole('link', { name: /Pick a color for the/ });
   // The Chats list and the left menu both say Waiting for you.
-  await expect(page.locator('.run-history tr', { hasText: 'Pick a color' }).locator('.pill-needs-you')).toHaveText(
+  await expect(page.locator('.run-history tr', { hasText: 'Pick a color' }).locator('.pill-waiting')).toHaveText(
     'Waiting for you',
   );
-  await expect(page.locator('.sidebar .nav-chat', { hasText: 'Pick a color' }).locator('.pill-needs-you')).toHaveText(
+  await expect(page.locator('.sidebar .nav-chat', { hasText: 'Pick a color' }).locator('.pill-waiting')).toHaveText(
     'Waiting for you',
   );
   await row.click();
   await expect(page).toHaveURL(/\/runs\/\d+$/);
 
   const card = page.locator('.chat .question-card');
-  await expect(card.locator('.pill-needs-you')).toHaveText('Waiting for you');
+  await expect(card.locator('.pill-waiting')).toHaveText('Waiting for you');
   // Plain text only: the HTML in the question is never rendered.
   await expect(card.locator('.question-text')).toHaveText('Which <b>color</b> for the banner?');
   await expect(card.locator('b')).toHaveCount(0);

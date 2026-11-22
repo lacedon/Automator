@@ -8,6 +8,8 @@ import { testConfig } from '../../../test/helpers/config';
 import { insertWatch, tempDb } from '../../../test/helpers/db';
 import { testRepositories } from '../../../test/helpers/repositories';
 import { AgentService } from '../agents/agentService';
+import { ChatSessionService } from '../chats/chatSessionService';
+import { QueueService } from '../queue/queueService';
 import type { Database } from '../db/open';
 import { toRun, toWatch } from '../db/rows';
 import type { NeedsYouEvent } from '../domain/types';
@@ -50,6 +52,7 @@ function setup() {
     config,
     repositories,
     dataDir,
+    queue: new QueueService(t.db, clock, dataDir, config, repositories, new ChatSessionService(t.db, clock)),
     launchers: { copilot: launcher, 'claude-code': launcher, codex: launcher, opencode: launcher, pi: launcher },
     prechecks,
     currentBranch: vi.fn(async () => 'main'),

@@ -47,7 +47,9 @@ function runChatTool(spec, name, params, signal) {
       }
     });
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify(params ?? {}));
+    // The input is one line; stdin then stays open so the child can tell when this process is gone (its stdin closes)
+    // and stop polling, instead of outliving a killed pi for up to questionWaitMs.
+    child.stdin.write(`${JSON.stringify(params ?? {})}\n`);
   });
 }
 

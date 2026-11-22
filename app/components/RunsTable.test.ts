@@ -44,6 +44,6 @@ const render = (runs: RunRow[]) =>
 
 test('a Chat waiting for an answer shows the Waiting for you pill instead of its outcome', () => {
   const html = render([row({ id: 1, chatState: 'waiting' }), row({ id: 2, chatState: 'idle' })]);
-  expect(html.match(/pill-needs-you">Waiting for you/g)).toHaveLength(1);
+  expect(html.match(/pill-waiting">Waiting for you/g)).toHaveLength(1);
   expect(html).toContain('pill-good">Replied');
 });

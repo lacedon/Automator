@@ -7,7 +7,7 @@ import type { Config } from '../../config/schema';
 import type { RunError } from '../../domain/types';
 import type { ProviderExit } from '../../runs/providerLauncher';
 import { lineSplitter } from '../../runs/liveTranscript';
-import { CHAT_TOOLS } from '../chatTools';
+import { CHAT_TOOL_DEFINITIONS } from '../chatToolDefs';
 import { MAX_LINE_CHARS } from './jsonRpc';
 import {
   DriverError,
@@ -28,6 +28,8 @@ const DEFAULT_ABORT_DEADLINE_MS = 10_000;
 const STDERR_TAIL = 2_000;
 
 // Fire-and-forget extension UI methods need no answer; dialogs block pi until the client replies.
+// The two choices a confirm dialog is shown with; they travel like any other options.
+const CONFIRM_OPTIONS = ['Yes', 'No'] as const;
 const DIALOG_METHODS = new Set(['select', 'confirm', 'input', 'editor']);
 
 // The bundled extension is plain JavaScript next to the other chat sources, so it resolves from the installed app
@@ -116,7 +118,7 @@ class PiSession implements SessionHandle {
                 command: options.mcpServer.command,
                 args: options.mcpServer.args,
                 env: options.mcpServer.env,
-                tools: CHAT_TOOLS.map((tool) => tool.definition),
+                tools: CHAT_TOOL_DEFINITIONS,
               }),
             }),
       } as Env,
@@ -326,7 +328,7 @@ class PiSession implements SessionHandle {
       method === 'select' && Array.isArray(record.options)
         ? record.options.filter((option): option is string => typeof option === 'string')
         : method === 'confirm'
-          ? ['Yes', 'No']
+          ? [...CONFIRM_OPTIONS]
           : null;
     this.dialogs.set(id, method);
     this.proc.emit({
@@ -400,11 +402,13 @@ class PiSession implements SessionHandle {
     if (answer.kind !== 'answer') {
       this.write({ type: 'extension_ui_response', id: requestId, cancelled: true });
     } else if (method === 'confirm') {
-      this.write({
-        type: 'extension_ui_response',
-        id: requestId,
-        confirmed: /^(yes|y|true|ok|confirm)$/i.test(answer.text.trim()),
-      });
+      // Only the offered options mean something; any other text cannot confirm anything, so it cancels.
+      const [yes, no] = CONFIRM_OPTIONS;
+      this.write(
+        answer.text === yes || answer.text === no
+          ? { type: 'extension_ui_response', id: requestId, confirmed: answer.text === yes }
+          : { type: 'extension_ui_response', id: requestId, cancelled: true },
+      );
     } else {
       this.write({ type: 'extension_ui_response', id: requestId, value: answer.text });
     }

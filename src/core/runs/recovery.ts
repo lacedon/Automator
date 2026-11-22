@@ -1,8 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ChatSessionService } from '../chats/chatSessionService';
-import { QueueService } from '../queue/queueService';
 import { expireOrphanedQuestions } from '../chats/questions';
 import { providerOptions } from '../config/providers';
 import { toRun } from '../db/rows';
@@ -66,22 +64,7 @@ export async function recoverInterruptedRuns(deps: RunExecutorDeps): Promise<num
     });
   }
   // A question whose Run was just interrupted cannot be waited on; it stays pending for an `answer` turn.
-  expireOrphanedQuestions(
-    deps.db,
-    deps.queue ??
-      new QueueService(
-        deps.db,
-        deps.clock,
-        deps.dataDir,
-        deps.config,
-        deps.repositories,
-        new ChatSessionService(deps.db, deps.clock),
-        {
-          ...(deps.configFor === undefined ? {} : { configFor: deps.configFor }),
-        },
-      ),
-    deps.clock.now(),
-  );
+  expireOrphanedQuestions(deps.db, deps.queue, deps.clock.now());
   // No session process survives a restart: kill leftovers, keep each session's id so the next turn resumes lazily.
   const sessions = deps.db
     .prepare('SELECT id, pid, repository, provider, closed_at, close_requested_at FROM chat_sessions')

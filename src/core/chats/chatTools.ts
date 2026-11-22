@@ -4,32 +4,14 @@ import type { ConfigFor } from '../config/resolver';
 import type { Database } from '../db/open';
 import { toChatSession } from '../db/rows';
 import type { Clock } from '../domain/types';
-import { openQuestion, settleQuestion } from './questions';
+import { ASK_USER_TOOL, QUESTION_TIMEOUT_REPLY, type ChatToolDefinition, type ToolResult } from './chatToolDefs';
+import { needsSettling, openQuestion, settleQuestion } from './questions';
 
 // The Automator tools an Interactive Chat's agent can call. One implementation serves both the stdio MCP server (ACP
 // providers) and `automator chat-tool <name>` (the bundled pi extension). PR 5 adds schedule_wakeup here.
 
-export const ASK_USER_TOOL = {
-  name: 'ask_user',
-  description:
-    'Ask the user a question and wait for the answer. Use options for a choice; omit them for free text. ' +
-    'If the result is "No answer yet. Stop and wait for the user", end your turn without further changes.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      question: { type: 'string', minLength: 1, maxLength: 2000 },
-      options: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 200 }, minItems: 2, maxItems: 10 },
-    },
-    required: ['question'],
-    additionalProperties: false,
-  },
-} as const;
-
-export const QUESTION_TIMEOUT_REPLY = 'No answer yet. Stop and wait for the user';
 export const PROGRESS_EVERY_MS = 30_000;
 export const POLL_MS = 500;
-
-export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 
 export interface ChatToolContext {
   db: Database;
@@ -110,13 +92,17 @@ export async function askUser(ctx: ChatToolContext, input: unknown): Promise<Too
   const pollMs = ctx.pollMs ?? POLL_MS;
   const progressEveryMs = ctx.progressEveryMs ?? PROGRESS_EVERY_MS;
   let lastProgress = ctx.clock.now();
-  // Read-only polling except inside settleQuestion, which is the one transaction that may write.
+  // The loop reads with a plain SELECT (no write lock) and enters the IMMEDIATE settleQuestion only when an answer,
+  // the expiry or a vanished question is seen; settleQuestion re-checks inside its transaction.
   for (;;) {
-    const settled = settleQuestion(ctx.db, ctx.sessionId, requestId, ctx.clock.now());
-    if (settled.kind === 'answered') return text(settled.text);
-    // `gone`: the answer already started a new turn, or the chat was closed; either way this turn must stop.
-    if (settled.kind === 'expired' || settled.kind === 'gone') return text(QUESTION_TIMEOUT_REPLY);
+    // A cancelled call must not settle again: it could consume an answer meant for a later question or turn.
     if (ctx.signal?.aborted === true) return text('The question was cancelled because the turn was stopped.', true);
+    if (needsSettling(ctx.db, ctx.sessionId, requestId, ctx.clock.now())) {
+      const settled = settleQuestion(ctx.db, ctx.sessionId, requestId, ctx.clock.now());
+      if (settled.kind === 'answered') return text(settled.text);
+      // `gone`: the answer already started a new turn, or the chat was closed; either way this turn must stop.
+      if (settled.kind === 'expired' || settled.kind === 'gone') return text(QUESTION_TIMEOUT_REPLY);
+    }
     const now = ctx.clock.now();
     if (ctx.onProgress !== undefined && now - lastProgress >= progressEveryMs) {
       lastProgress = now;
@@ -127,7 +113,7 @@ export async function askUser(ctx: ChatToolContext, input: unknown): Promise<Too
 }
 
 export type ChatTool = {
-  definition: { name: string; description: string; inputSchema: object };
+  definition: ChatToolDefinition;
   run(ctx: ChatToolContext, input: unknown): Promise<ToolResult>;
 };
 

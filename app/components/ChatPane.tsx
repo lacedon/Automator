@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { startTransition, useActionState, useRef, useState, useTransition, type FormEvent } from 'react';
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+} from 'react';
 import type { AppError, CopyWork, Skill, ThreadRun, ThreadView } from '@core/index';
 import {
   answerQuestion,
@@ -153,6 +162,11 @@ function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['c
   const tError = useTranslations('ErrorBox');
   const [state, formAction, pending] = useActionState(answerQuestion, null);
   const [other, setOther] = useState('');
+  const titleId = useId();
+  const answerId = useId();
+  // The card replaces the composer: keyboard and screen reader users land on it instead of on a vanished control.
+  const card = useRef<HTMLElement>(null);
+  useEffect(() => card.current?.focus(), []);
   const [seen, setSeen] = useState<AnswerFormState>(null);
   if (state !== seen) {
     setSeen(state);
@@ -171,15 +185,16 @@ function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['c
   };
   const failed = state?.ok === false ? state.error : null;
   const choices = question.options;
+  const locked = pending || state?.ok === true;
   return (
-    <section className="question-card" aria-labelledby="question-title">
+    <section ref={card} tabIndex={-1} className="question-card" aria-labelledby={titleId}>
       <div className="question-head">
-        <Pill variant="needs-you">{tPill('waiting')}</Pill>
-        <span id="question-title" className="muted">
-          {question.expiredAt === null ? t('questionWaiting') : t('questionExpired')}
-        </span>
+        <Pill variant="waiting">{tPill('waiting')}</Pill>
+        <span className="muted">{question.expiredAt === null ? t('questionWaiting') : t('questionExpired')}</span>
       </div>
-      <p className="question-text">{question.text}</p>
+      <p id={titleId} className="question-text">
+        {question.text}
+      </p>
       {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome={tError('noRunQueued')} />}
       {state?.ok && (
         <div className="success-box" role="status">
@@ -189,7 +204,7 @@ function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['c
       {choices !== null && (
         <div className="actions question-options">
           {choices.map((option) => (
-            <button key={option} type="button" className="btn" disabled={pending} onClick={() => send(option)}>
+            <button key={option} type="button" className="btn" disabled={locked} onClick={() => send(option)}>
               {option}
             </button>
           ))}
@@ -197,29 +212,31 @@ function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['c
       )}
       <form onSubmit={submit} className="watch-form chat-form">
         <div className="field">
-          <label htmlFor="question-answer">{choices === null ? t('questionAnswer') : t('questionOther')}</label>
+          <label htmlFor={answerId}>{choices === null ? t('questionAnswer') : t('questionOther')}</label>
           {choices === null ? (
             <textarea
-              id="question-answer"
+              id={answerId}
               name="answer"
               rows={3}
               required
+              disabled={locked}
               value={other}
               onChange={(e) => setOther(e.target.value)}
             />
           ) : (
             <input
-              id="question-answer"
+              id={answerId}
               name="answer"
               type="text"
               required
+              disabled={locked}
               value={other}
               onChange={(e) => setOther(e.target.value)}
             />
           )}
         </div>
         <div className="actions">
-          <button type="submit" className="btn btn-primary" disabled={pending}>
+          <button type="submit" className="btn btn-primary" disabled={locked}>
             {t('questionSend')}
           </button>
         </div>
@@ -241,7 +258,7 @@ function RunExchange({ run, current, waiting }: { run: ThreadRun; current: boole
   const transcript = bubbleTranscript(run);
   const tPill = useTranslations('Pill');
   // The newest Run is where the agent is waiting; its pill says so instead of "running".
-  const pill = waiting ? <Pill variant="needs-you">{tPill('waiting')}</Pill> : <RunPill run={pillRun} />;
+  const pill = waiting ? <Pill variant="waiting">{tPill('waiting')}</Pill> : <RunPill run={pillRun} />;
   const transcriptBlock = transcript !== null && <TranscriptBox text={transcript} />;
   return (
     <div className="chat-run">

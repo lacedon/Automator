@@ -96,7 +96,7 @@ export interface RunExecutorDeps {
   launchers: ProviderLaunchers;
   chatSessions?: InteractiveTurns;
   // Recovery uses it to turn an unpicked in-turn answer into an `answer` turn.
-  queue?: QueueService;
+  queue: QueueService;
   prechecks: Prechecks;
   agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;

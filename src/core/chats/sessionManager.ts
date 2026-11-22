@@ -12,7 +12,7 @@ import type { RepositoryService } from '../repositories/repositoryService';
 import { createLiveTranscript, reportLiveFailure, type LiveTranscript } from '../runs/liveTranscript';
 import type { ProviderExit, RunningProcess } from '../runs/providerLauncher';
 import { INTERACTIVE_CAPABILITIES } from './capabilities';
-import { QUESTION_TIMEOUT_REPLY } from './chatTools';
+import { QUESTION_TIMEOUT_REPLY } from './chatToolDefs';
 import { clearQuestion, expireQuestionsOfRun, openQuestion, settleQuestion } from './questions';
 import {
   asRunError,

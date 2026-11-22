@@ -260,7 +260,6 @@
     "workUncommitted": "uncommitted changes",
     "workUnpushed": "{count, plural, one {# unpushed commit} other {# unpushed commits}}",
     "sessionState": "{state, select, live {Session running} stopped {Session stopped; it resumes on your next message} closing {Closing…} other {Chat closed}}",
-    "waitingForYou": "Waiting for you",
     "questionWaiting": "The agent is waiting for your answer.",
     "questionExpired": "The agent stopped waiting for this answer. Your answer starts a new turn.",
     "questionOther": "Other answer",

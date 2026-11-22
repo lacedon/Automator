@@ -31,7 +31,7 @@ for (const [name, Nav] of [
       }),
     );
     expect(html.match(/class="pill /g)).toHaveLength(5);
-    expect(html).toMatch(/asking chat<\/span><span class="pill pill-needs-you">Waiting for you/);
+    expect(html).toMatch(/asking chat<\/span><span class="pill pill-waiting">Waiting for you/);
     expect(html).toMatch(/waiting chat<\/span><span class="pill pill-needs-you">Needs you/);
     expect(html).toMatch(/queued chat<\/span><span class="pill pill-info">queued/);
     expect(html).toMatch(/running chat<\/span><span class="pill pill-running">running/);
