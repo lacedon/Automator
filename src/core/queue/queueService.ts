@@ -39,6 +39,8 @@ export interface EnqueueAdhocInput {
   ticketTitle?: string | null;
   agentId?: number | null;
   chatSessionId?: number;
+  // Unprompted-by-the-user turns of an Interactive Chat; default 'adhoc' keeps Follow-up callers unchanged.
+  trigger?: 'adhoc' | 'answer' | 'timer';
 }
 
 export interface AdhocRequest {
@@ -133,14 +135,18 @@ export class QueueService {
               { workflow_type: WorkflowType } | undefined
           )?.workflow_type;
     const workflowType = inherited ?? (input.ticketKey === undefined ? 'free-adhoc' : 'ticket-adhoc');
+    const trigger = input.trigger ?? 'adhoc';
     const row = this.db
       .prepare(
         `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type, agent_id, branched_from_run_id, branch_context, chat_session_id)
-           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (NULL, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
         input.repository,
+        trigger,
+        trigger === 'timer' ? 1 : 0,
+        trigger === 'adhoc' ? 'ad-hoc' : trigger,
         input.prompt,
         input.ticketKey ?? null,
         input.ticketTitle ?? null,
@@ -192,10 +198,17 @@ export class QueueService {
           return err({ code: 'INVALID_STATE', state: parent.status, action: 'followUp' });
         if (parent.chat_session_id !== null) {
           const chat = this.db
-            .prepare('SELECT close_requested_at, closed_at FROM chat_sessions WHERE id = ?')
-            .get(parent.chat_session_id) as { close_requested_at: number | null; closed_at: number | null };
+            .prepare('SELECT close_requested_at, closed_at, question_text FROM chat_sessions WHERE id = ?')
+            .get(parent.chat_session_id) as {
+            close_requested_at: number | null;
+            closed_at: number | null;
+            question_text: string | null;
+          };
           if (chat.closed_at !== null || chat.close_requested_at !== null)
             return err({ code: 'INVALID_INPUT', field: 'run', message: 'This chat is closed' });
+          // The question card replaces the composer; a crafted reply must not leave the question dangling.
+          if (chat.question_text !== null)
+            return err({ code: 'INVALID_INPUT', field: 'message', message: 'Answer the waiting question first' });
         }
         if (this.db.prepare('SELECT 1 FROM runs WHERE parent_run_id = ?').get(runId))
           return err({ code: 'INVALID_INPUT', field: 'run', message: 'Reply on the latest Run in the thread' });

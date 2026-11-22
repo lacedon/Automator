@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { configReloader, loadConfig, loadDotenv, readRawConfig, type Secrets } from './config/load';
 import { ConfigResolver } from './config/resolver';
 import type { Config } from './config/schema';
@@ -57,6 +58,9 @@ export { DataDir } from './files/dataDir';
 export { INTERACTIVE_CAPABILITIES, interactiveSupport, type InteractiveCapabilities } from './chats/capabilities';
 export { ChatSessionService } from './chats/chatSessionService';
 export { ChatSessionManager } from './chats/sessionManager';
+export { runChatMcpServer, runChatTool } from './chats/chatToolEntry';
+export { answerQuestion } from './chats/questions';
+export { QUESTION_TIMEOUT_REPLY } from './chats/chatToolDefs';
 export { copyWork, type CopyWork } from './chats/copyStatus';
 export type { SessionDrivers } from './chats/drivers/sessionDriver';
 export { CleanupService } from './cleanup/cleanupService';
@@ -205,6 +209,7 @@ export function createCore(
   overrides: Partial<Deps> = {},
   legacyConfig?: unknown,
   reload?: () => Config | null,
+  options: { configPath?: string } = {},
 ): Core {
   const dataDir = new DataDir(config.dataDir);
   const db = openDb(dataDir.db);
@@ -297,6 +302,17 @@ export function createCore(
     drivers: deps.sessionDrivers,
     configFor,
     repositories,
+    queue,
+    // How a provider launches the Automator tools (MCP server / chat-tool): this Node and this checkout's CLI entry.
+    ...(options.configPath === undefined
+      ? {}
+      : {
+          mcp: () => ({
+            command: process.execPath,
+            scriptPath: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'bin', 'automator.mjs'),
+            configPath: options.configPath!,
+          }),
+        }),
   });
   const executorDeps: RunExecutorDeps = {
     db,
@@ -317,6 +333,7 @@ export function createCore(
     dataDir,
     launchers,
     chatSessions,
+    queue,
     prechecks,
     agents,
     onNeedsYou,
@@ -370,5 +387,5 @@ export function createCore(
 export function bootstrap(opts: { configPath?: string } = {}): Core {
   const file = path.resolve(opts.configPath ?? process.env.AUTOMATOR_CONFIG ?? 'automator.config.json');
   loadDotenv(path.dirname(file));
-  return createCore(loadConfig({ path: file }), {}, readRawConfig(file), configReloader(file));
+  return createCore(loadConfig({ path: file }), {}, readRawConfig(file), configReloader(file), { configPath: file });
 }

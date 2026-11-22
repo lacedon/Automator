@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { fakeClock } from '../../test/helpers/clock';
 import { testConfig } from '../../test/helpers/config';
+import { PassThrough } from 'node:stream';
 import { createCore, type Core } from '@core/index';
 import { runCli } from './main';
 
@@ -491,5 +492,118 @@ describe('runCli', () => {
     expect(r.code).toBe(2);
     expect(r.err.join('\n')).toContain('/does/not/exist.md');
     expect(queuedRuns(core)).toEqual([]);
+  });
+
+  describe('chat tool processes', () => {
+    function chatSetup(core: Core) {
+      const configFile = path.join(core.config.configDir, 'automator.config.json');
+      fs.writeFileSync(configFile, JSON.stringify({ dataDir: core.config.dataDir, repositories: {}, gitlab: {} }));
+      const session = core.chats.create({ repository: 'pages', provider: 'pi', model: 'm', agentId: null });
+      core.db.prepare('UPDATE chat_sessions SET mcp_nonce = ? WHERE id = ?').run('ab12', session.id);
+      const runId = Number(
+        core.db
+          .prepare(
+            `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, model, provider, queued_at, started_at, isolation, chat_session_id)
+             VALUES (NULL, 'pages', 'running', 'adhoc', 0, 'ad-hoc', 'm', 'pi', 1, 1, 'copy', ?)`,
+          )
+          .run(session.id).lastInsertRowid,
+      );
+      return { configFile, session, runId };
+    }
+    const waitFor = async (condition: () => boolean) => {
+      for (let i = 0; i < 500 && !condition(); i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(condition()).toBe(true);
+    };
+
+    test('mcp subcommand serves ask_user for a session', async () => {
+      const core = setup();
+      const { configFile, session, runId } = chatSetup(core);
+      const stdin = new PassThrough();
+      const stdout = new PassThrough();
+      const lines: Record<string, unknown>[] = [];
+      let buffer = '';
+      stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString();
+        for (let i = buffer.indexOf('\n'); i >= 0; i = buffer.indexOf('\n')) {
+          lines.push(JSON.parse(buffer.slice(0, i)) as Record<string, unknown>);
+          buffer = buffer.slice(i + 1);
+        }
+      });
+      const done = runCli(
+        ['mcp', '--chat-session', String(session.id), '--nonce', 'ab12', '--config', configFile],
+        { out: () => {}, err: () => {}, confirm: async () => false, stdin, stdout },
+        core,
+      );
+      stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })}\n`);
+      await waitFor(() => lines.some((line) => line.id === 1));
+      expect(JSON.stringify(lines[0])).toContain('ask_user');
+      stdin.write(
+        `${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'ask_user', arguments: { question: 'Left or right?', options: ['Left', 'Right'] } } })}\n`,
+      );
+      await waitFor(() => core.chats.get(session.id)?.question !== null);
+      expect(core.chats.get(session.id)!.question).toMatchObject({ text: 'Left or right?', runId });
+      core.db.prepare('UPDATE chat_sessions SET question_answer = ? WHERE id = ?').run('Right', session.id);
+      await waitFor(() => lines.some((line) => line.id === 2));
+      expect(lines.find((line) => line.id === 2)).toMatchObject({
+        result: { content: [{ type: 'text', text: 'Right' }] },
+      });
+      stdin.end();
+      expect(await done).toBe(0);
+    });
+
+    test('chat-tool subcommand reads JSON from stdin', async () => {
+      const core = setup();
+      const { configFile, session } = chatSetup(core);
+      const stdin = new PassThrough();
+      const out: string[] = [];
+      const done = runCli(
+        ['chat-tool', 'ask_user', '--chat-session', String(session.id), '--nonce', 'ab12', '--config', configFile],
+        { out: (s) => out.push(s), err: () => {}, confirm: async () => false, stdin },
+        core,
+      );
+      stdin.end(JSON.stringify({ question: 'Free text?' }));
+      await waitFor(() => core.chats.get(session.id)?.question !== null);
+      core.db.prepare('UPDATE chat_sessions SET question_answer = ? WHERE id = ?').run('forty-two', session.id);
+      expect(await done).toBe(0);
+      expect(JSON.parse(out[0]!)).toEqual({ content: [{ type: 'text', text: 'forty-two' }] });
+    });
+
+    test('chat-tool exits when its parent closes stdin after sending the input line', async () => {
+      const core = setup();
+      const { configFile, session } = chatSetup(core);
+      const stdin = new PassThrough();
+      const out: string[] = [];
+      const done = runCli(
+        ['chat-tool', 'ask_user', '--chat-session', String(session.id), '--nonce', 'ab12', '--config', configFile],
+        { out: (s) => out.push(s), err: () => {}, confirm: async () => false, stdin },
+        core,
+      );
+      stdin.write(`${JSON.stringify({ question: 'Still there?' })}\n`);
+      await waitFor(() => core.chats.get(session.id)?.question !== null);
+      stdin.end(); // the parent died
+      expect(await done).toBe(0);
+      expect(JSON.parse(out[0]!)).toMatchObject({ isError: true });
+      // It did not consume an answer given afterwards.
+      expect(core.chats.get(session.id)?.question).not.toBeNull();
+    });
+
+    test('chat-tool rejects an unknown tool and malformed input', async () => {
+      const core = setup();
+      const { configFile, session } = chatSetup(core);
+      const run = async (name: string, input: string) => {
+        const stdin = new PassThrough();
+        const out: string[] = [];
+        const done = runCli(
+          ['chat-tool', name, '--chat-session', String(session.id), '--nonce', 'ab12', '--config', configFile],
+          { out: (s) => out.push(s), err: () => {}, confirm: async () => false, stdin },
+          core,
+        );
+        stdin.end(input);
+        return { code: await done, out };
+      };
+      expect(JSON.parse((await run('nope', '{}')).out[0]!)).toMatchObject({ isError: true });
+      const bad = await run('ask_user', '{not json');
+      expect(bad.code).toBe(1);
+    });
   });
 });

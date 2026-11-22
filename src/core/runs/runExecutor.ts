@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { z } from 'zod';
+import type { QueueService } from '../queue/queueService';
 import { interactiveSupport } from '../chats/capabilities';
 import {
   interactivePolicyError,
@@ -94,6 +95,8 @@ export interface RunExecutorDeps {
   dataDir: DataDir;
   launchers: ProviderLaunchers;
   chatSessions?: InteractiveTurns;
+  // Recovery uses it to turn an unpicked in-turn answer into an `answer` turn.
+  queue: QueueService;
   prechecks: Prechecks;
   agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;

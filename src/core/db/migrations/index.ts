@@ -545,4 +545,18 @@ ALTER TABLE chat_sessions ADD COLUMN pid INTEGER;
 ALTER TABLE chat_sessions ADD COLUMN copy_path TEXT;
 `,
   },
+  {
+    version: 29,
+    sql: `ALTER TABLE chat_sessions ADD COLUMN mcp_nonce TEXT;
+ALTER TABLE chat_sessions ADD COLUMN question_text TEXT;
+ALTER TABLE chat_sessions ADD COLUMN question_options_json TEXT;
+ALTER TABLE chat_sessions ADD COLUMN question_source TEXT CHECK (question_source IN ('automator', 'native'));
+ALTER TABLE chat_sessions ADD COLUMN question_request_id TEXT;
+ALTER TABLE chat_sessions ADD COLUMN question_run_id INTEGER REFERENCES runs(id) ON DELETE SET NULL;
+ALTER TABLE chat_sessions ADD COLUMN question_asked_at INTEGER;
+ALTER TABLE chat_sessions ADD COLUMN question_expires_at INTEGER;
+ALTER TABLE chat_sessions ADD COLUMN question_expired_at INTEGER;
+ALTER TABLE chat_sessions ADD COLUMN question_answer TEXT;
+`,
+  },
 ];

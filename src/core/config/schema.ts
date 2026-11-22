@@ -15,6 +15,7 @@ const providerName = z.enum(['copilot', 'claude-code', 'codex', 'opencode', 'pi'
 
 export const DEFAULT_MAX_INTERACTIVE_SESSIONS = 3;
 export const DEFAULT_INTERACTIVE_IDLE_MINUTES = 30;
+export const DEFAULT_QUESTION_WAIT_MS = 600_000;
 
 const providerSettings = (defaultBin: string, defaultModel = '') =>
   z
@@ -118,6 +119,7 @@ export function createConfigSchema(configDir: string) {
           maxConcurrent: positiveInt.default(2),
           maxInteractiveSessions: positiveInt.default(DEFAULT_MAX_INTERACTIVE_SESSIONS),
           interactiveIdleMinutes: positiveInt.default(DEFAULT_INTERACTIVE_IDLE_MINUTES),
+          questionWaitMs: positiveInt.default(DEFAULT_QUESTION_WAIT_MS),
         })
         .prefault({})
         .transform(({ timeoutMinutes, ...rest }) => ({ timeoutMs: timeoutMinutes * 60_000, ...rest })),

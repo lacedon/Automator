@@ -2,14 +2,31 @@
 
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { startTransition, useActionState, useRef, useState, useTransition, type FormEvent } from 'react';
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+} from 'react';
 import type { AppError, CopyWork, Skill, ThreadRun, ThreadView } from '@core/index';
-import { branchRun, closeChat, sendRunMessage, type BranchFormState, type ChatFormState } from '../actions/chat';
+import {
+  answerQuestion,
+  branchRun,
+  closeChat,
+  sendRunMessage,
+  type AnswerFormState,
+  type BranchFormState,
+  type ChatFormState,
+} from '../actions/chat';
 import { closeRun } from '../actions/runs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
 import { PromptInput } from './PromptInput';
-import { RunPill } from './Pill';
+import { Pill, RunPill } from './Pill';
 import { TranscriptBox } from './TranscriptBox';
 import { RunFileLinks } from './RunFileLinks';
 import { bubbleTranscript } from '../lib/chatBubble';
@@ -137,8 +154,99 @@ function BranchForm({ runId }: { runId: number }) {
   );
 }
 
+// The agent asked something: the card replaces the composer until the question is answered. A choice question
+// offers its options as buttons plus an "Other answer" field; a free-text question offers a field only.
+function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['chat']['question']>; runId: number }) {
+  const t = useTranslations('Chat');
+  const tPill = useTranslations('Pill');
+  const tError = useTranslations('ErrorBox');
+  const [state, formAction, pending] = useActionState(answerQuestion, null);
+  const [other, setOther] = useState('');
+  const titleId = useId();
+  const answerId = useId();
+  // The card replaces the composer: keyboard and screen reader users land on it instead of on a vanished control.
+  const card = useRef<HTMLElement>(null);
+  useEffect(() => card.current?.focus(), []);
+  const [seen, setSeen] = useState<AnswerFormState>(null);
+  if (state !== seen) {
+    setSeen(state);
+    if (state?.ok) setOther('');
+    else if (state?.values.answer !== undefined) setOther(state.values.answer);
+  }
+  const send = (answer: string) => {
+    const data = new FormData();
+    data.set('runId', String(runId));
+    data.set('answer', answer);
+    startTransition(() => formAction(data));
+  };
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    send(other);
+  };
+  const failed = state?.ok === false ? state.error : null;
+  const choices = question.options;
+  const locked = pending || state?.ok === true;
+  return (
+    <section ref={card} tabIndex={-1} className="question-card" aria-labelledby={titleId}>
+      <div className="question-head">
+        <Pill variant="waiting">{tPill('waiting')}</Pill>
+        <span className="muted">{question.expiredAt === null ? t('questionWaiting') : t('questionExpired')}</span>
+      </div>
+      <p id={titleId} className="question-text">
+        {question.text}
+      </p>
+      {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome={tError('noRunQueued')} />}
+      {state?.ok && (
+        <div className="success-box" role="status">
+          {state.value.delivered === 'new-turn' ? t('questionQueued', { id: state.value.runId }) : t('questionSent')}
+        </div>
+      )}
+      {choices !== null && (
+        <div className="actions question-options">
+          {choices.map((option) => (
+            <button key={option} type="button" className="btn" disabled={locked} onClick={() => send(option)}>
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+      <form onSubmit={submit} className="watch-form chat-form">
+        <div className="field">
+          <label htmlFor={answerId}>{choices === null ? t('questionAnswer') : t('questionOther')}</label>
+          {choices === null ? (
+            <textarea
+              id={answerId}
+              name="answer"
+              rows={3}
+              required
+              disabled={locked}
+              value={other}
+              onChange={(e) => setOther(e.target.value)}
+            />
+          ) : (
+            <input
+              id={answerId}
+              name="answer"
+              type="text"
+              required
+              disabled={locked}
+              value={other}
+              onChange={(e) => setOther(e.target.value)}
+            />
+          )}
+        </div>
+        <div className="actions">
+          <button type="submit" className="btn btn-primary" disabled={locked}>
+            {t('questionSend')}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 // All text is rendered as React text nodes: no HTML, no Markdown.
-function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
+function RunExchange({ run, current, waiting }: { run: ThreadRun; current: boolean; waiting: boolean }) {
   const t = useTranslations('Chat');
   const pillRun = {
     status: run.status,
@@ -148,6 +256,9 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
     closedAt: run.closedAt,
   };
   const transcript = bubbleTranscript(run);
+  const tPill = useTranslations('Pill');
+  // The newest Run is where the agent is waiting; its pill says so instead of "running".
+  const pill = waiting ? <Pill variant="waiting">{tPill('waiting')}</Pill> : <RunPill run={pillRun} />;
   const transcriptBlock = transcript !== null && <TranscriptBox text={transcript} />;
   return (
     <div className="chat-run">
@@ -158,17 +269,13 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
       <div className="chat-bubble chat-request">{run.request ?? run.ticketKey}</div>
       {run.status === 'finished' ? (
         <div className="chat-bubble chat-agent">
-          <div>
-            <RunPill run={pillRun} />
-          </div>
+          <div>{pill}</div>
           {transcriptBlock}
           {run.error !== null ? run.error.message : run.summary}
         </div>
       ) : run.status === 'running' ? (
         <div className="chat-bubble chat-agent">
-          <div>
-            <RunPill run={pillRun} />
-          </div>
+          <div>{pill}</div>
           {transcriptBlock}
         </div>
       ) : (
@@ -252,10 +359,17 @@ export function ChatPane({
           <Link href={`/runs/${thread.branchedFromRunId}`}>{t('branchedFrom', { id: thread.branchedFromRunId })}</Link>
         </p>
       )}
-      {thread.runs.map((run) => (
-        <RunExchange key={run.id} run={run} current={run.id === currentRunId} />
+      {thread.runs.map((run, index) => (
+        <RunExchange
+          key={run.id}
+          run={run}
+          current={run.id === currentRunId}
+          waiting={thread.chat.question !== null && index === thread.runs.length - 1}
+        />
       ))}
-      {thread.replyToRunId === null ? (
+      {thread.chat.question !== null ? (
+        <QuestionCard question={thread.chat.question} runId={thread.runs[thread.runs.length - 1]!.id} />
+      ) : thread.replyToRunId === null ? (
         thread.replyBlockedReason !== null && <p className="muted">{thread.replyBlockedReason}</p>
       ) : (
         <form ref={formRef} action={formAction} onSubmit={submit} className="watch-form chat-form">

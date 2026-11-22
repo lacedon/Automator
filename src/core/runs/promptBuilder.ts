@@ -1,3 +1,4 @@
+import { QUESTION_TIMEOUT_REPLY } from '../chats/chatToolDefs';
 import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
 import { tryParseUrl } from '../domain/targets';
@@ -116,11 +117,11 @@ export function buildAdhocPrompt(input: {
 // ADHOC_RULES for a chat where the user replies: no result file, and decisions go back to the user in the reply.
 export const INTERACTIVE_RULES = ADHOC_RULES.replace(
   'You run non-interactively in a local checkout of the Repository named below, on behalf of the user. Nobody answers questions during this Run: when a human decision is needed, stop and finish with outcome "needs-you".',
-  'You run in an interactive chat, in a local working copy of the Repository named below, on behalf of the user. If you need a decision, say so in your reply and end your turn; the user answers in the next message.',
+  `You run in an interactive chat, in a local working copy of the Repository named below, on behalf of the user. If you need a decision or information from the user, call the \`ask_user\` tool (pass \`options\` for a choice, omit them for free text) and wait for the answer. If it returns "${QUESTION_TIMEOUT_REPLY}", end your turn at once without making further changes: the user's answer then arrives in a later message that starts with "Answer to your earlier question".`,
 )
   .replace(
     'Stop, change nothing further, and finish with outcome "needs-you" instead of guessing when:',
-    'Stop, change nothing further, and ask the user in your reply instead of guessing when:',
+    'Stop, change nothing further, and ask the user (with `ask_user`) instead of guessing when:',
   )
   .replace('The Request below drives the work.', "The user's request drives the work.");
 

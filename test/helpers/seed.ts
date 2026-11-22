@@ -271,6 +271,38 @@ export function seed(core: Core): void {
     summary: 'Which environment should the export job run against?',
     sessionId: 'seed-session',
   });
+  // An Interactive Chat whose agent asked a question and is Waiting for you (HTML-looking text on purpose).
+  const waitingChat = Number(
+    db
+      .prepare(
+        `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at, process_state)
+         VALUES ('interactive', 'pages', 'pi', 'claude-sonnet-4.5', ?, ?, 'idle')`,
+      )
+      .run(now - 12 * MIN, now - 10 * MIN).lastInsertRowid,
+  );
+  const waitingRun = Number(
+    db
+      .prepare(
+        `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, provider, queued_at, started_at, ended_at,
+           pid, result_status, outcome, summary, chat_session_id)
+         VALUES ('pages', 'finished', 'adhoc', 0, 'ad-hoc', 'Pick a color for the <i>banner</i>', 'claude-sonnet-4.5', 'pi', ?, ?, ?,
+           4300, 'success', 'done', 'I asked which color to use.', ?)`,
+      )
+      .run(now - 12 * MIN, now - 12 * MIN, now - 10 * MIN, waitingChat).lastInsertRowid,
+  );
+  db.prepare(
+    `UPDATE chat_sessions SET question_text = ?, question_options_json = ?, question_source = 'automator',
+       question_request_id = 'seed-question', question_run_id = ?, question_asked_at = ?, question_expires_at = ?,
+       question_expired_at = ? WHERE id = ?`,
+  ).run(
+    'Which <b>color</b> for the banner?',
+    JSON.stringify(['Red', 'Blue']),
+    waitingRun,
+    now - 11 * MIN,
+    now - MIN,
+    now - MIN,
+    waitingChat,
+  );
 }
 
 if (process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

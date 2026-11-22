@@ -64,12 +64,20 @@ describe('readEditableConfig', () => {
 
   test('Settings shows interactive Run settings with defaults when absent from the file', () => {
     const { file } = writeConfig(config);
-    expect(readEditableConfig(file).runs).toMatchObject({ maxInteractiveSessions: 3, interactiveIdleMinutes: 30 });
+    expect(readEditableConfig(file).runs).toMatchObject({
+      maxInteractiveSessions: 3,
+      interactiveIdleMinutes: 30,
+      questionWaitMs: 600_000,
+    });
 
-    const configured = writeConfig({ ...config, runs: { maxInteractiveSessions: 6, interactiveIdleMinutes: 5 } });
+    const configured = writeConfig({
+      ...config,
+      runs: { maxInteractiveSessions: 6, interactiveIdleMinutes: 5, questionWaitMs: 120_000 },
+    });
     expect(readEditableConfig(configured.file).runs).toMatchObject({
       maxInteractiveSessions: 6,
       interactiveIdleMinutes: 5,
+      questionWaitMs: 120_000,
     });
   });
 
@@ -110,7 +118,12 @@ describe('readEditableConfig', () => {
 
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
     expect(saved).not.toHaveProperty('copilotBin');
-    expect(saved.runs).toEqual({ timeoutMinutes: 10, maxInteractiveSessions: 3, interactiveIdleMinutes: 30 });
+    expect(saved.runs).toEqual({
+      timeoutMinutes: 10,
+      maxInteractiveSessions: 3,
+      interactiveIdleMinutes: 30,
+      questionWaitMs: 600_000,
+    });
     expect(saved.providers.copilot).toEqual({
       bin: '/opt/copilot',
       defaultModel: 'other',

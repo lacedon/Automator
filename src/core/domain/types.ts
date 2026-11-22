@@ -54,6 +54,18 @@ export interface Watch {
 
 export type ChatMode = 'follow-up' | 'interactive';
 export type ChatProcessState = 'stopped' | 'starting' | 'idle' | 'busy';
+export type ChatState = 'idle' | 'running' | 'waiting' | 'closed';
+
+export interface PendingQuestion {
+  text: string;
+  options: string[] | null;
+  source: 'automator' | 'native';
+  requestId: string;
+  runId: number | null;
+  askedAt: number;
+  expiresAt: number;
+  expiredAt: number | null; // non-null: the turn was told to stop; the next answer starts an `answer` turn
+}
 
 export interface ChatSession {
   id: number;
@@ -70,6 +82,8 @@ export interface ChatSession {
   processState: ChatProcessState;
   pid: number | null;
   copyPath: string | null;
+  mcpNonce: string | null;
+  question: PendingQuestion | null;
 }
 
 export interface Run {

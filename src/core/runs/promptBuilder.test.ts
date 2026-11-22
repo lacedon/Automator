@@ -592,7 +592,17 @@ describe('buildInteractivePrompt', () => {
     expect(prompt).not.toContain('write exactly this JSON');
     expect(prompt).not.toContain('Nobody answers questions');
     expect(prompt).not.toContain('non-interactively');
-    expect(prompt).toContain('say so in your reply and end your turn');
+    expect(prompt).not.toContain('say so in your reply and end your turn');
+  });
+
+  test('the first interactive prompt tells the agent to use ask_user and to stop on the timeout reply', () => {
+    const prompt = buildInteractivePrompt({ ...base(), run: chatRun(), firstTurn: true });
+    expect(prompt).toContain('`ask_user`');
+    expect(prompt).toContain('options');
+    expect(prompt).toContain('"No answer yet. Stop and wait for the user"');
+    expect(prompt).toContain('end your turn');
+    expect(prompt).toContain(`Answer to your earlier question`);
+    expect(prompt).not.toContain('Nobody answers questions');
   });
 
   test('later turns send only the message', () => {

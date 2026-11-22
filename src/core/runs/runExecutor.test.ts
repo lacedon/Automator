@@ -99,6 +99,7 @@ function setup(opts: SetupOpts = {}) {
     config,
     repositories,
     dataDir,
+    queue: new QueueService(t.db, clock, dataDir, config, repositories, new ChatSessionService(t.db, clock)),
     launchers: { copilot: launcher, 'claude-code': launcher, codex: codexLauncher, opencode: launcher, pi: launcher },
     prechecks,
     currentBranch,

@@ -6,6 +6,8 @@ import {
   formatDuration,
   intervalFor,
   parseDuration,
+  runChatMcpServer,
+  runChatTool,
   type AppError,
   type Core,
   type Run,
@@ -16,11 +18,35 @@ export interface CliIo {
   out(s: string): void;
   err(s: string): void;
   confirm(prompt: string): Promise<boolean>;
+  // The hidden `mcp` and `chat-tool` subcommands speak on stdio (stdout is the protocol channel there).
+  stdin?: NodeJS.ReadableStream;
+  stdout?: NodeJS.WritableStream;
 }
 
 const USAGE_ERROR = 2;
 const DOMAIN_ERROR = 1;
 const WATCH_STATES: WatchState[] = ['active', 'paused', 'needs_you', 'closed'];
+
+// Resolves with the first line of `stream` (or everything up to EOF). `onClosedAfterLine` runs if the stream ends after
+// a full line was read.
+function readFirstLine(stream: NodeJS.ReadableStream, onClosedAfterLine: () => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let gotLine = false;
+    stream.on('data', (chunk: Buffer | string) => {
+      if (gotLine) return;
+      buffer += chunk.toString();
+      const newline = buffer.indexOf('\n');
+      if (newline !== -1) {
+        gotLine = true;
+        resolve(buffer.slice(0, newline));
+      }
+    });
+    stream.on('end', () => (gotLine ? onClosedAfterLine() : resolve(buffer)));
+    stream.on('close', () => gotLine && onClosedAfterLine());
+    stream.on('error', (error) => (gotLine ? onClosedAfterLine() : reject(error)));
+  });
+}
 
 function durationArg(value: string): number {
   try {
@@ -265,6 +291,58 @@ export async function runCli(argv: string[], io: CliIo, core?: Core): Promise<nu
       });
       if (!r.ok) return fail(r.error, { watchId: id });
       queued(r.value);
+    });
+
+  // Launched by the provider of an Interactive Chat, never by a person: `mcp` is the stdio MCP server handed to ACP
+  // providers, `chat-tool` is called by the bundled pi extension.
+  const chatProcess = (name: string) =>
+    program
+      .command(name, { hidden: true })
+      .requiredOption('--chat-session <id>', 'Chat session ID', idArg)
+      .requiredOption('--nonce <hex>', 'session nonce')
+      .option('--config <path>', 'config file (default: AUTOMATOR_CONFIG or ./automator.config.json)');
+  const configPath = (opts: { config?: string }) =>
+    path.resolve(opts.config ?? process.env.AUTOMATOR_CONFIG ?? 'automator.config.json');
+  chatProcess('mcp').action(async (opts: { chatSession: number; nonce: string; config?: string }) => {
+    await runChatMcpServer({
+      configPath: configPath(opts),
+      sessionId: opts.chatSession,
+      nonce: opts.nonce,
+      input: io.stdin ?? process.stdin,
+      output: io.stdout ?? process.stdout,
+    });
+  });
+  chatProcess('chat-tool')
+    .argument('<name>', 'tool name')
+    .action(async (name: string, opts: { chatSession: number; nonce: string; config?: string }) => {
+      // The first line of stdin is the JSON input. A caller that keeps stdin open after the newline (the pi extension)
+      // is the tool's parent: when that stdin closes the parent is gone, so the call is aborted and the process exits
+      // instead of polling for up to questionWaitMs. A caller that sends the input without a newline and closes
+      // (one-shot use) is not treated as gone.
+      // A write after the parent is gone fails with EPIPE; that must not surface as an unhandled stream error.
+      (io.stdout ?? process.stdout).on('error', () => {});
+      const controller = new AbortController();
+      let args: unknown;
+      try {
+        const input = await readFirstLine(io.stdin ?? process.stdin, () => controller.abort());
+        args = input.trim() === '' ? {} : JSON.parse(input);
+      } catch (e) {
+        io.err(`Invalid tool input: ${(e as Error).message}`);
+        code = DOMAIN_ERROR;
+        return;
+      }
+      io.out(
+        JSON.stringify(
+          await runChatTool({
+            configPath: configPath(opts),
+            sessionId: opts.chatSession,
+            nonce: opts.nonce,
+            name,
+            args,
+            signal: controller.signal,
+          }),
+        ),
+      );
     });
 
   try {

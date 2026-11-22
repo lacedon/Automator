@@ -7,10 +7,16 @@ import { useTranslations } from 'next-intl';
 import { Pill } from './Pill';
 
 type Counts = { watches: number };
-export type NavChatStatus = 'needs-you' | 'error' | 'queued' | 'running';
+export type NavChatStatus = 'needs-you' | 'error' | 'queued' | 'running' | 'waiting';
 export type NavChat = { id: number; title: string; status: NavChatStatus | null };
 
-const STATUS_PILL = { 'needs-you': 'needs-you', error: 'needs-you', queued: 'info', running: 'running' } as const;
+const STATUS_PILL = {
+  'needs-you': 'needs-you',
+  error: 'needs-you',
+  queued: 'info',
+  running: 'running',
+  waiting: 'waiting',
+} as const;
 
 function NavigationItems({
   counts,

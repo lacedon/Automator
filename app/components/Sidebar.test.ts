@@ -14,6 +14,7 @@ const chats = [
   { id: 3, title: 'running chat', status: 'running' as const },
   { id: 4, title: 'failed chat', status: 'error' as const },
   { id: 5, title: 'done chat', status: null },
+  { id: 6, title: 'asking chat', status: 'waiting' as const },
 ];
 
 for (const [name, Nav] of [
@@ -29,7 +30,8 @@ for (const [name, Nav] of [
         children: createElement(Nav, { counts, chats }),
       }),
     );
-    expect(html.match(/class="pill /g)).toHaveLength(4);
+    expect(html.match(/class="pill /g)).toHaveLength(5);
+    expect(html).toMatch(/asking chat<\/span><span class="pill pill-waiting">Waiting for you/);
     expect(html).toMatch(/waiting chat<\/span><span class="pill pill-needs-you">Needs you/);
     expect(html).toMatch(/queued chat<\/span><span class="pill pill-info">queued/);
     expect(html).toMatch(/running chat<\/span><span class="pill pill-running">running/);

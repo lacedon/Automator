@@ -173,7 +173,8 @@
     "state_active": "活跃",
     "state_paused": "已暂停",
     "state_closed": "已关闭",
-    "outcomeDone": "已回复"
+    "outcomeDone": "已回复",
+    "waiting": "等待你回复"
   },
   "RunMeta": {
     "adhoc": "临时：",
@@ -258,7 +259,14 @@
     "closeChatWorkUnknown": "Automator 无法检查此聊天的工作副本中是否有未保存的工作（未提交的更改或未推送的提交）。关闭会删除该副本。仍要关闭吗？",
     "workUncommitted": "未提交的更改",
     "workUnpushed": "{count, plural, other {# 个未推送的提交}}",
-    "sessionState": "{state, select, live {会话运行中} stopped {会话已停止；下次发送消息时将恢复} closing {正在关闭…} other {聊天已关闭}}"
+    "sessionState": "{state, select, live {会话运行中} stopped {会话已停止；下次发送消息时将恢复} closing {正在关闭…} other {聊天已关闭}}",
+    "questionWaiting": "智能体正在等待你的回答。",
+    "questionExpired": "智能体已不再等待此回答。你的回答将开始新的一轮。",
+    "questionOther": "其他回答",
+    "questionAnswer": "你的回答",
+    "questionSend": "发送回答",
+    "questionSent": "回答已发送。",
+    "questionQueued": "回答已作为运行 #{id} 排队。"
   },
   "RunFiles": {
     "transcript": "记录",

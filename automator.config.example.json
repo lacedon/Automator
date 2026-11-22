@@ -32,7 +32,8 @@
     "isolation": "shared",
     "maxConcurrent": 2,
     "maxInteractiveSessions": 3,
-    "interactiveIdleMinutes": 30
+    "interactiveIdleMinutes": 30,
+    "questionWaitMs": 600000
   },
   "cleanup": { "enabled": true, "everyDays": 7, "retainClosedDays": 30 },
   "teams": {

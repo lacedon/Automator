@@ -22,6 +22,8 @@
 
   --pill-needs-you-bg: #5a1e22;
   --pill-needs-you-text: #ff9492;
+  --pill-waiting-bg: #3a2468;
+  --pill-waiting-text: #e0c8ff;
   --pill-good-bg: #12361f;
   --pill-good-text: #56d364;
   --pill-running-bg: #3b2e0a;
@@ -337,6 +339,11 @@ code {
 .pill-needs-you {
   background: var(--pill-needs-you-bg);
   color: var(--pill-needs-you-text);
+}
+
+.pill-waiting {
+  background: var(--pill-waiting-bg);
+  color: var(--pill-waiting-text);
 }
 
 .pill-good {
@@ -923,6 +930,34 @@ textarea:focus {
 .chat-agent {
   align-self: flex-start;
   background: var(--surface);
+}
+
+.question-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.question-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.question-text {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.question-options {
+  flex-wrap: wrap;
 }
 
 .chat-window {
@@ -2000,6 +2035,8 @@ dialog.file-dialog::backdrop {
 
   --pill-needs-you-bg: #ffebe9;
   --pill-needs-you-text: #a40e26;
+  --pill-waiting-bg: #f1e8ff;
+  --pill-waiting-text: #5a32a3;
   --pill-good-bg: #dafbe1;
   --pill-good-text: #116329;
   --pill-running-bg: #fff8c5;
