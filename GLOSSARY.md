@@ -41,7 +41,10 @@ The default Chat mode. Each reply starts a new one-shot provider process that re
 A Chat mode in which one long-lived provider process per Chat can ask the user questions mid-turn and schedule itself to continue later. It works in its own copy of the Repository folder, never the shared checkout. Available for Claude Code and pi; the other providers stay disabled until their ACP session resume is verified. Each message is a turn, recorded as a Run with outcome `done` (shown as "Replied"); the Chat's process stops after an idle timeout and resumes by provider session id on the next message.
 
 **Chat session**:
-The stored record of an Interactive Chat: provider, model, Agent, provider session id and close state. The Runs of one Interactive Chat all refer to it.
+The stored record of an Interactive Chat: provider, model, Agent, provider session id, close state and its one pending **Wake-up**. The Runs of one Interactive Chat all refer to it.
+
+**Wake-up**:
+The Automator timer an Interactive Chat's agent sets with `schedule_wakeup` (at least 1 minute ahead, one per Chat). The scheduler fires it within the Repository's working hours as a `timer` Run. Different from a provider's built-in timer (for example Claude Code `/loop`), which fires inside the live process as an unprompted `agent` Run and is lost if the process stops.
 
 **Waiting for you**:
 The state of an Interactive Chat whose agent asked the user a question (the Automator `ask_user` tool or a provider's native question) and has not been answered yet. The turn waits for `runs.questionWaitMs`; after that the turn ends and the Chat keeps waiting, and the answer starts an `answer` turn. Distinct from **Needs you**, which is an Automation state.

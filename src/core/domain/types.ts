@@ -67,6 +67,12 @@ export interface PendingQuestion {
   expiredAt: number | null; // non-null: the turn was told to stop; the next answer starts an `answer` turn
 }
 
+export interface PendingTimer {
+  fireAt: number;
+  message: string;
+  createdAt: number;
+}
+
 export interface ChatSession {
   id: number;
   mode: 'interactive';
@@ -84,6 +90,7 @@ export interface ChatSession {
   copyPath: string | null;
   mcpNonce: string | null;
   question: PendingQuestion | null;
+  timer: PendingTimer | null;
 }
 
 export interface Run {

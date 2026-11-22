@@ -303,6 +303,23 @@ export function seed(core: Core): void {
     now - MIN,
     waitingChat,
   );
+  // An Interactive Chat on a provider with native timers, with an Automator wake-up pending (HTML-looking text on purpose).
+  const timerChat = Number(
+    db
+      .prepare(
+        `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at, process_state,
+           timer_fire_at, timer_message, timer_created_at)
+         VALUES ('interactive', 'pages', 'claude-code', 'claude-sonnet-4.5', ?, ?, 'idle', ?, ?, ?)`,
+      )
+      .run(now - 9 * MIN, now - 8 * MIN, now + 60 * MIN, 'Check the <b>deploy</b> status', now - 8 * MIN)
+      .lastInsertRowid,
+  );
+  db.prepare(
+    `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, provider, queued_at, started_at, ended_at,
+       pid, result_status, outcome, summary, chat_session_id)
+     VALUES ('pages', 'finished', 'adhoc', 0, 'ad-hoc', 'Deploy and check back later', 'claude-sonnet-4.5', 'claude-code', ?, ?, ?,
+       4301, 'success', 'done', 'Deployed; I scheduled a wake-up.', ?)`,
+  ).run(now - 9 * MIN, now - 9 * MIN, now - 8 * MIN, timerChat);
 }
 
 if (process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

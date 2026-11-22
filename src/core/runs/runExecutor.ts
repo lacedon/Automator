@@ -239,11 +239,40 @@ export class RunExecutor {
   }
 
   async execute(run: Run): Promise<RunFinal> {
+    return this.supervised(run, null, (active) => this.conclude(active));
+  }
+
+  // An unprompted `agent` turn (a native timer fired inside the live provider process): the session manager inserted
+  // the Run as running, so it never passed claimNext. It gets the same watchdog (cancel, FORBIDDEN, timeout) and
+  // finalization as any turn, but nothing is prompted or launched.
+  async adoptTurn(run: Run, handle: TurnHandle): Promise<RunFinal> {
+    return this.supervised(run, handle, async (active) => {
+      this.deps.dataDir.ensureRunDir(run.id);
+      if (handle.pid > 0) this.deps.db.prepare('UPDATE runs SET pid = ? WHERE id = ?').run(handle.pid, run.id);
+      const exit = await handle.exited;
+      active.exited = true;
+      const conclusion = this.evaluate(active, exit, this.deps.dataDir.resultPath(run.id));
+      const copy =
+        run.chatSessionId === null
+          ? undefined
+          : (this.deps.db.prepare('SELECT copy_path FROM chat_sessions WHERE id = ?').get(run.chatSessionId) as
+              { copy_path: string | null } | undefined);
+      const branch = copy?.copy_path == null ? null : await this.currentBranch(copy.copy_path);
+      return { ...conclusion, branch };
+    });
+  }
+
+  private async supervised(
+    run: Run,
+    turn: TurnHandle | null,
+    conclude: (active: Active) => Promise<RunConclusion>,
+  ): Promise<RunFinal> {
     if (this.active.has(run.id)) throw new Error(`Run #${run.id} is already executing`);
     const active: Active = {
       run,
       startedAt: run.startedAt ?? this.deps.clock.now(),
-      proc: null,
+      proc: turn,
+      ...(turn === null ? {} : { turn }),
       exited: false,
       interrupted: null,
       termSentAt: null,
@@ -254,7 +283,7 @@ export class RunExecutor {
     try {
       let conclusion: RunConclusion;
       try {
-        conclusion = await this.conclude(active);
+        conclusion = await conclude(active);
       } catch (e) {
         if (active.proc !== null && !active.exited) active.proc.kill('SIGKILL');
         conclusion = failure('INTERNAL_ERROR', `Internal error: ${errorMessage(e)}`);

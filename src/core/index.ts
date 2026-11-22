@@ -58,6 +58,7 @@ export { DataDir } from './files/dataDir';
 export { INTERACTIVE_CAPABILITIES, interactiveSupport, type InteractiveCapabilities } from './chats/capabilities';
 export { ChatSessionService } from './chats/chatSessionService';
 export { ChatSessionManager } from './chats/sessionManager';
+export { timerPrompt } from './chats/timers';
 export { runChatMcpServer, runChatTool } from './chats/chatToolEntry';
 export { answerQuestion } from './chats/questions';
 export { QUESTION_TIMEOUT_REPLY } from './chats/chatToolDefs';
@@ -303,6 +304,8 @@ export function createCore(
     configFor,
     repositories,
     queue,
+    // Native timers fire unprompted turns; the executor supervises and finalizes their `agent` Runs.
+    adoptTurn: (run, handle) => executor.adoptTurn(run, handle),
     // How a provider launches the Automator tools (MCP server / chat-tool): this Node and this checkout's CLI entry.
     ...(options.configPath === undefined
       ? {}
@@ -339,6 +342,8 @@ export function createCore(
     onNeedsYou,
   };
 
+  const executor = new RunExecutor(executorDeps);
+
   return {
     config,
     db,
@@ -366,7 +371,7 @@ export function createCore(
     chats,
     chatSessions,
     scheduler: new Scheduler({ db, clock, config, configFor, dataDir, queue, repositories, prechecks, onNeedsYou }),
-    executor: new RunExecutor(executorDeps),
+    executor,
     cleanup: new CleanupService({ db, clock, config, configFor, allConfigs: () => configs.all(), dataDir }),
     agents,
     projects: new ProjectService(db, repositories, () => clock.now()),

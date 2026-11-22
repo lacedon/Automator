@@ -8,6 +8,7 @@ import { intervalFor, isWithinWorkingHours } from '../domain/schedule';
 import type { Clock, NeedsYouEvent, Watch } from '../domain/types';
 import { writeAttemptError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
+import { fireDueChatTimers } from '../chats/timers';
 import { precheckFor, type Prechecks } from '../prechecks/index';
 import { SCRIPT_TIMEOUT_MS } from '../prechecks/script';
 import type { PrecheckResult } from '../prechecks/types';
@@ -52,6 +53,7 @@ export class Scheduler {
   async tick(): Promise<{ checked: number; enqueued: number }> {
     const { clock } = this.deps;
     const totals = { checked: 0, enqueued: 0 };
+    this.fireChatTimers();
     const queue = this.dueWatches(clock.now());
     const worker = async () => {
       for (let watch = queue.shift(); watch !== undefined; watch = queue.shift()) {
@@ -60,6 +62,19 @@ export class Scheduler {
     };
     await Promise.all(Array.from({ length: Math.min(CHECK_CONCURRENCY, queue.length) }, worker));
     return totals;
+  }
+
+  // Interactive Chat wake-ups are independent of Automations: they fire even when no Automation is due. Each fires only
+  // within its Repository's working hours (fireDueChatTimers checks them).
+  private fireChatTimers(): void {
+    try {
+      const { db, clock, queue, config } = this.deps;
+      fireDueChatTimers({ db, clock, queue, configFor: this.deps.configFor ?? (() => config) });
+    } catch (e) {
+      console.error(
+        `${new Date().toISOString()} scheduler: firing chat timers failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   private async process(watch: Watch, totals: { checked: number; enqueued: number }): Promise<void> {

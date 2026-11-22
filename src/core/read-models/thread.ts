@@ -1,8 +1,10 @@
+import { INTERACTIVE_CAPABILITIES } from '../chats/capabilities';
 import { toChatSession, toRun } from '../db/rows';
 import type {
   ChatMode,
   Interrupted,
   PendingQuestion,
+  PendingTimer,
   Outcome,
   Run,
   RunError,
@@ -43,6 +45,9 @@ export type ThreadView = {
     canClose: boolean;
     // Waiting for you: the agent asked something and the Chat waits for the answer.
     question: PendingQuestion | null;
+    // The Chat's pending Automator wake-up, and whether its provider has built-in timers that die with the process.
+    timer: PendingTimer | null;
+    nativeTimers: boolean;
   };
 };
 
@@ -68,10 +73,26 @@ function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
 // The Chat's mode is fixed at creation; every Run of an Interactive Chat shares the session of its root.
 function chatOf(deps: ReadDeps, run: Run, tip: Run): ThreadView['chat'] {
   if (run.chatSessionId === null)
-    return { mode: 'follow-up', sessionId: null, state: null, canClose: false, question: null };
+    return {
+      mode: 'follow-up',
+      sessionId: null,
+      state: null,
+      canClose: false,
+      question: null,
+      timer: null,
+      nativeTimers: false,
+    };
   const row = deps.db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(run.chatSessionId);
   if (row === undefined)
-    return { mode: 'interactive', sessionId: run.chatSessionId, state: 'closed', canClose: false, question: null };
+    return {
+      mode: 'interactive',
+      sessionId: run.chatSessionId,
+      state: 'closed',
+      canClose: false,
+      question: null,
+      timer: null,
+      nativeTimers: false,
+    };
   const session = toChatSession(row);
   const state: ThreadChatState =
     session.closedAt !== null
@@ -87,6 +108,8 @@ function chatOf(deps: ReadDeps, run: Run, tip: Run): ThreadView['chat'] {
     state,
     canClose: (state === 'live' || state === 'stopped') && tip.status === 'finished',
     question: state === 'closed' || state === 'closing' ? null : session.question,
+    timer: state === 'closed' || state === 'closing' ? null : session.timer,
+    nativeTimers: INTERACTIVE_CAPABILITIES[session.provider].nativeTimers,
   };
 }
 

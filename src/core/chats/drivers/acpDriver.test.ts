@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { testConfig } from '../../../../test/helpers/config';
 import { resolveSecrets } from '../../config/load';
-import { acpCommand, createAcpDriver, type AcpProvider } from './acpDriver';
+import { acpCommand, AGENT_SETTLE_MS, createAcpDriver, type AcpProvider } from './acpDriver';
 import { DriverError, type SessionEvent, type SessionHandle, type ToolPolicy } from './sessionDriver';
 
 const FAKE = path.resolve('test/fixtures/fake-acp-agent.mjs');
@@ -29,6 +29,7 @@ function setup(
   script: Script = {},
   extraEnv: Record<string, string> = {},
   requestTimeoutMs?: number,
+  agentSettleMs?: number,
 ) {
   const config = testConfig({
     providers: {
@@ -55,6 +56,7 @@ function setup(
     stdinGraceMs: 150,
     killGraceMs: 150,
     ...(requestTimeoutMs === undefined ? {} : { requestTimeoutMs }),
+    ...(agentSettleMs === undefined ? {} : { agentSettleMs }),
   });
   const start = (overrides: Partial<Parameters<typeof driver.start>[0]> = {}) => {
     const handle = driver.start({
@@ -345,6 +347,154 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     expect(events).toContainEqual({ type: 'turn-start', prompted: false });
     await until(() => (texts(events).includes('tick') ? true : undefined));
     expect(texts(events)).toBe('oktick');
+  });
+
+  test('AGENT_SETTLE_MS is five seconds', () => {
+    expect(AGENT_SETTLE_MS).toBe(5000);
+  });
+
+  test('an unprompted turn ends with the usage_update that carries the cost', async () => {
+    const cost = { amount: 0.04, currency: 'USD' };
+    const s = setup(
+      provider,
+      {
+        prompts: [
+          {
+            updates: [{ text: 'ok' }],
+            unprompted: {
+              afterMs: 20,
+              updates: [
+                { text: 'tick' },
+                { sessionUpdate: 'usage_update', used: 5, size: 10 },
+                { sessionUpdate: 'usage_update', used: 6, size: 10, cost },
+              ],
+            },
+          },
+        ],
+      },
+      {},
+      undefined,
+      60_000, // the settle window must not be what ends it
+    );
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('set a timer');
+    await until(() => events.filter((e) => e.type === 'turn-end').length === 2 || undefined);
+
+    const kinds = events.flatMap((e) => (e.type === 'turn-start' || e.type === 'turn-end' ? [e] : []));
+    expect(kinds).toEqual([
+      { type: 'turn-start', prompted: true },
+      { type: 'turn-end', stopReason: 'end_turn' },
+      { type: 'turn-start', prompted: false },
+      { type: 'turn-end', stopReason: 'end_turn' },
+    ]);
+    expect(texts(events)).toBe('oktick');
+  });
+
+  test('an unprompted turn ends after AGENT_SETTLE_MS without updates', async () => {
+    const s = setup(
+      provider,
+      {
+        prompts: [{ updates: [{ text: 'ok' }], unprompted: { afterMs: 20, updates: [{ text: 'a' }, { text: 'b' }] } }],
+      },
+      {},
+      undefined,
+      150,
+    );
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('set a timer');
+    await until(() => events.filter((e) => e.type === 'turn-end').length === 2 || undefined);
+    expect(events.filter((e) => e.type === 'turn-start' && !e.prompted)).toHaveLength(1);
+    expect(texts(events)).toBe('okab');
+  });
+
+  test('bookkeeping updates do not start an unprompted turn, other updates do', async () => {
+    const quiet = setup(
+      provider,
+      {
+        prompts: [
+          {
+            updates: [{ text: 'ok' }],
+            unprompted: {
+              afterMs: 20,
+              updates: [
+                { sessionUpdate: 'usage_update', used: 1, size: 2 },
+                { sessionUpdate: 'session_info_update', title: 't' },
+                { sessionUpdate: 'available_commands_update', availableCommands: [] },
+                { sessionUpdate: 'current_mode_update', currentModeId: 'x' },
+              ],
+            },
+          },
+        ],
+      },
+      {},
+      undefined,
+      100,
+    );
+    const first = quiet.start();
+    await first.handle.ready;
+    await first.handle.send('go');
+    await until(() => turnEnd(first.events));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(first.events.filter((e) => e.type === 'turn-start')).toHaveLength(1);
+
+    const thought = setup(
+      provider,
+      {
+        prompts: [
+          {
+            updates: [{ text: 'ok' }],
+            unprompted: {
+              afterMs: 20,
+              updates: [{ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'hmm' } }],
+            },
+          },
+        ],
+      },
+      {},
+      undefined,
+      100,
+    );
+    const second = thought.start();
+    await second.handle.ready;
+    await second.handle.send('go');
+    await until(() => second.events.find((e) => e.type === 'turn-start' && !e.prompted));
+    await until(() => second.events.filter((e) => e.type === 'turn-end').length === 2 || undefined);
+  });
+
+  test('a prompted turn is not ended by the settle window', async () => {
+    const s = setup(
+      provider,
+      { prompts: [{ updates: [{ text: 'a' }, { text: 'b' }], pauseMs: 250 }] },
+      {},
+      undefined,
+      100,
+    );
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('slow');
+    await until(() => turnEnd(events));
+    expect(events.filter((e) => e.type === 'turn-end')).toHaveLength(1);
+    expect(texts(events)).toBe('ab');
+  });
+
+  test('cancelling an unprompted turn sends session/cancel and ends it as cancelled', async () => {
+    const s = setup(
+      provider,
+      { prompts: [{ updates: [{ text: 'ok' }], unprompted: { afterMs: 20, updates: [{ text: 'tick' }] } }] },
+      {},
+      undefined,
+      60_000,
+    );
+    const { handle, events } = s.start();
+    await handle.ready;
+    await handle.send('go');
+    await until(() => events.find((e) => e.type === 'turn-start' && !e.prompted));
+    handle.cancelTurn();
+    await until(() => events.filter((e) => e.type === 'turn-end').length === 2 || undefined);
+    expect(events.filter((e) => e.type === 'turn-end')[1]).toMatchObject({ stopReason: 'cancelled' });
+    await until(() => (s.methods().includes('session/cancel') ? true : undefined));
   });
 
   test('updates before the first prompt and during session/load are swallowed', async () => {

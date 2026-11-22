@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import {
   startTransition,
   useActionState,
@@ -16,6 +16,7 @@ import type { AppError, CopyWork, Skill, ThreadRun, ThreadView } from '@core/ind
 import {
   answerQuestion,
   branchRun,
+  cancelChatTimer,
   closeChat,
   sendRunMessage,
   type AnswerFormState,
@@ -29,7 +30,8 @@ import { PromptInput } from './PromptInput';
 import { Pill, RunPill } from './Pill';
 import { TranscriptBox } from './TranscriptBox';
 import { RunFileLinks } from './RunFileLinks';
-import { bubbleTranscript } from '../lib/chatBubble';
+import { bubbleTranscript, timerRequestText } from '../lib/chatBubble';
+import { formatFullDateTime } from '../lib/format';
 import { withSkills } from '../lib/skillSuggestions';
 
 export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | 'interrupted' | 'closedAt'>): boolean {
@@ -245,6 +247,31 @@ function QuestionCard({ question, runId }: { question: NonNullable<ThreadView['c
   );
 }
 
+// The Chat's pending Automator wake-up. It fires within the Repository's working hours, so the time shown is the
+// earliest one.
+function TimerCard({ timer, runId }: { timer: NonNullable<ThreadView['chat']['timer']>; runId: number }) {
+  const t = useTranslations('Chat');
+  const locale = useLocale();
+  const titleId = useId();
+  return (
+    <section className="timer-card" aria-labelledby={titleId}>
+      <p id={titleId} className="timer-title">
+        {t('timerTitle')}
+      </p>
+      <p className="muted">{t('timerFires', { time: formatFullDateTime(timer.fireAt, locale) })}</p>
+      <p className="timer-message">{timer.message}</p>
+      <div className="actions">
+        <ConfirmDialog
+          label={t('timerCancel')}
+          message={t('timerCancelMessage')}
+          confirmLabel={t('timerCancelConfirm')}
+          action={() => cancelChatTimer(runId)}
+        />
+      </div>
+    </section>
+  );
+}
+
 // All text is rendered as React text nodes: no HTML, no Markdown.
 function RunExchange({ run, current, waiting }: { run: ThreadRun; current: boolean; waiting: boolean }) {
   const t = useTranslations('Chat');
@@ -266,7 +293,16 @@ function RunExchange({ run, current, waiting }: { run: ThreadRun; current: boole
         <Link href={`/runs/${run.id}`}>{t('run', { id: run.id })}</Link>
         {current && t('thisRun')}
       </div>
-      <div className="chat-bubble chat-request">{run.request ?? run.ticketKey}</div>
+      {run.trigger === 'agent' ? (
+        <div className="chat-bubble chat-request muted">{t('agentTurn')}</div>
+      ) : run.trigger === 'timer' ? (
+        <div className="chat-bubble chat-request">
+          <div className="muted">{t('timerTurn')}</div>
+          {timerRequestText(run.request)}
+        </div>
+      ) : (
+        <div className="chat-bubble chat-request">{run.request ?? run.ticketKey}</div>
+      )}
       {run.status === 'finished' ? (
         <div className="chat-bubble chat-agent">
           <div>{pill}</div>
@@ -349,6 +385,9 @@ export function ChatPane({
           {t('sessionState', { state: thread.chat.state })}
         </p>
       )}
+      {thread.chat.nativeTimers && thread.chat.state !== 'closed' && thread.chat.state !== 'closing' && (
+        <p className="muted chat-native-timers">{t('nativeTimerWarning')}</p>
+      )}
       {thread.chat.canClose && (
         <div className="actions">
           <CloseSessionButton runId={currentRunId} />
@@ -367,6 +406,9 @@ export function ChatPane({
           waiting={thread.chat.question !== null && index === thread.runs.length - 1}
         />
       ))}
+      {thread.chat.timer !== null && (
+        <TimerCard timer={thread.chat.timer} runId={thread.runs[thread.runs.length - 1]!.id} />
+      )}
       {thread.chat.question !== null ? (
         <QuestionCard question={thread.chat.question} runId={thread.runs[thread.runs.length - 1]!.id} />
       ) : thread.replyToRunId === null ? (

@@ -552,8 +552,29 @@ export class QueueService {
           .get(row.chat_session_id) as { status: RunStatus } | undefined;
         if (open) return err({ code: 'INVALID_STATE', state: open.status, action: 'closeChat' });
         this.db
-          .prepare('UPDATE chat_sessions SET close_requested_at = coalesce(close_requested_at, ?) WHERE id = ?')
+          .prepare(
+            `UPDATE chat_sessions SET close_requested_at = coalesce(close_requested_at, ?), timer_fire_at = NULL, timer_message = NULL, timer_created_at = NULL WHERE id = ?`,
+          )
           .run(this.clock.now(), row.chat_session_id);
+        return ok(undefined);
+      })
+      .immediate();
+  }
+
+  // Drops the Chat's pending Automator timer (the dashboard's Cancel). Idempotent.
+  cancelChatTimer(runId: number): Result<void> {
+    return this.db
+      .transaction((): Result<void> => {
+        const row = this.db.prepare('SELECT chat_session_id FROM runs WHERE id = ?').get(runId) as
+          { chat_session_id: number | null } | undefined;
+        if (!row) return err({ code: 'NOT_FOUND' });
+        if (row.chat_session_id === null)
+          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Only Interactive Chats have timers' });
+        this.db
+          .prepare(
+            `UPDATE chat_sessions SET timer_fire_at = NULL, timer_message = NULL, timer_created_at = NULL WHERE id = ?`,
+          )
+          .run(row.chat_session_id);
         return ok(undefined);
       })
       .immediate();
@@ -575,7 +596,9 @@ export class QueueService {
           !this.db.prepare('SELECT 1 FROM runs WHERE chat_session_id = ?').get(row.chat_session_id)
         ) {
           this.db
-            .prepare('UPDATE chat_sessions SET close_requested_at = coalesce(close_requested_at, ?) WHERE id = ?')
+            .prepare(
+              `UPDATE chat_sessions SET close_requested_at = coalesce(close_requested_at, ?), timer_fire_at = NULL, timer_message = NULL, timer_created_at = NULL WHERE id = ?`,
+            )
             .run(this.clock.now(), row.chat_session_id);
         }
         return ok(undefined);

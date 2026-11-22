@@ -71,6 +71,7 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
     clock,
     config,
     dataDir,
+    queue,
     repositories,
     scheduler,
     mrCalls: mr.calls,
@@ -456,5 +457,67 @@ describe('Scheduler.tick', () => {
       nextCheckAt: clock.now() + config.schedule.intervals.mr,
     });
     errors.mockRestore();
+  });
+
+  test('scheduler tick fires due chat timers, also when no Automation is due', async () => {
+    const { db, clock, scheduler, mrCalls } = setup();
+    const session = new ChatSessionService(db, clock).create({
+      repository: 'pages',
+      provider: 'pi',
+      model: 'm',
+      agentId: null,
+    });
+    const root = Number(
+      db
+        .prepare(
+          `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, model, provider, queued_at, isolation, chat_session_id)
+           VALUES (NULL, 'pages', 'finished', 'adhoc', 0, 'ad-hoc', 'hi', 'm', 'pi', ?, 'copy', ?)`,
+        )
+        .run(clock.now(), session.id).lastInsertRowid,
+    );
+    db.prepare('UPDATE chat_sessions SET timer_fire_at = ?, timer_message = ?, timer_created_at = ? WHERE id = ?').run(
+      clock.now() + MIN,
+      'wake up',
+      clock.now(),
+      session.id,
+    );
+
+    expect(await scheduler.tick()).toEqual({ checked: 0, enqueued: 0 });
+    expect(db.prepare("SELECT count(*) AS n FROM runs WHERE trigger = 'timer'").get()).toEqual({ n: 0 });
+
+    clock.advance(MIN);
+    expect(await scheduler.tick()).toEqual({ checked: 0, enqueued: 0 });
+    expect(mrCalls).toEqual([]);
+    const timers = db.prepare("SELECT * FROM runs WHERE trigger = 'timer'").all().map(toRun);
+    expect(timers).toHaveLength(1);
+    expect(timers[0]).toMatchObject({ parentRunId: root, status: 'queued', chatSessionId: session.id });
+
+    await scheduler.tick(); // a second tick must not enqueue again
+    expect(db.prepare("SELECT count(*) AS n FROM runs WHERE trigger = 'timer'").get()).toEqual({ n: 1 });
+  });
+
+  test('a chat timer due outside working hours waits for the next window', async () => {
+    const { db, clock, scheduler } = setup();
+    const session = new ChatSessionService(db, clock).create({
+      repository: 'pages',
+      provider: 'pi',
+      model: 'm',
+      agentId: null,
+    });
+    db.prepare(
+      `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, model, provider, queued_at, isolation, chat_session_id)
+       VALUES (NULL, 'pages', 'finished', 'adhoc', 0, 'ad-hoc', 'hi', 'm', 'pi', ?, 'copy', ?)`,
+    ).run(clock.now(), session.id);
+    clock.set(Date.parse('2026-10-24T10:00:00')); // Saturday
+    db.prepare('UPDATE chat_sessions SET timer_fire_at = ?, timer_message = ?, timer_created_at = 0 WHERE id = ?').run(
+      clock.now() - MIN,
+      'm',
+      session.id,
+    );
+    await scheduler.tick();
+    expect(db.prepare("SELECT count(*) AS n FROM runs WHERE trigger = 'timer'").get()).toEqual({ n: 0 });
+    clock.set(Date.parse('2026-10-26T08:30:00'));
+    await scheduler.tick();
+    expect(db.prepare("SELECT count(*) AS n FROM runs WHERE trigger = 'timer'").get()).toEqual({ n: 1 });
   });
 });

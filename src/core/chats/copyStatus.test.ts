@@ -32,6 +32,20 @@ function cloneWithRemote(): string {
 }
 
 describe('copyWork', () => {
+  // The copy is written by the agent, and the dashboard runs git in it with its own environment: the checks must not
+  // execute commands named in the copy's git config.
+  test('a core.fsmonitor command in the copy is never executed', async () => {
+    const copy = cloneWithRemote();
+    const marker = path.join(path.dirname(copy), 'fsmonitor-ran');
+    const hook = path.join(path.dirname(copy), 'hook.sh');
+    fs.writeFileSync(hook, `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 });
+    git(copy, 'config', 'core.fsmonitor', hook);
+
+    await copyWork(copy);
+
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+
   test('a clean pushed copy reports no work', async () => {
     expect(await copyWork(cloneWithRemote())).toEqual({ uncommitted: false, unpushedCommits: 0, unknown: false });
   });

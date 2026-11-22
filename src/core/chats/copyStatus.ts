@@ -6,9 +6,15 @@ export type CopyWork = { uncommitted: boolean; unpushedCommits: number; unknown:
 
 const GIT_TIMEOUT_MS = 5_000;
 
+// The copy is written by the agent. `core.fsmonitor` in its .git/config names a command that `git status` would run
+// with the dashboard's environment, so it is switched off for every check.
+const SAFE_GIT = ['-c', 'core.fsmonitor=false'];
+
 function git(cwd: string, args: string[]): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile('git', args, { cwd, timeout: GIT_TIMEOUT_MS }, (error, stdout) => resolve(error ? null : stdout));
+    execFile('git', [...SAFE_GIT, ...args], { cwd, timeout: GIT_TIMEOUT_MS }, (error, stdout) =>
+      resolve(error ? null : stdout),
+    );
   });
 }
 

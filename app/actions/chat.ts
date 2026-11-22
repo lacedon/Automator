@@ -79,6 +79,22 @@ export async function closeChat(runId: number, confirmed: boolean): Promise<Clos
   return { ok: true };
 }
 
+// Cancels the Chat's pending Automator wake-up (any Run of the Chat identifies it).
+export async function cancelChatTimer(runId: number): Promise<{ ok: true } | { ok: false; error: AppError }> {
+  if (!Number.isInteger(runId) || runId < 1) {
+    return {
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'runId', message: 'Run id must be a positive integer' },
+    };
+  }
+  const guard = await requireWriteOnRun(runId);
+  if (!guard.ok) return guard;
+  const result = getCore().queue.cancelChatTimer(runId);
+  if (!result.ok) return result;
+  revalidatePath('/', 'layout');
+  return { ok: true };
+}
+
 export type AnswerFormState =
   | { ok: true; value: { delivered: 'in-turn' } | { delivered: 'new-turn'; runId: number } }
   | { ok: false; error: AppError; values: { answer?: string } }
