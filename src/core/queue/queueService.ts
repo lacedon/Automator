@@ -1,13 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ConfigFor } from '../config/resolver';
+import { interactiveSupport } from '../chats/capabilities';
+import { ChatSessionService } from '../chats/chatSessionService';
 import type { Config } from '../config/schema';
 import { providerOptions } from '../config/providers';
 import type { Database } from '../db/open';
 import { toRun } from '../db/rows';
 import { err, ok, type Result } from '../domain/result';
 import { parseTarget, tryParseUrl } from '../domain/targets';
-import type { Clock, ProviderName, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
+import type { ChatMode, Clock, ProviderName, Run, RunStatus, WatchState, WorkflowType } from '../domain/types';
 import { repositoryError } from '../files/attempts';
 import type { DataDir } from '../files/dataDir';
 import type { RepositoryService } from '../repositories/repositoryService';
@@ -36,6 +38,7 @@ export interface EnqueueAdhocInput {
   ticketKey?: string;
   ticketTitle?: string | null;
   agentId?: number | null;
+  chatSessionId?: number;
 }
 
 export interface AdhocRequest {
@@ -44,10 +47,12 @@ export interface AdhocRequest {
   prompt?: string;
   model?: string;
   ticket?: string;
+  mode?: ChatMode; // default 'follow-up'
 }
 
 export interface QueueDeps {
   configFor?: ConfigFor;
+  interactiveSupport?: (provider: ProviderName) => { supported: boolean; reason: string | null };
   ticketTitle?: (connection: string, key: string) => Promise<string>;
 }
 
@@ -65,6 +70,8 @@ function mergeInstructions(existing: string | null, added: string | undefined): 
 }
 
 export class QueueService {
+  private readonly sessions: ChatSessionService;
+
   constructor(
     private readonly db: Database,
     private readonly clock: Clock,
@@ -72,7 +79,13 @@ export class QueueService {
     private readonly config: Config,
     private readonly repositories: RepositoryService,
     private readonly deps: QueueDeps = {},
-  ) {}
+  ) {
+    this.sessions = new ChatSessionService(db, clock);
+  }
+
+  private interactiveSupport(provider: ProviderName): { supported: boolean; reason: string | null } {
+    return (this.deps.interactiveSupport ?? interactiveSupport)(provider);
+  }
 
   private configFor(repository: string): Config {
     return this.deps.configFor?.(repository) ?? this.config;
@@ -125,8 +138,8 @@ export class QueueService {
     const workflowType = inherited ?? (input.ticketKey === undefined ? 'free-adhoc' : 'ticket-adhoc');
     const row = this.db
       .prepare(
-        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type, agent_id, branched_from_run_id, branch_context)
-           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (watch_id, repository, status, trigger, priority, reason, adhoc_prompt, ticket_key, ticket_title, provider, model, parent_run_id, session_id, queued_at, workflow_type, agent_id, branched_from_run_id, branch_context, chat_session_id)
+           VALUES (NULL, ?, 'queued', 'adhoc', 0, 'ad-hoc', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING *`,
       )
       .get(
@@ -143,6 +156,7 @@ export class QueueService {
         input.agentId ?? null,
         input.branchedFromRunId ?? null,
         input.branchContext ?? null,
+        input.chatSessionId ?? null,
       );
     return toRun(row);
   }
@@ -151,7 +165,9 @@ export class QueueService {
     return this.db
       .transaction((): Result<{ run: Run }> => {
         const parent = this.db
-          .prepare('SELECT watch_id, status, repository, provider, model, session_id, agent_id FROM runs WHERE id = ?')
+          .prepare(
+            'SELECT watch_id, status, repository, provider, model, session_id, agent_id, chat_session_id FROM runs WHERE id = ?',
+          )
           .get(runId) as
           | {
               watch_id: number | null;
@@ -161,6 +177,7 @@ export class QueueService {
               model: string;
               session_id: string | null;
               agent_id: number | null;
+              chat_session_id: number | null;
             }
           | undefined;
         if (!parent) return err({ code: 'NOT_FOUND' });
@@ -176,6 +193,13 @@ export class QueueService {
           });
         if (parent.status !== 'finished')
           return err({ code: 'INVALID_STATE', state: parent.status, action: 'followUp' });
+        if (parent.chat_session_id !== null)
+          return err({
+            code: 'INVALID_STATE',
+            state: parent.status,
+            action: 'followUp',
+            message: 'Interactive Chats are not available yet',
+          });
         if (this.db.prepare('SELECT 1 FROM runs WHERE parent_run_id = ?').get(runId))
           return err({ code: 'INVALID_INPUT', field: 'run', message: 'Reply on the latest Run in the thread' });
         if (parent.session_id === null)
@@ -243,6 +267,16 @@ export class QueueService {
             return `### Exchange ${offset + i + 1}\n\nUser: ${request}\n\nAgent: ${response}`;
           }),
         ].join('\n\n');
+        // An Interactive Chat branches into a new Interactive Chat with its own session.
+        const session =
+          run.chatSessionId === null
+            ? null
+            : this.sessions.create({
+                repository: run.repository,
+                provider: run.provider,
+                model: run.model,
+                agentId: run.agentId,
+              });
         return ok({
           run: this.enqueueAdhoc({
             repository: run.repository,
@@ -252,6 +286,7 @@ export class QueueService {
             agentId: run.agentId,
             branchedFromRunId: run.id,
             branchContext: context,
+            ...(session === null ? {} : { chatSessionId: session.id }),
           }),
         });
       })
@@ -262,6 +297,15 @@ export class QueueService {
     const invalidRepository = repositoryError(this.repositories, this.dataDir, input.repository, this.clock.now());
     if (invalidRepository) return err(invalidRepository);
     const config = this.configFor(input.repository);
+    const mode = input.mode ?? 'follow-up';
+    const support = mode === 'interactive' ? this.interactiveSupport(config.provider) : null;
+    if (support !== null && !support.supported) {
+      return err({
+        code: 'INVALID_INPUT',
+        field: 'mode',
+        message: support.reason ?? 'Interactive mode is not available for this provider',
+      });
+    }
     const options = providerOptions(config, config.provider);
     const model = input.model ?? options.defaultModel;
     if (![options.defaultModel, ...options.models].includes(model)) {
@@ -310,6 +354,15 @@ export class QueueService {
         if (invalidRepository) return err(invalidRepository);
         const repository = this.repositories.get(input.repository);
         if (repository === null) return err({ code: 'NOT_FOUND' });
+        const session =
+          mode === 'interactive'
+            ? this.sessions.create({
+                repository: repository.name,
+                provider: config.provider,
+                model,
+                agentId: input.agentId ?? null,
+              })
+            : null;
         return ok(
           this.enqueueAdhoc({
             repository: repository.name,
@@ -319,6 +372,7 @@ export class QueueService {
             agentId: input.agentId,
             ticketKey: ticket?.key,
             ticketTitle: ticket?.title,
+            ...(session === null ? {} : { chatSessionId: session.id }),
           }),
         );
       })
@@ -444,13 +498,22 @@ export class QueueService {
   deleteAdhoc(runId: number): Result<void> {
     const result = this.db
       .transaction((): Result<void> => {
-        const row = this.db.prepare('SELECT watch_id, status FROM runs WHERE id = ?').get(runId) as
-          { watch_id: number | null; status: RunStatus } | undefined;
+        const row = this.db.prepare('SELECT watch_id, status, chat_session_id FROM runs WHERE id = ?').get(runId) as
+          { watch_id: number | null; status: RunStatus; chat_session_id: number | null } | undefined;
         if (!row) return err({ code: 'NOT_FOUND' });
         if (row.watch_id !== null || row.status !== 'finished') {
           return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
         }
         this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
+        // Deleting the last Run of an Interactive Chat ends the Chat; the worker finalizes the close.
+        if (
+          row.chat_session_id !== null &&
+          !this.db.prepare('SELECT 1 FROM runs WHERE chat_session_id = ?').get(row.chat_session_id)
+        ) {
+          this.db
+            .prepare('UPDATE chat_sessions SET close_requested_at = coalesce(close_requested_at, ?) WHERE id = ?')
+            .run(this.clock.now(), row.chat_session_id);
+        }
         return ok(undefined);
       })
       .immediate();

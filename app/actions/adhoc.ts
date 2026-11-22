@@ -8,7 +8,7 @@ import { requireWriteOnRepository, requireWriteOnRun } from '../lib/guard';
 import { parseInput } from './parse';
 import type { ActionResult } from './types';
 
-const FORM_FIELDS = ['repository', 'prompt', 'model', 'ticket', 'agentId'] as const;
+const FORM_FIELDS = ['repository', 'prompt', 'model', 'ticket', 'agentId', 'mode'] as const;
 
 export type AdhocFormValues = Partial<Record<(typeof FORM_FIELDS)[number], string>>;
 
@@ -26,6 +26,7 @@ const adhocSchema = z.object({
     .optional()
     .transform((v) => (v?.trim() ? v.trim() : undefined)),
   agentId: z.coerce.number().int().positive().optional(),
+  mode: z.enum(['follow-up', 'interactive']).default('follow-up'),
   // Blank = the config default model.
   model: z
     .string()

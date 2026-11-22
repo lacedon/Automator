@@ -951,3 +951,23 @@ describe('RunExecutor', () => {
     expect(s.currentBranch).toHaveBeenCalledWith(s.config.repositories.pages!.folder);
   });
 });
+
+describe('Interactive Chat guard', () => {
+  test('a Run of an Interactive Chat fails with PROVIDER_CAPABILITY_UNSUPPORTED while the provider is unsupported', async () => {
+    const s = setup();
+    const session = s.db
+      .prepare(
+        `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+         VALUES ('interactive', 'pages', 'copilot', 'm1', 1, 1) RETURNING id`,
+      )
+      .get() as { id: number };
+    const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'hello' });
+    s.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(session.id, run.id);
+
+    const final = await s.executor.execute(runOf(s.db, run.id));
+
+    expect(final.error?.code).toBe('PROVIDER_CAPABILITY_UNSUPPORTED');
+    expect(s.starts).toEqual([]);
+    expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error' });
+  });
+});

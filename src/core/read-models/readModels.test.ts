@@ -479,6 +479,13 @@ describe('read models', () => {
     expect(options).not.toHaveProperty('defaultPromptFiles');
   });
 
+  test('form options expose interactive support per Repository provider', () => {
+    const { read } = setup();
+    const options = read.formOptions();
+    expect(options.interactive).toEqual({ supported: false, reason: expect.any(String) });
+    expect(options.byRepository.pages!.interactive).toEqual({ supported: false, reason: expect.any(String) });
+  });
+
   test('form options expose selected provider models', () => {
     const { db, read } = setup({
       provider: 'codex',
@@ -520,6 +527,24 @@ describe('read models', () => {
       const id = insertRun(db, { watch_id: insertWatch(db) });
 
       expect((await read.runDetail(id))!.thread).toBeNull();
+    });
+
+    test('thread view reports the chat mode', async () => {
+      const { db, read } = setup();
+      const plain = insertRun(db, { ...adhoc });
+      const sessionId = Number(
+        db
+          .prepare(
+            `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+             VALUES ('interactive', 'pages', 'copilot', 'm', 1, 1)`,
+          )
+          .run().lastInsertRowid,
+      );
+      const interactive = insertRun(db, { ...adhoc, chat_session_id: sessionId });
+
+      expect((await read.runDetail(plain))!.thread!.chat).toEqual({ mode: 'follow-up', sessionId: null });
+      expect((await read.runDetail(interactive))!.thread!.chat).toEqual({ mode: 'interactive', sessionId });
+      expect((await read.runDetail(interactive))!.chat.chat).toEqual({ mode: 'interactive', sessionId });
     });
 
     test('thread lists root to tip for any Run in the chain', async () => {

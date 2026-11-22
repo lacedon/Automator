@@ -170,6 +170,11 @@ export function ChatPane({
 
   return (
     <div className="chat">
+      {thread.runs[0]?.trigger === 'adhoc' && (
+        <p className="muted chat-mode">
+          {thread.chat.mode === 'interactive' ? t('modeInteractive') : t('modeFollowUp')}
+        </p>
+      )}
       {thread.branchedFromRunId !== null && (
         <p className="muted">
           <Link href={`/runs/${thread.branchedFromRunId}`}>{t('branchedFrom', { id: thread.branchedFromRunId })}</Link>

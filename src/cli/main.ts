@@ -67,7 +67,7 @@ function describeError(error: AppError, ctx: { watchId?: number; unknownRepoOutc
     case 'MISSING_INSTRUCTIONS':
       return 'Free-form Automations need --instructions';
     case 'INVALID_STATE':
-      return `Automation #${ctx.watchId} is ${error.state}; cannot ${error.action}`;
+      return error.message ?? `Automation #${ctx.watchId} is ${error.state}; cannot ${error.action}`;
     case 'JIRA_DISABLED':
       return 'Jira checking is disabled (jira.enabled is false)';
     case 'FORBIDDEN':

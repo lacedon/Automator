@@ -1,4 +1,5 @@
 import type {
+  ChatSession,
   ClosedReason,
   Cursor,
   InitialReview,
@@ -81,6 +82,7 @@ export function toRun(row: unknown): Run {
     parentRunId: r.parent_run_id as number | null,
     branchedFromRunId: r.branched_from_run_id as number | null,
     branchContext: r.branch_context as string | null,
+    chatSessionId: (r.chat_session_id ?? null) as number | null,
     reviewUnresolved: r.review_unresolved === 1,
     model: r.model as string,
     agentId: r.agent_id as number | null,
@@ -114,5 +116,22 @@ export function toNeedsYouEvent(row: unknown): NeedsYouEvent {
     createdAt: r.created_at as number,
     teamsStatus: r.teams_status as TeamsStatus,
     teamsError: r.teams_error as string | null,
+  };
+}
+
+export function toChatSession(row: unknown): ChatSession {
+  const r = row as Row;
+  return {
+    id: r.id as number,
+    mode: 'interactive',
+    repository: r.repository as string,
+    provider: r.provider as ProviderName,
+    model: r.model as string,
+    agentId: r.agent_id as number | null,
+    providerSessionId: r.provider_session_id as string | null,
+    createdAt: r.created_at as number,
+    lastActivityAt: r.last_activity_at as number,
+    closeRequestedAt: r.close_requested_at as number | null,
+    closedAt: r.closed_at as number | null,
   };
 }

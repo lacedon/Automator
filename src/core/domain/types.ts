@@ -52,6 +52,22 @@ export interface Watch {
   updatedAt: number;
 }
 
+export type ChatMode = 'follow-up' | 'interactive';
+
+export interface ChatSession {
+  id: number;
+  mode: 'interactive';
+  repository: string;
+  provider: ProviderName;
+  model: string;
+  agentId: number | null;
+  providerSessionId: string | null;
+  createdAt: number;
+  lastActivityAt: number;
+  closeRequestedAt: number | null;
+  closedAt: number | null;
+}
+
 export interface Run {
   id: number;
   watchId: number | null;
@@ -70,6 +86,7 @@ export interface Run {
   parentRunId: number | null;
   branchedFromRunId: number | null;
   branchContext: string | null;
+  chatSessionId: number | null;
   reviewUnresolved: boolean;
   model: string;
   agentId: number | null;

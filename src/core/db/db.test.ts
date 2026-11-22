@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { tempDb } from '../../../test/helpers/db';
 import { migrate } from './migrate';
 import { migrations } from './migrations';
-import { toNeedsYouEvent, toRun, toWatch } from './rows';
+import { toChatSession, toNeedsYouEvent, toRun, toWatch } from './rows';
 
 const cleanups: (() => void)[] = [];
 const workflowTypes = ['mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc'] as const;
@@ -129,7 +129,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(26);
+    expect(db.pragma('user_version', { simple: true })).toBe(27);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -172,12 +172,67 @@ describe('db', () => {
     expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
+  test('migration 27 adds chat_sessions and leaves existing Runs as Follow-up', () => {
+    const db = new BetterSqlite3(':memory:');
+    db.pragma('foreign_keys = ON');
+    db.exec('BEGIN');
+    for (const m of [...migrations].filter((m) => m.version < 27).sort((a, b) => a.version - b.version)) db.exec(m.sql);
+    db.pragma('user_version = 26');
+    db.exec('COMMIT');
+    cleanups.push(() => db.close());
+    const runId = insertRun(db, null, 'finished');
+
+    migrate(db);
+
+    expect(db.pragma('user_version', { simple: true })).toBe(27);
+    expect(db.prepare('SELECT chat_session_id FROM runs WHERE id = ?').get(runId)).toEqual({ chat_session_id: null });
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBeNull();
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  test('chat session rows round-trip', () => {
+    const db = setup();
+    const id = Number(
+      db
+        .prepare(
+          `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+           VALUES ('interactive', 'pages', 'pi', 'm', ?, ?)`,
+        )
+        .run(T, T).lastInsertRowid,
+    );
+    const runId = insertRun(db, null, 'queued');
+    db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(id, runId);
+    expect(toChatSession(db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(id))).toEqual({
+      id,
+      mode: 'interactive',
+      repository: 'pages',
+      provider: 'pi',
+      model: 'm',
+      agentId: null,
+      providerSessionId: null,
+      createdAt: T,
+      lastActivityAt: T,
+      closeRequestedAt: null,
+      closedAt: null,
+    });
+    expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBe(id);
+    expect(
+      constraintCode(() =>
+        db
+          .prepare(
+            "INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at) VALUES ('other', 'p', 'pi', 'm', 1, 1)",
+          )
+          .run(),
+      ),
+    ).toBe('SQLITE_CONSTRAINT_CHECK');
+  });
+
   test('migrate is idempotent and sets user_version 23', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(26);
+    expect(db.pragma('user_version', { simple: true })).toBe(27);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(26);
+    expect(db.pragma('user_version', { simple: true })).toBe(27);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -209,6 +264,7 @@ describe('db', () => {
       'agents',
       'api_tokens',
       'app_settings',
+      'chat_sessions',
       'meta',
       'needs_you_events',
       'operation_templates',
@@ -303,7 +359,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(26);
+    expect(db.pragma('user_version', { simple: true })).toBe(27);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

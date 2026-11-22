@@ -455,4 +455,24 @@ BEGIN
 END;
 `,
   },
+  {
+    version: 27,
+    sql: `CREATE TABLE chat_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- Only 'interactive' rows are written: a Run with chat_session_id IS NULL is a Follow-up Chat Run.
+  mode TEXT NOT NULL CHECK (mode IN ('follow-up', 'interactive')),
+  repository TEXT NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('copilot', 'claude-code', 'codex', 'opencode', 'pi')),
+  model TEXT NOT NULL,
+  agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+  provider_session_id TEXT,
+  created_at INTEGER NOT NULL,
+  last_activity_at INTEGER NOT NULL,
+  close_requested_at INTEGER,
+  closed_at INTEGER
+);
+ALTER TABLE runs ADD COLUMN chat_session_id INTEGER REFERENCES chat_sessions(id);
+CREATE INDEX ix_run_chat_session ON runs(chat_session_id);
+`,
+  },
 ];

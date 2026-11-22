@@ -91,6 +91,7 @@ function run(partial: Partial<Run> = {}): Run {
     parentRunId: null,
     branchedFromRunId: null,
     branchContext: null,
+    chatSessionId: null,
     reviewUnresolved: false,
     model: 'claude-sonnet-4.5',
     agentId: null,

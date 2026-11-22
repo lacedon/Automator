@@ -1,5 +1,5 @@
 import { toRun } from '../db/rows';
-import type { Interrupted, Outcome, Run, RunError, RunStatus, Trigger } from '../domain/types';
+import type { ChatMode, Interrupted, Outcome, Run, RunError, RunStatus, Trigger } from '../domain/types';
 import type { ReadDeps } from './deps';
 import { readTranscriptExcerpt, type TranscriptExcerpt } from './transcriptExcerpt';
 
@@ -24,6 +24,7 @@ export type ThreadView = {
   replyToRunId: number | null;
   replyBlockedReason: string | null;
   branchedFromRunId: number | null;
+  chat: { mode: ChatMode; sessionId: number | null };
 };
 
 function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
@@ -45,12 +46,20 @@ function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
   };
 }
 
+// The Chat's mode is fixed at creation; every Run of an Interactive Chat shares the session of its root.
+function chatOf(run: Run): ThreadView['chat'] {
+  return run.chatSessionId === null
+    ? { mode: 'follow-up', sessionId: null }
+    : { mode: 'interactive', sessionId: run.chatSessionId };
+}
+
 export function singleRunThread(deps: ReadDeps, run: Run): ThreadView {
   return {
     runs: [toThreadRun(deps, run)],
     replyToRunId: null,
     replyBlockedReason: null,
     branchedFromRunId: run.branchedFromRunId,
+    chat: chatOf(run),
   };
 }
 
@@ -97,5 +106,6 @@ export function runThread(deps: ReadDeps, run: Run): ThreadView | null {
     replyToRunId: blocked === null ? tip.id : null,
     replyBlockedReason: blocked,
     branchedFromRunId: root.branchedFromRunId,
+    chat: chatOf(root),
   };
 }

@@ -21,7 +21,7 @@ function failure(error: AppError): Failure {
     case 'RUN_IN_PROGRESS':
       return { status: 409, code: error.code, message: 'Cancel the running Run first' };
     case 'INVALID_STATE':
-      return { status: 409, code: error.code, message: `Cannot ${error.action} while ${error.state}` };
+      return { status: 409, code: error.code, message: error.message ?? `Cannot ${error.action} while ${error.state}` };
     case 'JIRA_DISABLED':
       return { status: 409, code: error.code, message: 'Jira checking is disabled (jira.enabled is false)' };
     case 'MISSING_INSTRUCTIONS':
