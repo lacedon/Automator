@@ -38,7 +38,7 @@ _Avoid_: Chat type
 The default Chat mode. Each reply starts a new one-shot provider process that resumes the provider session. A Follow-up Chat has no Chat session.
 
 **Interactive mode**:
-A Chat mode in which one long-lived provider process per Chat can ask the user questions mid-turn and schedule itself to continue later. It works in its own copy of the Repository folder, never the shared checkout. Disabled for every provider until the session runtime ships.
+A Chat mode in which one long-lived provider process per Chat can ask the user questions mid-turn and schedule itself to continue later. It works in its own copy of the Repository folder, never the shared checkout. Available for Claude Code and pi; the other providers stay disabled until their ACP session resume is verified. Each message is a turn, recorded as a Run with outcome `done` (shown as "Replied"); the Chat's process stops after an idle timeout and resumes by provider session id on the next message.
 
 **Chat session**:
 The stored record of an Interactive Chat: provider, model, Agent, provider session id and close state. The Runs of one Interactive Chat all refer to it.

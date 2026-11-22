@@ -4,7 +4,12 @@ import type { z } from 'zod';
 import { writeJsonAtomic } from '../files/atomic';
 import { ConfigError } from './load';
 import { migrateLegacyConfig } from './migrate';
-import { createConfigSchema, type ConfigInput } from './schema';
+import {
+  createConfigSchema,
+  DEFAULT_INTERACTIVE_IDLE_MINUTES,
+  DEFAULT_MAX_INTERACTIVE_SESSIONS,
+  type ConfigInput,
+} from './schema';
 
 type ParsedConfig = z.output<ReturnType<typeof createConfigSchema>>;
 
@@ -18,8 +23,16 @@ const editableFields = ['dataDir', 'provider', 'providers', 'schedule', 'runs', 
 const scheduleFields = ['intervals', 'workingHours'] as const;
 const intervalFields = ['mr', 'default'] as const;
 const workingHoursFields = ['days', 'start', 'end'] as const;
-const runFields = ['timeoutMinutes', 'initialReview', 'denyTools', 'isolation', 'maxConcurrent'] as const;
-const providerFields = ['bin', 'defaultModel', 'models'] as const;
+const runFields = [
+  'timeoutMinutes',
+  'initialReview',
+  'denyTools',
+  'isolation',
+  'maxConcurrent',
+  'maxInteractiveSessions',
+  'interactiveIdleMinutes',
+] as const;
+const providerFields = ['bin', 'acpBin', 'defaultModel', 'models'] as const;
 const providers = ['copilot', 'claude-code', 'codex', 'opencode', 'pi'] as const;
 const cleanupFields = ['enabled', 'everyDays', 'retainClosedDays'] as const;
 const teamsFields = ['chatId', 'tool', 'model', 'dashboardUrl'] as const;
@@ -53,7 +66,11 @@ function projectConfig(
       schedule.workingHours = pick(raw.schedule.workingHours, workingHoursFields);
     result.schedule = schedule;
   }
-  if (isRecord(raw.runs)) result.runs = pick(raw.runs, runFields);
+  // Settings shows the interactive limits even when the file does not set them (as it does for providers).
+  const runs = isRecord(raw.runs) ? pick(raw.runs, runFields) : {};
+  runs.maxInteractiveSessions ??= DEFAULT_MAX_INTERACTIVE_SESSIONS;
+  runs.interactiveIdleMinutes ??= DEFAULT_INTERACTIVE_IDLE_MINUTES;
+  result.runs = runs;
   if (isRecord(raw.cleanup)) result.cleanup = pick(raw.cleanup, cleanupFields);
   if (isRecord(raw.teams)) result.teams = pick(raw.teams, teamsFields);
 

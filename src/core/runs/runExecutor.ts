@@ -4,6 +4,15 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { z } from 'zod';
 import { interactiveSupport } from '../chats/capabilities';
+import {
+  interactivePolicyError,
+  interactiveToolPolicy,
+  isFirstTurn,
+  lastMessageSummary,
+} from '../chats/interactiveTurn';
+import type { TurnHandle, TurnStart } from '../chats/sessionManager';
+import { toChatSession } from '../db/rows';
+import type { ChatSession } from '../domain/types';
 import type { Secrets } from '../config/load';
 import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
@@ -27,7 +36,7 @@ import type { Snapshot } from '../prechecks/types';
 import type { ProviderExit, ProviderLaunchers, RunningProcess } from './providerLauncher';
 import { applyOutcome, type RunFinal } from './outcomeApplier';
 import type { AgentService } from '../agents/agentService';
-import { buildAdhocPrompt, buildWatchPrompt } from './promptBuilder';
+import { buildAdhocPrompt, buildInteractivePrompt, buildWatchPrompt } from './promptBuilder';
 import { closeWatch } from '../watches/needsYou';
 import type { RepositoryService } from '../repositories/repositoryService';
 
@@ -66,6 +75,11 @@ export type ResultFileV1 = {
   transcriptPath: string | null;
 };
 
+// The part of ChatSessionManager the executor needs: send one turn to the Chat's live process.
+export interface InteractiveTurns {
+  startTurn(run: Run, session: ChatSession, prompt: string, start: TurnStart): Promise<TurnHandle>;
+}
+
 export interface RunExecutorDeps {
   db: Database;
   clock: Clock;
@@ -79,6 +93,7 @@ export interface RunExecutorDeps {
   repositories: RepositoryService;
   dataDir: DataDir;
   launchers: ProviderLaunchers;
+  chatSessions?: InteractiveTurns;
   prechecks: Prechecks;
   agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;
@@ -197,6 +212,7 @@ type Active = {
   run: Run;
   startedAt: number;
   proc: RunningProcess | null;
+  turn?: TurnHandle;
   exited: boolean;
   interrupted: Exclude<Interrupted, 'worker-restart'> | null;
   termSentAt: number | null;
@@ -342,7 +358,18 @@ export class RunExecutor {
     const operationTemplate = template?.instructions ?? null;
     const customTools =
       agent !== null && (!agent.allowAllTools || agent.allowedTools.length > 0 || agent.blockedTools.length > 0);
-    if (customTools && run.provider !== 'copilot') {
+    const chatRow =
+      run.chatSessionId === null
+        ? undefined
+        : db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(run.chatSessionId);
+    if (run.chatSessionId !== null && chatRow === undefined) {
+      return failure('INTERNAL_ERROR', `Chat session #${run.chatSessionId} not found`);
+    }
+    const toolPolicy = interactiveToolPolicy(agent, config);
+    if (chatRow !== undefined) {
+      const policyError = interactivePolicyError(run, toolPolicy);
+      if (policyError !== null) return failure(policyError.code, policyError.message, { error: policyError });
+    } else if (customTools && run.provider !== 'copilot') {
       return failure(
         'PROVIDER_CAPABILITY_UNSUPPORTED',
         `Agent "${agent.name}" configures tool permissions, which only the Copilot provider enforces.`,
@@ -361,7 +388,21 @@ export class RunExecutor {
           .get(repo.name) as { prompt_addition: string } | undefined
       )?.prompt_addition ?? null;
     let prompt: string;
-    if (run.watchId === null) {
+    if (chatRow !== undefined) {
+      try {
+        prompt = buildInteractivePrompt({
+          run,
+          config,
+          repository: repo,
+          firstTurn: isFirstTurn(db, run),
+          agentInstructions,
+          operationTemplate,
+          projectPromptAddition,
+        });
+      } catch (e) {
+        return failure('PROMPT_FAILED', errorMessage(e));
+      }
+    } else if (run.watchId === null) {
       try {
         prompt = buildAdhocPrompt({
           run,
@@ -416,6 +457,17 @@ export class RunExecutor {
     const promptPath = dataDir.promptPath(run.id);
     writeTextAtomic(promptPath, prompt);
     db.prepare('UPDATE runs SET prompt_path = ? WHERE id = ?').run(promptPath, run.id);
+
+    // The Chat's provider session id lives on the chat session, not the Run.
+    if (chatRow !== undefined) {
+      if (this.cancelRequested(run.id)) return failure('INTERRUPTED', 'Run cancelled', { interrupted: 'cancelled' });
+      return this.concludeInteractive(active, toChatSession(chatRow), prompt, {
+        model: run.model,
+        env: { ...process.env, ...this.deps.credentialEnv?.(run) },
+        tools: toolPolicy,
+        ...(this.deps.secretsFor === undefined ? {} : { scope: { config, secrets: this.deps.secretsFor(config) } }),
+      });
+    }
 
     let sessionId: string | undefined;
     if (run.watchId === null) {
@@ -493,6 +545,33 @@ export class RunExecutor {
     return { ...this.evaluate(active, exit, resultPath), branch };
   }
 
+  // One turn on the Chat's live process. The turn handle is supervised like a provider process, so cancel,
+  // FORBIDDEN, timeout and the SIGTERM/SIGKILL escalation work unchanged.
+  private async concludeInteractive(
+    active: Active,
+    session: ChatSession,
+    prompt: string,
+    start: TurnStart,
+  ): Promise<RunConclusion> {
+    const { run } = active;
+    const sessions = this.deps.chatSessions;
+    if (sessions === undefined) {
+      return failure('PROVIDER_CAPABILITY_UNSUPPORTED', 'Interactive mode is not available in this process.');
+    }
+    this.deps.db.prepare("UPDATE runs SET isolation = 'copy' WHERE id = ?").run(run.id);
+    const turn = await sessions.startTurn(run, session, prompt, start);
+    active.proc = turn;
+    active.turn = turn;
+    if (turn.pid > 0) this.deps.db.prepare('UPDATE runs SET pid = ? WHERE id = ?').run(turn.pid, run.id);
+    const exit = await turn.exited;
+    active.exited = true;
+    const conclusion = this.evaluate(active, exit, this.deps.dataDir.resultPath(run.id));
+    const copy = this.deps.db.prepare('SELECT copy_path FROM chat_sessions WHERE id = ?').get(session.id) as
+      { copy_path: string | null } | undefined;
+    const branch = copy?.copy_path == null ? null : await this.currentBranch(copy.copy_path);
+    return { ...conclusion, branch };
+  }
+
   private evaluate(active: Active, exit: ProviderExit, resultPath: string): RunConclusion {
     const run = active.run;
     const exitCode = exit.code;
@@ -511,6 +590,9 @@ export class RunExecutor {
     if (exitCode !== 0) {
       const how = exitCode === null ? `signal ${exit.signal ?? 'unknown'}` : `code ${exitCode}`;
       return failure('EXIT_NONZERO', `${providerLabels[run.provider]} exited with ${how}`, { exitCode });
+    }
+    if (active.turn !== undefined) {
+      return success('done', lastMessageSummary(active.turn.lastMessage()), exitCode);
     }
     if (!fs.existsSync(resultPath)) {
       const message =

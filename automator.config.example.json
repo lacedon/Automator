@@ -3,8 +3,8 @@
   "provider": "copilot",
   "providers": {
     "copilot": { "bin": "copilot", "defaultModel": "claude-sonnet-4.5", "models": ["claude-sonnet-4.5", "gpt-5"] },
-    "claude-code": { "bin": "claude", "defaultModel": "", "models": [] },
-    "codex": { "bin": "codex", "defaultModel": "", "models": [] },
+    "claude-code": { "bin": "claude", "acpBin": "claude-agent-acp", "defaultModel": "", "models": [] },
+    "codex": { "bin": "codex", "acpBin": "codex-acp", "defaultModel": "", "models": [] },
     "opencode": { "bin": "opencode", "defaultModel": "", "models": [] },
     "pi": { "bin": "pi", "defaultModel": "", "models": [] }
   },
@@ -30,7 +30,9 @@
     "initialReview": "baseline-only",
     "denyTools": [],
     "isolation": "shared",
-    "maxConcurrent": 2
+    "maxConcurrent": 2,
+    "maxInteractiveSessions": 3,
+    "interactiveIdleMinutes": 30
   },
   "cleanup": { "enabled": true, "everyDays": 7, "retainClosedDays": 30 },
   "teams": {

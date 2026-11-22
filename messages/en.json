@@ -118,7 +118,10 @@
     "priorityLabel": {
       "schedule": "scheduled",
       "manual": "manual",
-      "adhoc": "ad-hoc"
+      "adhoc": "ad-hoc",
+      "answer": "answer",
+      "timer": "timer",
+      "agent": "agent"
     },
     "running": "Running",
     "waiting": "Waiting · manual & ad-hoc go first",
@@ -150,7 +153,10 @@
   "Trigger": {
     "schedule": "schedule",
     "manual": "manual",
-    "adhoc": "ad-hoc"
+    "adhoc": "ad-hoc",
+    "answer": "answer",
+    "timer": "timer",
+    "agent": "agent"
   },
   "Pill": {
     "done": "Done",
@@ -166,7 +172,8 @@
     "state_needs_you": "Needs you",
     "state_active": "Active",
     "state_paused": "Paused",
-    "state_closed": "Closed"
+    "state_closed": "Closed",
+    "outcomeDone": "Replied"
   },
   "RunMeta": {
     "adhoc": "ad-hoc:",
@@ -212,7 +219,8 @@
     "task": "Task / result",
     "outcome": "Outcome",
     "startedQueued": "Started / queued",
-    "help": "Outcomes record what happened at the time. A past Needs you Run may already be resolved. Date filters use local start time, or queue time if never started."
+    "help": "Outcomes record what happened at the time. A past Needs you Run may already be resolved. Date filters use local start time, or queue time if never started.",
+    "replied": "Replied"
   },
   "RunDetail": {
     "chats": "Chats",
@@ -242,7 +250,14 @@
     "skillGlobal": "Global skill",
     "skillLocal": "Local skill (this Repository)",
     "modeFollowUp": "Follow-up mode",
-    "modeInteractive": "Interactive mode"
+    "modeInteractive": "Interactive mode",
+    "closeSession": "Close chat",
+    "closeSessionMessage": "Close this chat? Its working copy will be deleted and you cannot send more messages.",
+    "closeSessionConfirm": "Close chat",
+    "closeChatWorkWarning": "This chat's working copy has work that is not saved elsewhere: {details}. Closing deletes the copy. Close anyway?",
+    "workUncommitted": "uncommitted changes",
+    "workUnpushed": "{count, plural, one {# unpushed commit} other {# unpushed commits}}",
+    "sessionState": "{state, select, live {Session running} stopped {Session stopped; it resumes on your next message} closing {Closing…} other {Chat closed}}"
   },
   "RunFiles": {
     "transcript": "Transcript",

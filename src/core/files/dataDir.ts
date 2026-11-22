@@ -74,6 +74,39 @@ export class DataDir {
     fs.rmSync(path.join(this.root, 'workspaces'), { recursive: true, force: true });
   }
 
+  // An Interactive Chat's copy lives outside workspaces/, which startup recovery clears, so it survives restarts.
+  chatWorkspaceRoot(sessionId: number): string {
+    return path.join(this.root, 'chat-workspaces', String(sessionId));
+  }
+
+  chatWorkspacePath(sessionId: number, folder: string): string {
+    return path.join(this.chatWorkspaceRoot(sessionId), path.basename(folder));
+  }
+
+  removeChatWorkspace(sessionId: number): void {
+    fs.rmSync(this.chatWorkspaceRoot(sessionId), { recursive: true, force: true });
+  }
+
+  chatWorkspaceIds(): number[] {
+    try {
+      return fs
+        .readdirSync(path.join(this.root, 'chat-workspaces'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+        .map((entry) => Number(entry.name));
+    } catch {
+      return [];
+    }
+  }
+
+  chatSessionLogPath(sessionId: number): string {
+    return path.join(this.root, 'chat-sessions', `${sessionId}.log`);
+  }
+
+  // pi keeps its session files here instead of the user's own pi directory.
+  chatPiSessionsDir(): string {
+    return path.join(this.root, 'chat-pi-sessions');
+  }
+
   notifyTranscriptPath(eventId: number): string {
     return path.join(this.notifyDir, `${eventId}.md`);
   }

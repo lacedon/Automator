@@ -25,6 +25,10 @@ import { CredentialService } from './users/credentialService';
 import { UserService } from './users/userService';
 import { SettingsService } from './settings/settingsService';
 import { ChatSessionService } from './chats/chatSessionService';
+import { createAcpDriver } from './chats/drivers/acpDriver';
+import { createPiRpcDriver } from './chats/drivers/piRpcDriver';
+import type { SessionDrivers } from './chats/drivers/sessionDriver';
+import { ChatSessionManager } from './chats/sessionManager';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
 import { createClaudeCodeLauncher } from './runs/claudeCodeLauncher';
@@ -52,6 +56,9 @@ export { parseTarget, type ParsedTarget } from './domain/targets';
 export { DataDir } from './files/dataDir';
 export { INTERACTIVE_CAPABILITIES, interactiveSupport, type InteractiveCapabilities } from './chats/capabilities';
 export { ChatSessionService } from './chats/chatSessionService';
+export { ChatSessionManager } from './chats/sessionManager';
+export { copyWork, type CopyWork } from './chats/copyStatus';
+export type { SessionDrivers } from './chats/drivers/sessionDriver';
 export { CleanupService } from './cleanup/cleanupService';
 export { AgentService } from './agents/agentService';
 export { ProjectService } from './projects/projectService';
@@ -116,6 +123,7 @@ export interface Deps {
   jira: (conn: string, repository?: string) => JiraClient;
   copilot: CopilotLauncher;
   launchers: ProviderLaunchers;
+  sessionDrivers: SessionDrivers;
   notifier: Notifier;
 }
 
@@ -130,6 +138,7 @@ export interface Core {
   agentInstructions: AgentInstructionService;
   queue: QueueService;
   chats: ChatSessionService;
+  chatSessions: ChatSessionManager;
   scheduler: Scheduler;
   executor: RunExecutor;
   cleanup: CleanupService;
@@ -238,6 +247,15 @@ export function createCore(
       ((conn, repository) => createJiraClient(config.jira.connections[conn]!, secretsOf(repository).jira[conn] ?? {})),
     copilot,
     launchers,
+    sessionDrivers:
+      overrides.sessionDrivers ??
+      ({
+        copilot: createAcpDriver('copilot', config, secrets),
+        'claude-code': createAcpDriver('claude-code', config, secrets),
+        codex: createAcpDriver('codex', config, secrets),
+        opencode: createAcpDriver('opencode', config, secrets),
+        pi: createPiRpcDriver(config, secrets),
+      } satisfies SessionDrivers),
     notifier:
       overrides.notifier ??
       createTeamsNotifier({
@@ -272,6 +290,14 @@ export function createCore(
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
   const agents = new AgentService(db);
+  const chatSessions = new ChatSessionManager({
+    db,
+    clock,
+    dataDir,
+    drivers: deps.sessionDrivers,
+    configFor,
+    repositories,
+  });
   const executorDeps: RunExecutorDeps = {
     db,
     clock,
@@ -290,6 +316,7 @@ export function createCore(
     repositories,
     dataDir,
     launchers,
+    chatSessions,
     prechecks,
     agents,
     onNeedsYou,
@@ -320,6 +347,7 @@ export function createCore(
     }),
     queue,
     chats,
+    chatSessions,
     scheduler: new Scheduler({ db, clock, config, configFor, dataDir, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, configFor, allConfigs: () => configs.all(), dataDir }),

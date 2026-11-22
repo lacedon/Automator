@@ -190,10 +190,31 @@ export class QueueService {
           });
         if (parent.status !== 'finished')
           return err({ code: 'INVALID_STATE', state: parent.status, action: 'followUp' });
-        if (parent.chat_session_id !== null)
-          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Interactive Chats are not available yet' });
+        if (parent.chat_session_id !== null) {
+          const chat = this.db
+            .prepare('SELECT close_requested_at, closed_at FROM chat_sessions WHERE id = ?')
+            .get(parent.chat_session_id) as { close_requested_at: number | null; closed_at: number | null };
+          if (chat.closed_at !== null || chat.close_requested_at !== null)
+            return err({ code: 'INVALID_INPUT', field: 'run', message: 'This chat is closed' });
+        }
         if (this.db.prepare('SELECT 1 FROM runs WHERE parent_run_id = ?').get(runId))
           return err({ code: 'INVALID_INPUT', field: 'run', message: 'Reply on the latest Run in the thread' });
+        // The provider session of an Interactive Chat belongs to the Chat, not to a Run.
+        if (parent.chat_session_id !== null) {
+          const invalid = repositoryError(this.repositories, this.dataDir, parent.repository, this.clock.now());
+          if (invalid) return err(invalid);
+          return ok({
+            run: this.enqueueAdhoc({
+              repository: parent.repository,
+              prompt,
+              provider: parent.provider,
+              model: parent.model,
+              parentRunId: runId,
+              agentId: parent.agent_id,
+              chatSessionId: parent.chat_session_id,
+            }),
+          });
+        }
         if (parent.session_id === null)
           return err({
             code: 'INVALID_INPUT',
@@ -397,19 +418,36 @@ export class QueueService {
         ).map((r) => ({ key: this.checkoutKey(r.repository), isolation: r.isolation }));
         const queued = this.db
           .prepare(
-            `SELECT r.id, r.repository, r.trigger, w.state AS watch_state FROM runs r
+            `SELECT r.id, r.repository, r.trigger, r.chat_session_id, w.state AS watch_state FROM runs r
          LEFT JOIN watches w ON w.id = r.watch_id
          WHERE r.status = 'queued'
          ORDER BY r.priority, r.queued_at, r.id`,
           )
-          .all() as { id: number; repository: string; trigger: string; watch_state: WatchState | null }[];
+          .all() as {
+          id: number;
+          repository: string;
+          trigger: string;
+          chat_session_id: number | null;
+          watch_state: WatchState | null;
+        }[];
         for (const row of queued) {
           const state = row.watch_state;
           if (state === 'closed' || state === 'needs_you' || (state === 'paused' && row.trigger === 'schedule')) {
             this.db.prepare('DELETE FROM runs WHERE id = ?').run(row.id);
             continue;
           }
-          const { isolation, maxConcurrent } = this.configFor(row.repository).runs;
+          const configured = this.configFor(row.repository).runs;
+          const { maxConcurrent } = configured;
+          // An Interactive turn always runs in the Chat's own copy, and one Chat has one turn at a time.
+          const interactive = row.chat_session_id !== null;
+          if (
+            interactive &&
+            this.db
+              .prepare("SELECT 1 FROM runs WHERE chat_session_id = ? AND status = 'running'")
+              .get(row.chat_session_id) !== undefined
+          )
+            continue;
+          const isolation = interactive ? 'copy' : configured.isolation;
           const key = this.checkoutKey(row.repository);
           const sameCheckout = running.filter((r) => r.key === key);
           const blocked =
@@ -487,6 +525,27 @@ export class QueueService {
       .immediate();
   }
 
+  // Asks the worker to close an Interactive Chat: stop its process and delete its copy.
+  requestCloseChat(runId: number): Result<void> {
+    return this.db
+      .transaction((): Result<void> => {
+        const row = this.db.prepare('SELECT chat_session_id, watch_id FROM runs WHERE id = ?').get(runId) as
+          { chat_session_id: number | null; watch_id: number | null } | undefined;
+        if (!row) return err({ code: 'NOT_FOUND' });
+        if (row.chat_session_id === null)
+          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Only Interactive Chats can be closed' });
+        const open = this.db
+          .prepare("SELECT status FROM runs WHERE chat_session_id = ? AND status IN ('queued', 'running') LIMIT 1")
+          .get(row.chat_session_id) as { status: RunStatus } | undefined;
+        if (open) return err({ code: 'INVALID_STATE', state: open.status, action: 'closeChat' });
+        this.db
+          .prepare('UPDATE chat_sessions SET close_requested_at = coalesce(close_requested_at, ?) WHERE id = ?')
+          .run(this.clock.now(), row.chat_session_id);
+        return ok(undefined);
+      })
+      .immediate();
+  }
+
   deleteAdhoc(runId: number): Result<void> {
     const result = this.db
       .transaction((): Result<void> => {
@@ -497,8 +556,7 @@ export class QueueService {
           return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
         }
         this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-        // Deleting the last Run of an Interactive Chat requests its close. The worker will finalize it once the
-        // session runtime ships (PR 3); until then the request is only recorded.
+        // Deleting the last Run of an Interactive Chat requests its close; the worker finalizes it.
         if (
           row.chat_session_id !== null &&
           !this.db.prepare('SELECT 1 FROM runs WHERE chat_session_id = ?').get(row.chat_session_id)

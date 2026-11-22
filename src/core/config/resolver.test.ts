@@ -39,6 +39,34 @@ describe('ConfigResolver', () => {
     expect(configs.setValues(web, { locale: 'fr' }).ok).toBe(false);
   });
 
+  test('interactive settings are Project-overridable and validated', () => {
+    const { config, configs, web, apps } = setup();
+    expect(
+      configs.setValues(web, {
+        'runs/maxInteractiveSessions': '5',
+        'runs/interactiveIdleMinutes': '10',
+        'providers/claude-code/acpBin': '/opt/claude-agent-acp',
+        'providers/codex/acpBin': '/opt/codex-acp',
+      }),
+    ).toMatchObject({ ok: true });
+    const effective = configs.forProject(web);
+    expect(effective.runs.maxInteractiveSessions).toBe(5);
+    expect(effective.runs.interactiveIdleMinutes).toBe(10);
+    expect(effective.providers['claude-code'].acpBin).toBe('/opt/claude-agent-acp');
+    expect(effective.providers.codex.acpBin).toBe('/opt/codex-acp');
+    expect(configs.forProject(apps).runs.maxInteractiveSessions).toBe(config.runs.maxInteractiveSessions);
+    for (const [field, value] of [
+      ['runs/maxInteractiveSessions', '0'],
+      ['runs/maxInteractiveSessions', 'many'],
+      ['runs/interactiveIdleMinutes', '-3'],
+    ] as const) {
+      expect(configs.setValues(web, { [field]: value })).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_INPUT', field },
+      });
+    }
+  });
+
   test('without overrides the effective config equals the global one', () => {
     const { config, configs } = setup();
     expect(configs.forRepository('pages')).toEqual(config);

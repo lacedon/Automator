@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createCore, type Core } from '@core/index';
 import { fakeClock } from '../../test/helpers/clock';
@@ -6,7 +10,17 @@ import { testConfig } from '../../test/helpers/config';
 const holder = vi.hoisted(() => ({ core: null as unknown }));
 const revalidatePath = vi.hoisted(() => vi.fn());
 vi.mock('../lib/core', () => ({ getCore: () => holder.core }));
-vi.mock('../lib/guard', async () => (await import('../lib/guard.mock')).allowAll);
+const guardState = vi.hoisted(() => ({ denyWrite: false }));
+vi.mock('../lib/guard', async () => {
+  const allowAll = (await import('../lib/guard.mock')).allowAll;
+  return {
+    ...allowAll,
+    requireWriteOnRun: async () =>
+      guardState.denyWrite
+        ? { ok: false as const, error: { code: 'FORBIDDEN' as const } }
+        : { ok: true as const, userId: 1 },
+  };
+});
 vi.mock('next/cache', () => ({ revalidatePath }));
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
@@ -14,7 +28,7 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-const { sendRunMessage, branchRun } = await import('./chat');
+const { sendRunMessage, branchRun, closeChat } = await import('./chat');
 
 let core: Core;
 
@@ -27,6 +41,7 @@ beforeEach(() => {
   );
   holder.core = core;
   revalidatePath.mockClear();
+  guardState.denyWrite = false;
 });
 
 afterEach(() => core.close());
@@ -120,4 +135,86 @@ test('branchRun keeps the mode', async () => {
   expect(core.db.prepare('SELECT chat_session_id FROM runs WHERE branched_from_run_id = ?').get(plain.id)).toEqual({
     chat_session_id: null,
   });
+});
+
+function interactiveChat(opts: { dirty?: boolean; copy?: boolean } = {}) {
+  const session = core.chats.create({ repository: 'pages', provider: 'pi', model: 'm', agentId: null });
+  const run = finishedAdhoc();
+  core.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(session.id, run.id);
+  if (opts.copy !== false) {
+    const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-copy-'));
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-c', 'user.email=t@e.c', '-c', 'user.name=T', ...args], { cwd: copy, stdio: 'pipe' });
+    git('init', '-b', 'main');
+    fs.writeFileSync(path.join(copy, 'a.txt'), 'a');
+    git('add', '.');
+    git('commit', '-m', 'one');
+    if (opts.dirty) fs.writeFileSync(path.join(copy, 'b.txt'), 'dirty');
+    core.db.prepare('UPDATE chat_sessions SET copy_path = ? WHERE id = ?').run(copy, session.id);
+    cleanupDirs.push(copy);
+  }
+  return { run, session };
+}
+
+const cleanupDirs: string[] = [];
+afterEach(() => {
+  for (const dir of cleanupDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+});
+
+const closeRequested = (id: number) =>
+  (core.db.prepare('SELECT close_requested_at AS at FROM chat_sessions WHERE id = ?').get(id) as { at: number | null })
+    .at;
+
+test('closeChat with uncommitted or unpushed work returns needsConfirmation and does not close', async () => {
+  const { run, session } = interactiveChat({ dirty: true });
+
+  const result = await closeChat(run.id, false);
+
+  expect(result).toEqual({
+    ok: false,
+    needsConfirmation: true,
+    work: { uncommitted: true, unpushedCommits: 1 },
+  });
+  expect(closeRequested(session.id)).toBeNull();
+});
+
+test('closeChat with confirm requests the close', async () => {
+  const { run, session } = interactiveChat({ dirty: true });
+
+  expect(await closeChat(run.id, true)).toEqual({ ok: true });
+
+  expect(closeRequested(session.id)).not.toBeNull();
+  expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+});
+
+test('closeChat of a clean copy closes without confirmation', async () => {
+  const { run, session } = interactiveChat();
+  // A pushed state: no unpushed commits means a remote has them.
+  core.db.prepare('UPDATE chat_sessions SET copy_path = NULL WHERE id = ?').run(session.id);
+
+  expect(await closeChat(run.id, false)).toEqual({ ok: true });
+  expect(closeRequested(session.id)).not.toBeNull();
+});
+
+test('closeChat of a Chat that never started has nothing to lose', async () => {
+  const { run, session } = interactiveChat({ copy: false });
+  expect(await closeChat(run.id, false)).toEqual({ ok: true });
+  expect(closeRequested(session.id)).not.toBeNull();
+});
+
+test('closeChat needs write on the Run', async () => {
+  const { run, session } = interactiveChat();
+  guardState.denyWrite = true;
+
+  expect(await closeChat(run.id, true)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+  expect(closeRequested(session.id)).toBeNull();
+});
+
+test('closeChat rejects a Follow-up Chat and a running turn', async () => {
+  const plain = finishedAdhoc();
+  expect(await closeChat(plain.id, true)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
+
+  const { run } = interactiveChat();
+  core.db.prepare("UPDATE runs SET status = 'running' WHERE id = ?").run(run.id);
+  expect(await closeChat(run.id, true)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
 });

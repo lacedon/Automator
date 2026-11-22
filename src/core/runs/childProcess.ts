@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import type { Writable } from 'node:stream';
 import type { Env, Secrets } from '../config/load';
 import type { ProviderExit } from './providerLauncher';
 
@@ -14,12 +15,17 @@ export type ChildProcessOptions = {
   secrets: Secrets;
   logPath: string;
   preserveCopilotAuth?: boolean;
+  // 'pipe' keeps stdin open for a duplex protocol; the default ignores it as before.
+  stdin?: 'pipe';
+  // false keeps stdout out of the log file (a session driver logs the protocol itself, redacted).
+  logStdout?: boolean;
   onStdout?: (chunk: Buffer) => void;
   onStderr?: (chunk: Buffer) => void;
 };
 
 export type ChildProcessHandle = {
   pid: number;
+  stdin: Writable | null;
   exited: Promise<ProviderExit>;
   kill(signal: 'SIGTERM' | 'SIGKILL'): void;
 };
@@ -45,7 +51,7 @@ export function spawnChild(bin: string, args: string[], options: ChildProcessOpt
       cwd: options.cwd,
       detached: true,
       env: childEnv(options.env, options.secrets, options.preserveCopilotAuth) as NodeJS.ProcessEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [options.stdin === 'pipe' ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
   } catch (error) {
     fs.closeSync(log);
@@ -61,7 +67,11 @@ export function spawnChild(bin: string, args: string[], options: ChildProcessOpt
       outputError ??= error;
     }
   };
-  child.stdout?.on('data', (chunk: Buffer) => record(chunk, options.onStdout));
+  // An exited child must not turn a late protocol write into an unhandled 'error' event.
+  child.stdin?.on('error', () => {});
+  child.stdout?.on('data', (chunk: Buffer) =>
+    options.logStdout === false ? options.onStdout?.(chunk) : record(chunk, options.onStdout),
+  );
   child.stderr?.on('data', (chunk: Buffer) => record(chunk, options.onStderr));
 
   const pid = child.pid ?? 0;
@@ -95,6 +105,7 @@ export function spawnChild(bin: string, args: string[], options: ChildProcessOpt
 
   return {
     pid,
+    stdin: child.stdin ?? null,
     exited,
     kill(signal) {
       if (pid === 0) return;

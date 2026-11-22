@@ -13,11 +13,25 @@ const nonEmpty = z.string().min(1);
 const positiveInt = z.number().int().positive();
 const providerName = z.enum(['copilot', 'claude-code', 'codex', 'opencode', 'pi']);
 
+export const DEFAULT_MAX_INTERACTIVE_SESSIONS = 3;
+export const DEFAULT_INTERACTIVE_IDLE_MINUTES = 30;
+
 const providerSettings = (defaultBin: string, defaultModel = '') =>
   z
     .object({
       bin: nonEmpty.default(defaultBin),
       defaultModel: z.string().default(defaultModel),
+      models: z.array(z.string()).default([]),
+    })
+    .prefault({});
+
+// Claude Code and Codex reach Interactive mode through a separate ACP adapter executable.
+const acpProviderSettings = (defaultBin: string, defaultAcpBin: string) =>
+  z
+    .object({
+      bin: nonEmpty.default(defaultBin),
+      acpBin: nonEmpty.default(defaultAcpBin),
+      defaultModel: z.string().default(''),
       models: z.array(z.string()).default([]),
     })
     .prefault({});
@@ -50,8 +64,8 @@ export function createConfigSchema(configDir: string) {
       providers: z
         .object({
           copilot: providerSettings('copilot', 'claude-sonnet-4.5'),
-          'claude-code': providerSettings('claude'),
-          codex: providerSettings('codex'),
+          'claude-code': acpProviderSettings('claude', 'claude-agent-acp'),
+          codex: acpProviderSettings('codex', 'codex-acp'),
           opencode: providerSettings('opencode'),
           pi: providerSettings('pi'),
         })
@@ -102,6 +116,8 @@ export function createConfigSchema(configDir: string) {
           denyTools: z.array(z.string()).default([]),
           isolation: z.enum(['shared', 'copy']).default('shared'),
           maxConcurrent: positiveInt.default(2),
+          maxInteractiveSessions: positiveInt.default(DEFAULT_MAX_INTERACTIVE_SESSIONS),
+          interactiveIdleMinutes: positiveInt.default(DEFAULT_INTERACTIVE_IDLE_MINUTES),
         })
         .prefault({})
         .transform(({ timeoutMinutes, ...rest }) => ({ timeoutMs: timeoutMinutes * 60_000, ...rest })),

@@ -88,7 +88,12 @@ test('saveConfig writes valid edits and revalidates the Settings layout', async 
 test('saveConfig persists the selected provider and its model settings', async () => {
   const edited = readEditableConfig(configPath);
   edited.provider = 'codex';
-  edited.providers.codex = { bin: '/opt/codex', defaultModel: 'codex-model', models: ['codex-model', 'other'] };
+  edited.providers.codex = {
+    ...edited.providers.codex,
+    bin: '/opt/codex',
+    defaultModel: 'codex-model',
+    models: ['codex-model', 'other'],
+  };
 
   expect(await saveConfig(null, form(edited))).toBeNull();
   expect(JSON.parse(fs.readFileSync(configPath, 'utf8'))).toMatchObject({

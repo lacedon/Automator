@@ -130,3 +130,97 @@ describe('recoverInterruptedRuns', () => {
     expect(toRun(s.db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).interrupted).toBe('worker-restart');
   });
 });
+
+describe('recoverInterruptedRuns: Interactive Chats', () => {
+  function chat(db: Database, extra: { closeRequestedAt?: number; closedAt?: number; pid?: number } = {}): number {
+    const row = db
+      .prepare(
+        `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at, close_requested_at, closed_at, process_state, pid, provider_session_id)
+         VALUES ('interactive', 'pages', 'pi', 'm', 1, 1, ?, ?, ?, ?, 'prov') RETURNING id`,
+      )
+      .get(
+        extra.closeRequestedAt ?? null,
+        extra.closedAt ?? null,
+        extra.pid === undefined ? 'stopped' : 'busy',
+        extra.pid ?? null,
+      ) as { id: number };
+    return row.id;
+  }
+
+  const makeCopy = (s: ReturnType<typeof setup>, id: number) => {
+    const copy = s.dataDir.chatWorkspacePath(id, s.deps.config.repositories.pages.folder);
+    fs.mkdirSync(copy, { recursive: true });
+    fs.writeFileSync(path.join(copy, 'work.txt'), 'x');
+    return copy;
+  };
+
+  test('a turn running at restart is finalized interrupted and its session process group is killed and marked stopped', async () => {
+    const s = setup();
+    const child = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+    const exited = once(child, 'exit');
+    cleanups.push(() => child.kill('SIGKILL'));
+    const sessionId = chat(s.db, { pid: child.pid! });
+    const runId = insertRunning(s.db, null, s.clock.now(), child.pid!);
+    s.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(sessionId, runId);
+
+    expect(await recoverInterruptedRuns(s.deps)).toBe(1);
+
+    expect(await exited).toEqual([null, 'SIGKILL']);
+    expect(toRun(s.db.prepare('SELECT * FROM runs WHERE id = ?').get(runId))).toMatchObject({
+      status: 'finished',
+      interrupted: 'worker-restart',
+    });
+    expect(
+      s.db.prepare('SELECT process_state, pid, provider_session_id FROM chat_sessions WHERE id = ?').get(sessionId),
+    ).toEqual({
+      process_state: 'stopped',
+      pid: null,
+      provider_session_id: 'prov',
+    });
+  });
+
+  test('an idle session process left behind is killed and marked stopped', async () => {
+    const s = setup();
+    const child = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+    const exited = once(child, 'exit');
+    cleanups.push(() => child.kill('SIGKILL'));
+    const sessionId = chat(s.db, { pid: child.pid! });
+
+    await recoverInterruptedRuns(s.deps);
+
+    expect(await exited).toEqual([null, 'SIGKILL']);
+    expect(s.db.prepare('SELECT process_state, pid FROM chat_sessions WHERE id = ?').get(sessionId)).toEqual({
+      process_state: 'stopped',
+      pid: null,
+    });
+  });
+
+  test('open Interactive Chat copies survive restart while closed, close-requested and orphan chat copies are deleted', async () => {
+    const s = setup();
+    const open = chat(s.db);
+    const closed = chat(s.db, { closedAt: 5 });
+    const closing = chat(s.db, { closeRequestedAt: 5 });
+    const orphan = 9999;
+    const copies = new Map([open, closed, closing, orphan].map((id) => [id, makeCopy(s, id)]));
+
+    await recoverInterruptedRuns(s.deps);
+
+    expect(fs.existsSync(copies.get(open)!)).toBe(true);
+    expect(fs.existsSync(copies.get(closed)!)).toBe(false);
+    expect(fs.existsSync(copies.get(closing)!)).toBe(false);
+    expect(fs.existsSync(copies.get(orphan)!)).toBe(false);
+  });
+
+  test('per-Run copies are still cleared', async () => {
+    const s = setup();
+    const copy = s.dataDir.workspacePath(77, s.deps.config.repositories.pages.folder);
+    fs.mkdirSync(copy, { recursive: true });
+    const id = chat(s.db);
+    makeCopy(s, id);
+
+    await recoverInterruptedRuns(s.deps);
+
+    expect(fs.existsSync(copy)).toBe(false);
+    expect(fs.existsSync(s.dataDir.chatWorkspaceRoot(id))).toBe(true);
+  });
+});

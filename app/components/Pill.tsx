@@ -9,7 +9,7 @@ export function Pill({ variant, children }: { variant: PillVariant; children: Re
   return <span className={`pill pill-${variant}`}>{children}</span>;
 }
 
-const OUTCOME_VARIANT = { 'needs-you': 'needs-you', acted: 'good', nothing: 'neutral' } as const;
+const OUTCOME_VARIANT = { 'needs-you': 'needs-you', acted: 'good', nothing: 'neutral', done: 'good' } as const;
 
 // Manual and ad-hoc requests jump the queue (Info); scheduled ones wait their turn (Neutral).
 function queuedVariant(trigger: Trigger | undefined): PillVariant {
@@ -29,7 +29,10 @@ export function RunPill({ run }: { run: RunPillRun }) {
   if (run.closedAt != null) return <Pill variant="closed">{t('done')}</Pill>;
   if (run.interrupted !== null) return <Pill variant="interrupted">{t(run.interrupted)}</Pill>;
   if (run.resultStatus === 'error') return <Pill variant="needs-you">{t('error')}</Pill>;
-  if (run.outcome !== null) return <Pill variant={OUTCOME_VARIANT[run.outcome]}>{t(run.outcome)}</Pill>;
+  if (run.outcome !== null)
+    return (
+      <Pill variant={OUTCOME_VARIANT[run.outcome]}>{t(run.outcome === 'done' ? 'outcomeDone' : run.outcome)}</Pill>
+    );
   if (run.status === 'running') return <Pill variant="running">{t('running')}</Pill>;
   if (run.status === 'queued') return <Pill variant={queuedVariant(run.trigger)}>{t('queued')}</Pill>;
   return <Pill variant="neutral">—</Pill>;

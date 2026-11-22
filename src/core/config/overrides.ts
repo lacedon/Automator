@@ -251,6 +251,17 @@ export function overrideFields(base: Config): OverrideField[] {
         },
       ),
     ),
+    ...(['claude-code', 'codex'] as const).map((provider) =>
+      text(
+        `providers/${provider}/acpBin`,
+        'Provider',
+        `${provider} ACP adapter executable`,
+        (c) => c.providers[provider].acpBin,
+        (draft, value) => {
+          draft.providers[provider].acpBin = value;
+        },
+      ),
+    ),
     text(
       'providers/copilot/defaultModel',
       'Provider',
@@ -321,6 +332,32 @@ export function overrideFields(base: Config): OverrideField[] {
         const max = positiveInt(value);
         if (max === null) return 'Expected a positive whole number';
         draft.runs.maxConcurrent = max;
+        return null;
+      },
+    },
+    {
+      id: 'runs/maxInteractiveSessions',
+      group: 'Runs',
+      label: 'Max live Interactive Chat sessions',
+      kind: 'number',
+      read: (c) => String(c.runs.maxInteractiveSessions),
+      apply(draft, value) {
+        const max = positiveInt(value);
+        if (max === null) return 'Expected a positive whole number';
+        draft.runs.maxInteractiveSessions = max;
+        return null;
+      },
+    },
+    {
+      id: 'runs/interactiveIdleMinutes',
+      group: 'Runs',
+      label: 'Interactive Chat idle timeout (minutes)',
+      kind: 'number',
+      read: (c) => String(c.runs.interactiveIdleMinutes),
+      apply(draft, value) {
+        const minutes = positiveInt(value);
+        if (minutes === null) return 'Expected a positive whole number';
+        draft.runs.interactiveIdleMinutes = minutes;
         return null;
       },
     },

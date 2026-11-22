@@ -118,7 +118,10 @@
     "priorityLabel": {
       "schedule": "计划",
       "manual": "手动",
-      "adhoc": "临时"
+      "adhoc": "临时",
+      "answer": "回答",
+      "timer": "定时器",
+      "agent": "智能体"
     },
     "running": "运行中",
     "waiting": "等待中 · 手动和临时任务优先",
@@ -150,7 +153,10 @@
   "Trigger": {
     "schedule": "计划",
     "manual": "手动",
-    "adhoc": "临时"
+    "adhoc": "临时",
+    "answer": "回答",
+    "timer": "定时器",
+    "agent": "智能体"
   },
   "Pill": {
     "done": "已完成",
@@ -166,7 +172,8 @@
     "state_needs_you": "需要你处理",
     "state_active": "活跃",
     "state_paused": "已暂停",
-    "state_closed": "已关闭"
+    "state_closed": "已关闭",
+    "outcomeDone": "已回复"
   },
   "RunMeta": {
     "adhoc": "临时：",
@@ -212,7 +219,8 @@
     "task": "任务 / 结果",
     "outcome": "结果",
     "startedQueued": "开始 / 入队",
-    "help": "结果记录当时发生的情况。过去需要你处理的运行可能已解决。日期筛选使用本地开始时间；从未开始则使用入队时间。"
+    "help": "结果记录当时发生的情况。过去需要你处理的运行可能已解决。日期筛选使用本地开始时间；从未开始则使用入队时间。",
+    "replied": "已回复"
   },
   "RunDetail": {
     "chats": "聊天",
@@ -242,7 +250,14 @@
     "skillGlobal": "全局技能",
     "skillLocal": "本地技能（此仓库）",
     "modeFollowUp": "跟进模式",
-    "modeInteractive": "交互模式"
+    "modeInteractive": "交互模式",
+    "closeSession": "关闭聊天",
+    "closeSessionMessage": "关闭此聊天？其工作副本将被删除，且无法再发送消息。",
+    "closeSessionConfirm": "关闭聊天",
+    "closeChatWorkWarning": "此聊天的工作副本中有未保存到其他位置的工作：{details}。关闭会删除该副本。仍要关闭吗？",
+    "workUncommitted": "未提交的更改",
+    "workUnpushed": "{count, plural, other {# 个未推送的提交}}",
+    "sessionState": "{state, select, live {会话运行中} stopped {会话已停止；下次发送消息时将恢复} closing {正在关闭…} other {聊天已关闭}}"
   },
   "RunFiles": {
     "transcript": "记录",

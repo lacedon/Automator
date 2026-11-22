@@ -475,4 +475,74 @@ ALTER TABLE runs ADD COLUMN chat_session_id INTEGER REFERENCES chat_sessions(id)
 CREATE INDEX ix_run_chat_session ON runs(chat_session_id);
 `,
   },
+  {
+    version: 28,
+    // Rebuilds runs to widen the trigger and outcome CHECKs (SQLite cannot alter them in place) and keep chat_session_id.
+    rebuildsTables: true,
+    sql: `CREATE TABLE runs_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  watch_id INTEGER REFERENCES watches(id) ON DELETE CASCADE,
+  repository TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'finished')),
+  trigger TEXT NOT NULL CHECK (trigger IN ('schedule', 'manual', 'adhoc', 'answer', 'timer', 'agent')),
+  priority INTEGER NOT NULL CHECK (priority IN (0, 1)),
+  reason TEXT NOT NULL,
+  adhoc_prompt TEXT,
+  extra_instructions TEXT,
+  review_unresolved INTEGER NOT NULL DEFAULT 0 CHECK (review_unresolved IN (0, 1)),
+  model TEXT NOT NULL,
+  queued_at INTEGER NOT NULL,
+  started_at INTEGER,
+  ended_at INTEGER,
+  pid INTEGER,
+  cancel_requested_at INTEGER,
+  exit_code INTEGER,
+  result_status TEXT CHECK (result_status IN ('success', 'error')),
+  outcome TEXT CHECK (outcome IN ('nothing', 'acted', 'needs-you', 'done')),
+  summary TEXT,
+  error_json TEXT,
+  interrupted TEXT CHECK (interrupted IN ('timeout', 'cancelled', 'worker-restart')),
+  cursor_candidate_json TEXT,
+  branch TEXT,
+  prompt_path TEXT,
+  transcript_path TEXT,
+  result_path TEXT,
+  ticket_key TEXT,
+  ticket_title TEXT,
+  session_id TEXT,
+  parent_run_id INTEGER REFERENCES runs(id) ON DELETE SET NULL,
+  workflow_type TEXT NOT NULL DEFAULT 'free-adhoc'
+    CHECK (workflow_type IN ('mr-watch', 'jira-watch', 'free-watch', 'ticket-adhoc', 'free-adhoc')),
+  provider TEXT NOT NULL DEFAULT 'copilot'
+    CHECK (provider IN ('copilot', 'claude-code', 'codex', 'opencode', 'pi')),
+  agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+  owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  isolation TEXT NOT NULL DEFAULT 'shared' CHECK (isolation IN ('shared', 'copy')),
+  closed_at INTEGER,
+  branched_from_run_id INTEGER REFERENCES runs(id) ON DELETE SET NULL,
+  branch_context TEXT,
+  chat_session_id INTEGER REFERENCES chat_sessions(id)
+);
+INSERT INTO runs_new (id, watch_id, repository, status, trigger, priority, reason, adhoc_prompt, extra_instructions, review_unresolved, model, queued_at, started_at, ended_at, pid, cancel_requested_at, exit_code, result_status, outcome, summary, error_json, interrupted, cursor_candidate_json, branch, prompt_path, transcript_path, result_path, ticket_key, ticket_title, session_id, parent_run_id, workflow_type, provider, agent_id, owner_user_id, isolation, closed_at, branched_from_run_id, branch_context, chat_session_id)
+  SELECT id, watch_id, repository, status, trigger, priority, reason, adhoc_prompt, extra_instructions, review_unresolved, model, queued_at, started_at, ended_at, pid, cancel_requested_at, exit_code, result_status, outcome, summary, error_json, interrupted, cursor_candidate_json, branch, prompt_path, transcript_path, result_path, ticket_key, ticket_title, session_id, parent_run_id, workflow_type, provider, agent_id, owner_user_id, isolation, closed_at, branched_from_run_id, branch_context, chat_session_id FROM runs;
+DELETE FROM sqlite_sequence WHERE name = 'runs_new';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'runs_new', seq FROM sqlite_sequence WHERE name = 'runs';
+DROP TABLE runs;
+ALTER TABLE runs_new RENAME TO runs;
+CREATE UNIQUE INDEX ux_run_queued_per_watch ON runs(watch_id) WHERE status = 'queued';
+CREATE INDEX ix_run_queue ON runs(status, priority, queued_at, id);
+CREATE INDEX ix_run_parent ON runs(parent_run_id);
+CREATE INDEX ix_run_chat_session ON runs(chat_session_id);
+CREATE TRIGGER runs_default_owner AFTER INSERT ON runs WHEN NEW.owner_user_id IS NULL
+BEGIN
+  UPDATE runs SET owner_user_id = COALESCE(
+    (SELECT owner_user_id FROM watches WHERE id = NEW.watch_id),
+    (SELECT id FROM users ORDER BY username = 'admin' COLLATE NOCASE DESC, id LIMIT 1)
+  ) WHERE id = NEW.id;
+END;
+ALTER TABLE chat_sessions ADD COLUMN process_state TEXT NOT NULL DEFAULT 'stopped' CHECK (process_state IN ('stopped', 'starting', 'idle', 'busy'));
+ALTER TABLE chat_sessions ADD COLUMN pid INTEGER;
+ALTER TABLE chat_sessions ADD COLUMN copy_path TEXT;
+`,
+  },
 ];

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import type { AppError } from '@core/index';
+import { copyWork, type AppError, type CopyWork } from '@core/index';
 import { getCore } from '../lib/core';
 import { requireWriteOnRun } from '../lib/guard';
 import { parseInput } from './parse';
@@ -49,4 +49,31 @@ export async function branchRun(_prev: BranchFormState, formData: FormData): Pro
   core.access.setOwner('runs', result.value.run.id, guard.userId);
   revalidatePath('/', 'layout');
   redirect(`/runs/${result.value.run.id}`);
+}
+
+export type CloseChatResult =
+  { ok: true } | { ok: false; error: AppError } | { ok: false; needsConfirmation: true; work: CopyWork };
+
+// Closing deletes the Chat's working copy, so unsaved work needs an explicit confirmation first.
+export async function closeChat(runId: number, confirmed: boolean): Promise<CloseChatResult> {
+  if (!Number.isInteger(runId) || runId < 1) {
+    return {
+      ok: false,
+      error: { code: 'INVALID_INPUT', field: 'runId', message: 'Run id must be a positive integer' },
+    };
+  }
+  const guard = await requireWriteOnRun(runId);
+  if (!guard.ok) return guard;
+  const core = getCore();
+  const session = core.chats.forRun(runId);
+  if (session !== null && session.copyPath !== null && !confirmed) {
+    const work = await copyWork(session.copyPath);
+    if (work !== null && (work.uncommitted || work.unpushedCommits > 0)) {
+      return { ok: false, needsConfirmation: true, work };
+    }
+  }
+  const result = core.queue.requestCloseChat(runId);
+  if (!result.ok) return result;
+  revalidatePath('/', 'layout');
+  return { ok: true };
 }

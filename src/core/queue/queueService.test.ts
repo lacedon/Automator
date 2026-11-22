@@ -876,19 +876,103 @@ describe('Chat modes', () => {
     expect(queue.requestFollowUp(run.id, 'more')).toMatchObject({ ok: true, value: { run: { chatSessionId: null } } });
   });
 
-  test('requestFollowUp is not available for Interactive Chats yet', async () => {
+  test('replying to an Interactive Chat queues a turn without requiring a provider session id', async () => {
     const { db, queue } = setup({ interactiveSupport: supported });
     const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
     if (!first.ok) throw new Error('setup');
-    db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(first.value.run.id);
-    expect(queue.requestFollowUp(first.value.run.id, 'more')).toEqual({
-      ok: false,
-      error: {
-        code: 'INVALID_INPUT',
-        field: 'run',
-        message: 'Interactive Chats are not available yet',
-      },
+    db.prepare("UPDATE runs SET status = 'finished', session_id = NULL WHERE id = ?").run(first.value.run.id);
+
+    const reply = queue.requestFollowUp(first.value.run.id, 'more');
+
+    if (!reply.ok) throw new Error(JSON.stringify(reply.error));
+    expect(reply.value.run).toMatchObject({
+      status: 'queued',
+      chatSessionId: first.value.run.chatSessionId,
+      parentRunId: first.value.run.id,
+      sessionId: null,
+      adhocPrompt: 'more',
     });
+  });
+
+  test('a closed or close-requested Chat rejects replies', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    db.prepare('UPDATE chat_sessions SET close_requested_at = 5').run();
+    const expected = { ok: false, error: { code: 'INVALID_INPUT', field: 'run', message: 'This chat is closed' } };
+    expect(queue.requestFollowUp(first.value.run.id, 'more')).toEqual(expected);
+    db.prepare('UPDATE chat_sessions SET close_requested_at = NULL, closed_at = 5').run();
+    expect(queue.requestFollowUp(first.value.run.id, 'more')).toEqual(expected);
+  });
+
+  test('requestCloseChat records the request and is rejected while a turn is queued or running', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    const id = first.value.run.id;
+    expect(queue.requestCloseChat(id)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
+    db.prepare("UPDATE runs SET status = 'running' WHERE id = ?").run(id);
+    expect(queue.requestCloseChat(id)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE' } });
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(id);
+
+    expect(queue.requestCloseChat(id)).toEqual({ ok: true, value: undefined });
+    expect(sessions(db)).toEqual([expect.objectContaining({ close_requested_at: expect.any(Number) })]);
+    expect(queue.requestCloseChat(9999)).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+
+  test('requestCloseChat rejects a Follow-up Chat', () => {
+    const { db, queue } = setup();
+    const run = queue.enqueueAdhoc({ repository: 'pages', prompt: 'first', model: 'm' });
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(run.id);
+    expect(queue.requestCloseChat(run.id)).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
+  });
+
+  test('claimNext records copy isolation for interactive turns and honours maxConcurrent', async () => {
+    const { db, queue } = setup({
+      interactiveSupport: supported,
+      configOverrides: { runs: { isolation: 'shared', maxConcurrent: 2 } },
+    });
+    const ids: number[] = [];
+    for (const prompt of ['a', 'b', 'c']) {
+      const r = await queue.requestAdhoc({ repository: 'pages', prompt, mode: 'interactive' });
+      if (!r.ok) throw new Error('setup');
+      ids.push(r.value.run.id);
+    }
+
+    const one = queue.claimNext();
+    const two = queue.claimNext();
+    const three = queue.claimNext();
+
+    expect([one?.id, two?.id, three]).toEqual([ids[0], ids[1], null]);
+    const isolations = db.prepare('SELECT id, isolation FROM runs ORDER BY id').all();
+    expect(isolations).toEqual([
+      { id: ids[0], isolation: 'copy' },
+      { id: ids[1], isolation: 'copy' },
+      { id: ids[2], isolation: 'shared' },
+    ]);
+  });
+
+  test('claimNext skips a queued turn while another turn of the same Chat is running', async () => {
+    const { db, queue } = setup({
+      interactiveSupport: supported,
+      configOverrides: { runs: { isolation: 'copy', maxConcurrent: 3 } },
+    });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    db.prepare("UPDATE runs SET status = 'running', isolation = 'copy' WHERE id = ?").run(first.value.run.id);
+    const sameChat = queue.enqueueAdhoc({
+      repository: 'pages',
+      prompt: 'again',
+      model: 'm',
+      chatSessionId: first.value.run.chatSessionId!,
+    });
+    const other = queue.enqueueAdhoc({ repository: 'pages', prompt: 'other', model: 'm' });
+
+    expect(queue.claimNext()?.id).toBe(other.id);
+    expect(queue.claimNext()).toBeNull();
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    expect(queue.claimNext()?.id).toBe(sameChat.id);
   });
 
   test('deleting a non-last Run of an Interactive Chat leaves its close unrequested', async () => {
