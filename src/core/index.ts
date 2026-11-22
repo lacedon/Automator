@@ -24,6 +24,7 @@ import { AccessService } from './access/accessService';
 import { CredentialService } from './users/credentialService';
 import { UserService } from './users/userService';
 import { SettingsService } from './settings/settingsService';
+import { ChatSessionService } from './chats/chatSessionService';
 import { QueueService } from './queue/queueService';
 import { createReadModels, type ReadModels } from './read-models/index';
 import { createClaudeCodeLauncher } from './runs/claudeCodeLauncher';
@@ -49,6 +50,8 @@ export { intervalFor } from './domain/schedule';
 export { allowedActions, nextState, type WatchAction } from './domain/watchState';
 export { parseTarget, type ParsedTarget } from './domain/targets';
 export { DataDir } from './files/dataDir';
+export { INTERACTIVE_CAPABILITIES, interactiveSupport, type InteractiveCapabilities } from './chats/capabilities';
+export { ChatSessionService } from './chats/chatSessionService';
 export { CleanupService } from './cleanup/cleanupService';
 export { AgentService } from './agents/agentService';
 export { ProjectService } from './projects/projectService';
@@ -126,6 +129,7 @@ export interface Core {
   precheckScripts: PrecheckScriptService;
   agentInstructions: AgentInstructionService;
   queue: QueueService;
+  chats: ChatSessionService;
   scheduler: Scheduler;
   executor: RunExecutor;
   cleanup: CleanupService;
@@ -262,7 +266,8 @@ export function createCore(
     gitlabMeCache: metaMeCache(db, 'gitlab', deps.gitlab, secretsOf),
     githubMeCache: metaMeCache(db, 'github', deps.github, secretsOf),
   });
-  const queue = new QueueService(db, clock, dataDir, config, repositories, {
+  const chats = new ChatSessionService(db, clock);
+  const queue = new QueueService(db, clock, dataDir, config, repositories, chats, {
     configFor,
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
@@ -314,6 +319,7 @@ export function createCore(
       },
     }),
     queue,
+    chats,
     scheduler: new Scheduler({ db, clock, config, configFor, dataDir, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, configFor, allConfigs: () => configs.all(), dataDir }),

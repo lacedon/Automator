@@ -28,10 +28,26 @@ _Avoid_: Session, check
 A Run requested directly by the user without an associated Automation. It happens once and may optionally be _for_ a Ticket; without one it is a generic request. A finished one can be followed up by replying in its Chat tab.
 
 **Chat**:
-An Ad-hoc run together with its Follow-up runs, listed once (as its newest Run, titled by its first request) in the Chats list and left menu. Runs created for an Automation are not chats; they appear only on that Automation's page.
+An Ad-hoc run together with the Runs that continue it (one per turn), listed once (as its newest Run, titled by its first request) in the Chats list and left menu. A Chat has a fixed Chat mode. Runs created for an Automation are not chats; they appear only on that Automation's page.
+
+**Chat mode**:
+How a Chat continues, chosen when the Chat is created and fixed for its life: Follow-up mode or Interactive mode. Branching a Chat keeps its mode.
+_Avoid_: Chat type
+
+**Follow-up mode**:
+The default Chat mode. Each reply starts a new one-shot provider process that resumes the provider session. A Follow-up Chat has no Chat session.
+
+**Interactive mode**:
+A Chat mode in which one long-lived provider process per Chat can ask the user questions mid-turn and schedule itself to continue later. It works in its own copy of the Repository folder, never the shared checkout. Disabled for every provider until the session runtime ships.
+
+**Chat session**:
+The stored record of an Interactive Chat: provider, model, Agent, provider session id and close state. The Runs of one Interactive Chat all refer to it.
+
+**Waiting for you**:
+A Chat-session state (planned) in which an Interactive Chat's turn is paused on a question to the user. Distinct from **Needs you**, which is an Automation state.
 
 **Follow-up run**:
-An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same Copilot session.
+An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same provider session.
 _Avoid_: continuation, reopen
 
 **Workflow type**:

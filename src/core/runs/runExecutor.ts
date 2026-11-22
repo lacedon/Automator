@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { z } from 'zod';
+import { interactiveSupport } from '../chats/capabilities';
 import type { Secrets } from '../config/load';
 import type { ConfigFor } from '../config/resolver';
 import type { Config } from '../config/schema';
@@ -295,6 +296,17 @@ export class RunExecutor {
     const { run } = active;
     const config = effectiveConfig(this.deps, run.repository);
     dataDir.ensureRunDir(run.id);
+
+    // Defensive: Interactive Chats cannot be created for an unsupported provider, but never run one as a one-shot.
+    if (run.chatSessionId !== null) {
+      const support = interactiveSupport(run.provider);
+      if (!support.supported) {
+        return failure(
+          'PROVIDER_CAPABILITY_UNSUPPORTED',
+          support.reason ?? `Interactive mode is not available for provider "${run.provider}".`,
+        );
+      }
+    }
 
     const denied = this.deps.authorize?.(run) ?? null;
     if (denied !== null) return failure('FORBIDDEN', denied);

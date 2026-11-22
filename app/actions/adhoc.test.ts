@@ -153,3 +153,24 @@ test('deleteAdhocRun refuses unfinished Runs and deletes finished ones', async (
   expect(core.db.prepare('SELECT count(*) AS n FROM runs').get()).toEqual({ n: 0 });
   expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
 });
+
+test('queueAdhoc passes the selected mode and rejects unknown modes', async () => {
+  const ok = await queueAdhoc(null, form({ repository: 'pages', prompt: 'p', model: '', mode: 'follow-up' }));
+  expect(ok).toMatchObject({ ok: true });
+  expect(core.db.prepare('SELECT chat_session_id FROM runs').all()).toEqual([{ chat_session_id: null }]);
+
+  // A missing mode means Follow-up.
+  expect(await queueAdhoc(null, form({ repository: 'pages', prompt: 'p', model: '' }))).toMatchObject({ ok: true });
+
+  const unknown = await queueAdhoc(null, form({ repository: 'pages', prompt: 'p', model: '', mode: 'bogus' }));
+  expect(unknown).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'mode' } });
+
+  // A hand-crafted post cannot reach Interactive mode while every provider is unsupported.
+  const interactive = await queueAdhoc(
+    null,
+    form({ repository: 'pages', prompt: 'p', model: '', mode: 'interactive' }),
+  );
+  expect(interactive).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'mode' } });
+  expect(core.db.prepare('SELECT count(*) AS n FROM runs').get()).toEqual({ n: 2 });
+  expect(core.db.prepare('SELECT count(*) AS n FROM chat_sessions').get()).toEqual({ n: 0 });
+});

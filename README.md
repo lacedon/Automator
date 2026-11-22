@@ -8,6 +8,7 @@ See also:
 
 - [GLOSSARY.md](./GLOSSARY.md): domain terms (Automation, Run, Repository, …)
 - [ADR 0001: Serialize Runs in configured Repository folders](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md)
+- [ADR 0006: Interactive provider sessions](./docs/adr/0006-interactive-provider-sessions.md)
 - [Architecture and implementation design](./docs/superpowers/specs/2026-10-21-architecture-design.md)
 - [Dashboard UI design](./docs/superpowers/specs/2026-10-21-dashboard-ui-design.md)
 

@@ -100,3 +100,24 @@ test('branchRun reports an unfinished Run', async () => {
   const result = await branchRun(null, form({ runId: String(run.id), message: 'x' }));
   expect(result).toMatchObject({ ok: false, values: { message: 'x' } });
 });
+
+test('branchRun keeps the mode', async () => {
+  const session = core.chats.create({ repository: 'pages', provider: 'copilot', model: 'm', agentId: null });
+  const run = finishedAdhoc();
+  core.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(session.id, run.id);
+  await expect(branchRun(null, form({ runId: String(run.id), message: 'other way' }))).rejects.toThrow(
+    /REDIRECT:\/runs\/\d+/,
+  );
+  const branch = core.db.prepare('SELECT chat_session_id FROM runs WHERE branched_from_run_id = ?').get(run.id) as {
+    chat_session_id: number | null;
+  };
+  expect(branch.chat_session_id).not.toBeNull();
+  expect(branch.chat_session_id).not.toBe(session.id);
+  expect(core.chats.modeOfRun(run.id)).toBe('interactive');
+
+  const plain = finishedAdhoc();
+  await expect(branchRun(null, form({ runId: String(plain.id), message: 'x' }))).rejects.toThrow(/REDIRECT/);
+  expect(core.db.prepare('SELECT chat_session_id FROM runs WHERE branched_from_run_id = ?').get(plain.id)).toEqual({
+    chat_session_id: null,
+  });
+});

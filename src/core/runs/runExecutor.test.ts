@@ -13,6 +13,7 @@ import { toRun, toWatch } from '../db/rows';
 import type { NeedsYouEvent, Run, WatchKind, WorkflowType } from '../domain/types';
 import { DataDir } from '../files/dataDir';
 import { createReadModels } from '../read-models/index';
+import { ChatSessionService } from '../chats/chatSessionService';
 import { QueueService } from '../queue/queueService';
 import { HttpError } from '../http/fetchWithRetry';
 import { FreeformPrecheck } from '../prechecks/freeform';
@@ -874,7 +875,14 @@ describe('RunExecutor', () => {
 
     test('follow-up that fails before Copilot starts keeps its session and the thread offers a reply on it', async () => {
       const s = setup();
-      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config, s.repositories);
+      const queue = new QueueService(
+        s.db,
+        s.clock,
+        s.dataDir,
+        s.config,
+        s.repositories,
+        new ChatSessionService(s.db, s.clock),
+      );
       const parentRunId = finishedParent(s.db, 'parent-session');
       const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
       s.db.prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
@@ -902,7 +910,14 @@ describe('RunExecutor', () => {
 
     test('follow-up whose parent was deleted while queued still resumes the session with follow-up framing', async () => {
       const s = setup();
-      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config, s.repositories);
+      const queue = new QueueService(
+        s.db,
+        s.clock,
+        s.dataDir,
+        s.config,
+        s.repositories,
+        new ChatSessionService(s.db, s.clock),
+      );
       const parentRunId = finishedParent(s.db, 'parent-session');
       const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
       expect(queue.deleteAdhoc(parentRunId)).toEqual({ ok: true, value: undefined });
@@ -949,5 +964,25 @@ describe('RunExecutor', () => {
     expect(final.branch).toBe('feature/branch-after');
     expect(runOf(s.db, final.runId).branch).toBe('feature/branch-after');
     expect(s.currentBranch).toHaveBeenCalledWith(s.config.repositories.pages!.folder);
+  });
+});
+
+describe('Interactive Chat guard', () => {
+  test('a Run of an Interactive Chat fails with PROVIDER_CAPABILITY_UNSUPPORTED while the provider is unsupported', async () => {
+    const s = setup();
+    const session = s.db
+      .prepare(
+        `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+         VALUES ('interactive', 'pages', 'copilot', 'm1', 1, 1) RETURNING id`,
+      )
+      .get() as { id: number };
+    const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'hello' });
+    s.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(session.id, run.id);
+
+    const final = await s.executor.execute(runOf(s.db, run.id));
+
+    expect(final.error?.code).toBe('PROVIDER_CAPABILITY_UNSUPPORTED');
+    expect(s.starts).toEqual([]);
+    expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error' });
   });
 });

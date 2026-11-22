@@ -240,7 +240,9 @@
     "branchCancel": "取消",
     "branchedFrom": "分支自运行 #{id}",
     "skillGlobal": "全局技能",
-    "skillLocal": "本地技能（此仓库）"
+    "skillLocal": "本地技能（此仓库）",
+    "modeFollowUp": "跟进模式",
+    "modeInteractive": "交互模式"
   },
   "RunFiles": {
     "transcript": "记录",
@@ -271,7 +273,11 @@
     "skillGlobal": "全局技能",
     "skillLocal": "本地技能（此仓库）",
     "send": "发送",
-    "provider": "提供方：{provider}。优先于计划任务，忽略工作时间，不会中断当前运行。"
+    "provider": "提供方：{provider}。优先于计划任务，忽略工作时间，不会中断当前运行。",
+    "mode": "模式",
+    "modeFollowUp": "跟进",
+    "modeInteractive": "交互式",
+    "modeInteractiveUnavailable": "此提供方暂不支持交互模式。跟进聊天的工作方式与以前相同。"
   },
   "Kind": {
     "mr": "合并/拉取请求",

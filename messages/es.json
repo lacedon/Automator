@@ -240,7 +240,9 @@
     "branchCancel": "Cancelar",
     "branchedFrom": "Bifurcado desde la ejecución #{id}",
     "skillGlobal": "Skill global",
-    "skillLocal": "Skill local (este repositorio)"
+    "skillLocal": "Skill local (este repositorio)",
+    "modeFollowUp": "Modo de seguimiento",
+    "modeInteractive": "Modo interactivo"
   },
   "RunFiles": {
     "transcript": "Transcripción",
@@ -271,7 +273,11 @@
     "skillGlobal": "Skill global",
     "skillLocal": "Skill local (este repositorio)",
     "send": "Enviar",
-    "provider": "Proveedor: {provider}. Se adelanta al trabajo programado, ignora el horario laboral y nunca interrumpe la ejecución actual."
+    "provider": "Proveedor: {provider}. Se adelanta al trabajo programado, ignora el horario laboral y nunca interrumpe la ejecución actual.",
+    "mode": "Modo",
+    "modeFollowUp": "Seguimiento",
+    "modeInteractive": "Interactivo",
+    "modeInteractiveUnavailable": "El modo interactivo aún no está disponible para este proveedor. Los chats de seguimiento funcionan como antes."
   },
   "Kind": {
     "mr": "Merge/pull request",

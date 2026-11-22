@@ -240,7 +240,9 @@
     "branchCancel": "Cancel",
     "branchedFrom": "Branched from Run #{id}",
     "skillGlobal": "Global skill",
-    "skillLocal": "Local skill (this Repository)"
+    "skillLocal": "Local skill (this Repository)",
+    "modeFollowUp": "Follow-up mode",
+    "modeInteractive": "Interactive mode"
   },
   "RunFiles": {
     "transcript": "Transcript",
@@ -271,7 +273,11 @@
     "skillGlobal": "Global skill",
     "skillLocal": "Local skill (this Repository)",
     "send": "Send",
-    "provider": "Provider: {provider}. Goes ahead of scheduled work, ignores working hours, never interrupts the current Run."
+    "provider": "Provider: {provider}. Goes ahead of scheduled work, ignores working hours, never interrupts the current Run.",
+    "mode": "Mode",
+    "modeFollowUp": "Follow-up",
+    "modeInteractive": "Interactive",
+    "modeInteractiveUnavailable": "Interactive mode is not available for this provider yet. Follow-up Chats keep working as before."
   },
   "Kind": {
     "mr": "Merge/pull request",

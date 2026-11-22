@@ -1,3 +1,4 @@
+import { interactiveSupport } from '../chats/capabilities';
 import { providerOptions } from '../config/providers';
 import type { AgentAssignment, InitialReview, ProjectScope, ProviderName, WorkflowType } from '../domain/types';
 import { discoverSkills, type Skill } from '../skills/skills';
@@ -11,6 +12,8 @@ export type RepositorySettings = {
   intervals: { mr: number; default: number };
   initialReview: InitialReview;
   jiraEnabled: boolean;
+  // Whether the provider can run Interactive Chats; `reason` explains why not.
+  interactive: { supported: boolean; reason: string | null };
   // Skills available to the provider, for the Repository when there is one.
   skills: Skill[];
 };
@@ -35,6 +38,7 @@ export function formOptions(deps: ReadDeps, scope: ProjectScope = null): FormOpt
       intervals: { ...effective.schedule.intervals },
       initialReview: effective.runs.initialReview,
       jiraEnabled: effective.jira.enabled,
+      interactive: interactiveSupport(effective.provider),
       skills: discoverSkills({ provider: effective.provider, repositoryFolder }),
     };
   };

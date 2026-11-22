@@ -17,7 +17,15 @@ export function AdhocForm({
 }: {
   options: Pick<
     FormOptions,
-    'repositories' | 'provider' | 'models' | 'defaultModel' | 'skills' | 'byRepository' | 'agents' | 'agentAssignments'
+    | 'repositories'
+    | 'provider'
+    | 'models'
+    | 'defaultModel'
+    | 'skills'
+    | 'byRepository'
+    | 'agents'
+    | 'agentAssignments'
+    | 'interactive'
   >;
 }) {
   const t = useTranslations('Adhoc');
@@ -27,6 +35,7 @@ export function AdhocForm({
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('');
   const [ticket, setTicket] = useState('');
+  const [mode, setMode] = useState<'follow-up' | 'interactive'>('follow-up');
   const [agentPick, setAgentPick] = useState<AgentPick | null>(null);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -47,6 +56,9 @@ export function AdhocForm({
   const defaultAgent = defaultAgentId(options.agentAssignments, repository, workflowType);
   const repo = options.repositories.find((r) => r.name === repository);
   const settings = options.byRepository[repository] ?? options;
+  const interactive = settings.interactive;
+  // Never keep Interactive selected for a Repository whose provider cannot run it.
+  const effectiveMode = interactive.supported ? mode : 'follow-up';
   const otherModels = settings.models.filter((m) => m !== settings.defaultModel);
   const failed = state?.ok === false ? state.error : null;
   const inputClass = (field: string) =>
@@ -104,7 +116,9 @@ export function AdhocForm({
               name="repository"
               className={inputClass('repository')}
               value={repository}
-              onChange={(e) => setRepository(e.target.value)}
+              onChange={(e) => {
+                setRepository(e.target.value);
+              }}
             >
               {repo === undefined && <option value={repository}>{repository}</option>}
               {options.repositories.map((r) => (
@@ -134,6 +148,27 @@ export function AdhocForm({
             picked={agentPick}
             onPick={setAgentPick}
           />
+          <div className="field">
+            <label htmlFor="ah-mode">{t('mode')}</label>
+            <select
+              id="ah-mode"
+              name="mode"
+              className={inputClass('mode')}
+              aria-describedby={interactive.supported ? undefined : 'ah-mode-hint'}
+              value={effectiveMode}
+              onChange={(e) => setMode(e.target.value === 'interactive' ? 'interactive' : 'follow-up')}
+            >
+              <option value="follow-up">{t('modeFollowUp')}</option>
+              <option value="interactive" disabled={!interactive.supported}>
+                {t('modeInteractive')}
+              </option>
+            </select>
+            {!interactive.supported && (
+              <div id="ah-mode-hint" className="field-hint muted">
+                {t('modeInteractiveUnavailable')}
+              </div>
+            )}
+          </div>
           <div className="field">
             <label htmlFor="ah-model">{t('model')}</label>
             <select

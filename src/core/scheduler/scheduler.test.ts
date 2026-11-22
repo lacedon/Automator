@@ -14,6 +14,7 @@ import { FreeformPrecheck } from '../prechecks/freeform';
 import type { Prechecks } from '../prechecks/index';
 import type { JiraPrecheck } from '../prechecks/jira';
 import type { Precheck, PrecheckResult } from '../prechecks/types';
+import { ChatSessionService } from '../chats/chatSessionService';
 import { QueueService } from '../queue/queueService';
 import { Scheduler } from './scheduler';
 
@@ -51,7 +52,7 @@ function setup(opts: { configOverrides?: DeepPartial<Config>; script?: Script; j
   const config = testConfig(opts.configOverrides);
   const repositories = testRepositories(t.db, config);
   const dataDir = new DataDir(path.dirname(t.file));
-  const queue = new QueueService(t.db, clock, dataDir, config, repositories);
+  const queue = new QueueService(t.db, clock, dataDir, config, repositories, new ChatSessionService(t.db, clock));
   const script = opts.script ?? (() => ({ kind: 'unchanged' }));
   const mr = stubPrecheck(script);
   const jira = stubPrecheck(script);

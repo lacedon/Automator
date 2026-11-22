@@ -42,6 +42,7 @@ function render(outcome: 'needs-you' | 'acted', closedAt: number | null, branche
     replyToRunId: null,
     replyBlockedReason: null,
     branchedFromRunId,
+    chat: { mode: 'follow-up', sessionId: null },
   };
   return renderToStaticMarkup(
     // eslint-disable-next-line react/no-children-prop -- the provider's props type requires children
@@ -69,4 +70,8 @@ test('offers a Branch action on a finished response and links a branched chat to
   const branched = render('acted', null, 7);
   expect(branched).toContain('Branched from Run #7');
   expect(branched).toContain('href="/runs/7"');
+});
+
+test('shows a muted mode label for ad-hoc chats', () => {
+  expect(render('acted', null)).toContain('Follow-up mode');
 });

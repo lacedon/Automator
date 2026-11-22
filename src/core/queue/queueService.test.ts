@@ -10,6 +10,7 @@ import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { ProviderName } from '../domain/types';
 import { DataDir } from '../files/dataDir';
+import { ChatSessionService } from '../chats/chatSessionService';
 import { QueueService } from './queueService';
 
 const cleanups: (() => void)[] = [];
@@ -23,6 +24,7 @@ function setup(
     ticketTitle?: (conn: string, key: string) => Promise<string>;
     jiraEnabled?: boolean;
     configOverrides?: DeepPartial<Config>;
+    interactiveSupport?: (provider: ProviderName) => { supported: boolean; reason: string | null };
   } = {},
 ) {
   const t = tempDb();
@@ -45,7 +47,10 @@ function setup(
     dataDir,
     config,
     repositories,
-    queue: new QueueService(t.db, clock, dataDir, config, repositories, { ticketTitle: opts.ticketTitle }),
+    queue: new QueueService(t.db, clock, dataDir, config, repositories, new ChatSessionService(t.db, clock), {
+      ticketTitle: opts.ticketTitle,
+      interactiveSupport: opts.interactiveSupport,
+    }),
   };
 }
 
@@ -809,5 +814,107 @@ describe('requestBranch', () => {
     const done = finishedAdhoc(ctx);
     expect(ctx.queue.requestBranch(done.id, ' ')).toMatchObject({ error: { field: 'message' } });
     expect(ctx.queue.requestBranch(9999, 'x')).toEqual({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+});
+
+describe('Chat modes', () => {
+  const supported = () => ({ supported: true, reason: null });
+  const sessions = (db: Database) => db.prepare('SELECT * FROM chat_sessions ORDER BY id').all();
+
+  test('requestAdhoc defaults to Follow-up and creates no chat session', async () => {
+    const { db, queue } = setup();
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi' });
+    expect(result).toMatchObject({ ok: true, value: { run: { chatSessionId: null } } });
+    expect(sessions(db)).toEqual([]);
+  });
+
+  test('requestAdhoc rejects Interactive mode for an unsupported provider', async () => {
+    const { db, queue } = setup();
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT', field: 'mode' } });
+    expect(statuses(db)).toEqual([]);
+    expect(sessions(db)).toEqual([]);
+  });
+
+  test('requestAdhoc in Interactive mode creates a session and links the first Run', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const result = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!result.ok) throw new Error('expected ok');
+    const rows = sessions(db) as { id: number; provider: string; model: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ provider: 'copilot', model: 'default-model' });
+    expect(result.value.run.chatSessionId).toBe(rows[0]!.id);
+  });
+
+  test('branching an Interactive Chat creates a new Interactive session with the same provider, model and agent', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(first.value.run.id);
+    const branch = queue.requestBranch(first.value.run.id, 'again');
+    if (!branch.ok) throw new Error('branch failed');
+    expect(branch.value.run.chatSessionId).not.toBeNull();
+    expect(branch.value.run.chatSessionId).not.toBe(first.value.run.chatSessionId);
+    const rows = sessions(db) as { provider: string; model: string; agent_id: number | null }[];
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ provider: rows[0]!.provider, model: rows[0]!.model, agent_id: rows[0]!.agent_id });
+  });
+
+  test('branching a Follow-up Chat stays Follow-up', () => {
+    const { db, queue } = setup();
+    const run = queue.enqueueAdhoc({ repository: 'pages', prompt: 'first', model: 'm' });
+    db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(run.id);
+    const branch = queue.requestBranch(run.id, 'again');
+    expect(branch).toMatchObject({ ok: true, value: { run: { chatSessionId: null } } });
+    expect(sessions(db)).toEqual([]);
+  });
+
+  test('requestFollowUp leaves Follow-up Chats without a session', () => {
+    const { db, queue } = setup();
+    const run = queue.enqueueAdhoc({ repository: 'pages', prompt: 'first', model: 'm' });
+    db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(run.id);
+    expect(queue.requestFollowUp(run.id, 'more')).toMatchObject({ ok: true, value: { run: { chatSessionId: null } } });
+  });
+
+  test('requestFollowUp is not available for Interactive Chats yet', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    db.prepare("UPDATE runs SET status = 'finished', session_id = 's' WHERE id = ?").run(first.value.run.id);
+    expect(queue.requestFollowUp(first.value.run.id, 'more')).toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_INPUT',
+        field: 'run',
+        message: 'Interactive Chats are not available yet',
+      },
+    });
+  });
+
+  test('deleting a non-last Run of an Interactive Chat leaves its close unrequested', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    const sessionId = first.value.run.chatSessionId;
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    const second = queue.enqueueAdhoc({
+      repository: 'pages',
+      prompt: 'more',
+      model: 'm',
+      parentRunId: first.value.run.id,
+      chatSessionId: sessionId!,
+    });
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(second.id);
+    expect(queue.deleteAdhoc(first.value.run.id).ok).toBe(true);
+    expect(sessions(db)).toEqual([expect.objectContaining({ close_requested_at: null })]);
+  });
+
+  test('deleting the last Run of an Interactive Chat requests its close', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    expect(queue.deleteAdhoc(first.value.run.id).ok).toBe(true);
+    expect(sessions(db)).toEqual([expect.objectContaining({ close_requested_at: expect.any(Number) })]);
   });
 });

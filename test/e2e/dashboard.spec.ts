@@ -155,6 +155,16 @@ test('New chat page is a chat window with prompt autocomplete and per-chat field
   await expect(page.getByRole('listbox')).toHaveCount(0);
 });
 
+test('New chat mode selector defaults to Follow-up and disables Interactive', async ({ page }) => {
+  await page.goto('/adhoc');
+  const mode = page.locator('#ah-mode');
+  await expect(mode).toHaveValue('follow-up');
+  await expect(mode.locator('option[value="interactive"]')).toBeDisabled();
+  await expect(
+    page.getByText('Interactive mode is not available for this provider yet. Follow-up Chats keep working as before.'),
+  ).toBeVisible();
+});
+
 test('Home no longer lists recently completed Runs', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Recently completed')).toHaveCount(0);
