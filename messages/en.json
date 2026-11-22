@@ -275,7 +275,14 @@
     "nativeTimerWarning": "Timers set by the agent's built-in tools (for example Claude /loop) are lost if this session's process stops (idle timeout, eviction, restart or close). Ask the agent to use Automator wake-ups for reliable continuation.",
     "agentTurn": "Started by the agent (built-in timer)",
     "timerTurn": "Scheduled wake-up",
-    "timerDeferred": "Requested for a time outside the Repository's working hours; it waits for the next window."
+    "timerDeferred": "Requested for a time outside the Repository's working hours; it waits for the next window.",
+    "replyChatClosed": "This chat is closed",
+    "replyChatClosing": "This chat is closing",
+    "replyRunUnfinished": "Waiting for Run #{id} to finish",
+    "replyWaitingAnswer": "Waiting for your answer",
+    "replyNoSession": "No provider session to continue",
+    "replyRepositoryMissing": "Repository \"{repository}\" is no longer configured",
+    "replyRepositoryInvalid": "Repository \"{repository}\" is invalid: {issues}"
   },
   "RunFiles": {
     "transcript": "Transcript",
