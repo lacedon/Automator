@@ -10,6 +10,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
 import { PromptInput } from './PromptInput';
 import { RunPill } from './Pill';
+import { TranscriptBox } from './TranscriptBox';
 import { RunFileLinks } from './RunFileLinks';
 import { bubbleTranscript } from '../lib/chatBubble';
 import { withSkills } from '../lib/skillSuggestions';
@@ -85,7 +86,7 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
     closedAt: run.closedAt,
   };
   const transcript = bubbleTranscript(run);
-  const transcriptBlock = transcript !== null && <div className="chat-transcript">{transcript}</div>;
+  const transcriptBlock = transcript !== null && <TranscriptBox text={transcript} />;
   return (
     <div className="chat-run">
       <div className="chat-run-head muted">

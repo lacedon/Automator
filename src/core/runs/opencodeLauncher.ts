@@ -3,7 +3,7 @@ import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
-import { createLiveTranscript, lineSplitter } from './liveTranscript';
+import { createLiveTranscript, lineSplitter, reportLiveFailure } from './liveTranscript';
 import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
@@ -149,6 +149,7 @@ export function createOpenCodeLauncher(baseConfig: Config, baseSecrets: Secrets)
         const output = Buffer.concat(stdout).toString('utf8');
         normalized = normalizeJson(output);
         live.finish(normalized.transcript || null);
+        reportLiveFailure(live, startOptions.logPath);
         if (exit.error !== undefined) return exit;
         if (normalized.error !== undefined) {
           return { ...exit, error: { code: 'OUTPUT_INVALID', message: normalized.error } };

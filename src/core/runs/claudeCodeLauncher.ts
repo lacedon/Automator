@@ -3,7 +3,7 @@ import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
-import { createLiveTranscript, lineSplitter } from './liveTranscript';
+import { createLiveTranscript, lineSplitter, reportLiveFailure } from './liveTranscript';
 import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
@@ -142,6 +142,7 @@ export function createClaudeCodeLauncher(baseConfig: Config, baseSecrets: Secret
         const output = Buffer.concat(stdout).toString('utf8');
         normalized = normalizeStream(output);
         live.finish(normalized.transcript || null);
+        reportLiveFailure(live, startOptions.logPath);
         if (exit.error !== undefined) return exit;
         const errorOutput = `${Buffer.concat(stderr).toString('utf8')}\n${output}`;
         if (exit.code !== 0) return providerError(exit, errorOutput);

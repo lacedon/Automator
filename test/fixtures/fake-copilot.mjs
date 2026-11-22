@@ -44,7 +44,12 @@ if (mode === 'hang') {
       process.stdout.write('1mred\u001b[0m\n');
     }
     const release = process.env.FAKE_COPILOT_RELEASE;
-    while (release && !fs.existsSync(release)) await new Promise((resolve) => setTimeout(resolve, 20));
+    const waitDeadline = Date.now() + 15_000;
+    while (release && !fs.existsSync(release)) {
+      // A test that never releases must not leak a spinning child.
+      if (Date.now() > waitDeadline) process.exit(3);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     process.stdout.write('Second line\n');
     if (sharePath && mode === 'stream-wait') fs.writeFileSync(sharePath, '# shared export\nfinal\n');
     process.exit(0);

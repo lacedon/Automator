@@ -322,8 +322,13 @@ describe('childEnv', () => {
     expect(env).toEqual({ COPILOT_GITHUB_TOKEN: 'copilot', GITHUB_TOKEN: 'github' });
   });
 
-  async function streamRun(mode: string, extraEnv: Record<string, string> = {}) {
+  async function streamRun(
+    mode: string,
+    extraEnv: Record<string, string> = {},
+    before?: (s: ReturnType<typeof setup>) => void,
+  ) {
     const s = setup();
+    before?.(s);
     const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
     const release = path.join(path.dirname(s.transcriptPath), 'release');
     const proc = launcher.start({
@@ -356,6 +361,15 @@ describe('childEnv', () => {
   test('ANSI sequences split across stdout chunks are stripped', async () => {
     const s = await streamRun('stream-wait-no-share', { FAKE_COPILOT_SPLIT_ANSI: '1' });
     expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First line\nred\nSecond line\n');
+  });
+
+  test('a stale share sidecar is removed before the Run starts', async () => {
+    const s = await streamRun('stream-wait-no-share', {}, (stale) => {
+      fs.writeFileSync(`${stale.transcriptPath}.share.md`, 'stale export');
+      fs.writeFileSync(stale.transcriptPath, 'stale transcript');
+    });
+    expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First line\nSecond line\n');
+    expect(fs.existsSync(`${s.transcriptPath}.share.md`)).toBe(false);
   });
 
   test('stdout transcript is kept when the share export is missing', async () => {

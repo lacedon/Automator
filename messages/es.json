@@ -227,6 +227,8 @@
     "closeConfirm": "Marcar como Hecho",
     "run": "Ejecución #{id}",
     "thisRun": " (esta ejecución)",
+    "transcriptLabel": "Salida de la transcripción",
+    "transcriptTruncated": "Se muestra el final de la transcripción. Abre el archivo de la transcripción para ver el texto completo.",
     "message": "Mensaje",
     "send": "Enviar",
     "queued": "Ejecución #{id} en cola",

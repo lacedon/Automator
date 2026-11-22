@@ -4,7 +4,7 @@ import { stripVTControlCharacters } from 'node:util';
 import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import { childEnv, copilotAuthEnvNames, spawnChild } from './childProcess';
-import { createLiveTranscript, lineSplitter } from './liveTranscript';
+import { createLiveTranscript, lineSplitter, reportLiveFailure } from './liveTranscript';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions, RunningProcess } from './providerLauncher';
 
 export type CopilotExit = ProviderExit;
@@ -53,6 +53,8 @@ export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets):
         ...(opts.extraArgs ?? []),
       ];
 
+      // An old sidecar must never be renamed over this Run's transcript.
+      fs.rmSync(shareTranscriptPath, { force: true });
       const live = createLiveTranscript(opts.transcriptPath, { separator: '' });
       // Stripping works on whole lines so an escape sequence split across chunks cannot leak through.
       const splitter = lineSplitter((line) => live.append(`${stripVTControlCharacters(line)}\n`));
@@ -66,6 +68,8 @@ export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets):
       });
       const exited = child.exited.then((exit) => {
         splitter.end();
+        live.finish(null);
+        reportLiveFailure(live, opts.logPath);
         try {
           // The share export is the final transcript when Copilot wrote one; otherwise the stdout transcript stays.
           if (fs.existsSync(shareTranscriptPath)) fs.renameSync(shareTranscriptPath, opts.transcriptPath);

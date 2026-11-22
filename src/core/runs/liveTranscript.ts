@@ -17,27 +17,45 @@ export interface LiveTranscript {
 export function createLiveTranscript(file: string, options: { separator?: string } = {}): LiveTranscript {
   const separator = options.separator ?? '\n';
   let failed: Error | null = null;
-  let parts = 0;
+  let fd: number | null = null;
   const fail = (error: unknown) => {
     failed ??= error instanceof Error ? error : new Error(String(error));
   };
+  const close = () => {
+    if (fd === null) return;
+    const open = fd;
+    fd = null;
+    try {
+      fs.closeSync(open);
+    } catch (error) {
+      fail(error);
+    }
+  };
+  // A file left by an earlier attempt must never show up as this Run's output.
+  try {
+    fs.rmSync(file, { force: true });
+  } catch (error) {
+    fail(error);
+  }
   return {
     append(text) {
       if (failed !== null) return;
       try {
-        if (parts === 0) {
-          // The first write replaces any stale file so the live file always equals the joined parts.
+        if (fd === null) {
+          // The first write creates the file afresh, then the fd stays open for the rest of the Run.
           fs.mkdirSync(path.dirname(file), { recursive: true });
-          fs.writeFileSync(file, text);
+          fd = fs.openSync(file, 'w');
+          fs.writeSync(fd, text);
         } else {
-          fs.appendFileSync(file, `${separator}${text}`);
+          fs.writeSync(fd, `${separator}${text}`);
         }
-        parts += 1;
       } catch (error) {
         fail(error);
+        close();
       }
     },
     finish(finalText) {
+      close();
       if (finalText === null) return;
       try {
         writeTextAtomic(file, finalText);
@@ -51,22 +69,41 @@ export function createLiveTranscript(file: string, options: { separator?: string
   };
 }
 
+// Records a live-transcript write problem in the Run's log; it never changes the Run's result.
+export function reportLiveFailure(live: LiveTranscript, logPath: string): void {
+  if (live.failed === null) return;
+  try {
+    fs.appendFileSync(logPath, `live transcript write failed: ${live.failed.message}\n`);
+  } catch {
+    // The log is best effort.
+  }
+}
+
 export function lineSplitter(onLine: (line: string) => void): { push(chunk: Buffer): void; end(): void } {
   const decoder = new StringDecoder('utf8');
   let pending = '';
-  const drain = (final: boolean) => {
-    const lines = pending.split(/\r?\n/);
-    pending = final ? '' : (lines.pop() ?? '');
-    for (const line of lines) onLine(line);
+  // Only the newly added text is scanned for newlines, so long newline-less output stays linear.
+  const emit = (text: string, final: boolean) => {
+    const scanFrom = pending.length;
+    pending += text;
+    let start = 0;
+    for (let nl = pending.indexOf('\n', scanFrom); nl !== -1; nl = pending.indexOf('\n', start)) {
+      const end = nl > start && pending[nl - 1] === '\r' ? nl - 1 : nl;
+      onLine(pending.slice(start, end));
+      start = nl + 1;
+    }
+    pending = pending.slice(start);
+    if (final && pending !== '') {
+      onLine(pending.replace(/\r$/, ''));
+      pending = '';
+    }
   };
   return {
     push(chunk) {
-      pending += decoder.write(chunk);
-      drain(false);
+      emit(decoder.write(chunk), false);
     },
     end() {
-      pending += decoder.end();
-      if (pending !== '') drain(true);
+      emit(decoder.end(), true);
     },
   };
 }

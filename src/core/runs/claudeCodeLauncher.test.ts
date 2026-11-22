@@ -197,4 +197,14 @@ describe('createClaudeCodeLauncher', () => {
     expect((await proc.exited).error).toBeUndefined();
     expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First part\nAssistant output');
   });
+
+  test('a live transcript write failure is logged and does not fail the Run', async () => {
+    const s = setup();
+    const blocker = path.join(path.dirname(s.transcriptPath), 'blocker');
+    fs.writeFileSync(blocker, 'x');
+    const proc = s.launcher.start({ ...options(s), transcriptPath: path.join(blocker, 'transcript.md') });
+
+    expect(await proc.exited).toEqual({ code: 0, signal: null });
+    expect(fs.readFileSync(s.logPath, 'utf8')).toContain('live transcript write failed:');
+  });
 });
