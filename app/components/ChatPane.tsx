@@ -61,7 +61,13 @@ function CloseSessionButton({ runId }: { runId: number }) {
       </button>
       {error !== null && <ErrorBox error={error} />}
       <dialog ref={dialog} className="confirm" onCancel={(e) => pending && e.preventDefault()}>
-        <p>{work === null ? t('closeSessionMessage') : t('closeChatWorkWarning', { details })}</p>
+        <p>
+          {work === null
+            ? t('closeSessionMessage')
+            : work.unknown
+              ? t('closeChatWorkUnknown')
+              : t('closeChatWorkWarning', { details })}
+        </p>
         <div className="actions">
           <button
             type="button"

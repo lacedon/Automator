@@ -72,3 +72,8 @@ export function asRunError(error: unknown, fallbackCode = 'PROVIDER_ERROR'): Run
 // Timings of a stop: how long a process gets to exit after stdin closes, then after SIGTERM.
 export type StopTimings = { stdinGraceMs: number; killGraceMs: number };
 export const DEFAULT_STOP_TIMINGS: StopTimings = { stdinGraceMs: 3_000, killGraceMs: 10_000 };
+
+// A handshake request (initialize, session/new, session/load, set_config_option, get_state) that gets no answer in
+// this long fails the start; a prompt has no such limit.
+export const HANDSHAKE_REQUEST_TIMEOUT_MS = 60_000;
+export type DriverTimings = Partial<StopTimings> & { requestTimeoutMs?: number };

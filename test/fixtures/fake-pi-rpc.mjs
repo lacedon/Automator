@@ -20,6 +20,9 @@ const record = (entry) => {
 };
 record({ type: 'start', argv, cwd: process.cwd(), env: process.env });
 
+// `stderrLines` are written to stderr before anything else (a chatty or credential-leaking provider).
+for (const line of script.stderrLines ?? []) process.stderr.write(`${line}\n`);
+
 const resume = arg('--session');
 if (resume !== undefined && !(script.knownSessions ?? []).includes(resume)) {
   process.stderr.write(`No session found matching '${resume}'\n`);
@@ -118,6 +121,7 @@ function handle(command) {
   const respond = (extra = {}) =>
     send({ id: command.id, type: 'response', command: command.type, success: true, ...extra });
   if (command.type === 'get_state') {
+    if (script.hangGetState) return undefined; // a stuck provider never answers
     return respond({
       data: {
         model: { id: arg('--model'), provider: 'fake' },

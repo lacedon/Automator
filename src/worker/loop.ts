@@ -103,7 +103,11 @@ export class WorkerLoop {
     this.stopping = true;
     await this.current;
     while (this.active.size > 0) await Promise.all(this.active);
-    await this.guard('chat sessions', () => core.chatSessions.stopAll());
+    try {
+      await core.chatSessions.stopAll();
+    } catch (e) {
+      console.error(`${ts()} stopping chat sessions failed: ${message(e)}`);
+    }
     if (this.ticking !== null) await this.ticking;
     this.started = false;
     if (this.timer !== null) clearTimeout(this.timer);

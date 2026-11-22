@@ -255,6 +255,7 @@
     "closeSessionMessage": "关闭此聊天？其工作副本将被删除，且无法再发送消息。",
     "closeSessionConfirm": "关闭聊天",
     "closeChatWorkWarning": "此聊天的工作副本中有未保存到其他位置的工作：{details}。关闭会删除该副本。仍要关闭吗？",
+    "closeChatWorkUnknown": "Automator 无法检查此聊天的工作副本中是否有未保存的工作（未提交的更改或未推送的提交）。关闭会删除该副本。仍要关闭吗？",
     "workUncommitted": "未提交的更改",
     "workUnpushed": "{count, plural, other {# 个未推送的提交}}",
     "sessionState": "{state, select, live {会话运行中} stopped {会话已停止；下次发送消息时将恢复} closing {正在关闭…} other {聊天已关闭}}"

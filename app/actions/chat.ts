@@ -67,8 +67,9 @@ export async function closeChat(runId: number, confirmed: boolean): Promise<Clos
   const core = getCore();
   const session = core.chats.forRun(runId);
   if (session !== null && session.copyPath !== null && !confirmed) {
-    const work = await copyWork(session.copyPath);
-    if (work !== null && (work.uncommitted || work.unpushedCommits > 0)) {
+    const work = await copyWork(session.copyPath, core.repositories.get(session.repository)?.folder ?? null);
+    // A failed git check counts as possible work: only a positive "nothing to lose" skips the confirmation.
+    if (work !== null && (work.unknown || work.uncommitted || work.unpushedCommits > 0)) {
       return { ok: false, needsConfirmation: true, work };
     }
   }

@@ -19,6 +19,8 @@ export type ChildProcessOptions = {
   stdin?: 'pipe';
   // false keeps stdout out of the log file (a session driver logs the protocol itself, redacted).
   logStdout?: boolean;
+  // false keeps stderr out of the log file as well (the session driver redacts and logs it itself).
+  logStderr?: boolean;
   onStdout?: (chunk: Buffer) => void;
   onStderr?: (chunk: Buffer) => void;
 };
@@ -72,7 +74,9 @@ export function spawnChild(bin: string, args: string[], options: ChildProcessOpt
   child.stdout?.on('data', (chunk: Buffer) =>
     options.logStdout === false ? options.onStdout?.(chunk) : record(chunk, options.onStdout),
   );
-  child.stderr?.on('data', (chunk: Buffer) => record(chunk, options.onStderr));
+  child.stderr?.on('data', (chunk: Buffer) =>
+    options.logStderr === false ? options.onStderr?.(chunk) : record(chunk, options.onStderr),
+  );
 
   const pid = child.pid ?? 0;
   const exited = new Promise<ProviderExit>((resolve) => {

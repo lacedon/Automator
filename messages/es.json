@@ -255,6 +255,7 @@
     "closeSessionMessage": "¿Cerrar este chat? Se eliminará su copia de trabajo y no podrás enviar más mensajes.",
     "closeSessionConfirm": "Cerrar chat",
     "closeChatWorkWarning": "La copia de trabajo de este chat tiene trabajo que no está guardado en otro sitio: {details}. Al cerrar se elimina la copia. ¿Cerrar de todos modos?",
+    "closeChatWorkUnknown": "Automator no pudo comprobar si la copia de trabajo de este chat tiene trabajo sin guardar (cambios sin confirmar o commits sin subir). Al cerrar se elimina la copia. ¿Cerrar de todos modos?",
     "workUncommitted": "cambios sin confirmar",
     "workUnpushed": "{count, plural, one {# commit sin subir} other {# commits sin subir}}",
     "sessionState": "{state, select, live {Sesión en marcha} stopped {Sesión detenida; se reanuda con tu próximo mensaje} closing {Cerrando…} other {Chat cerrado}}"

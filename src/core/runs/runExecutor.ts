@@ -97,6 +97,9 @@ export interface RunExecutorDeps {
   prechecks: Prechecks;
   agents: AgentService;
   currentBranch?(cwd: string): Promise<string | null>;
+  // Recovery only: whether `pid` still is one of our provider session processes (a pid can be reused by an unrelated
+  // process after a reboot). `names` are the executable names to expect.
+  ownsSessionProcess?(pid: number, names: string[]): boolean;
   onNeedsYou(e: NeedsYouEvent): Promise<void>;
 }
 
@@ -559,9 +562,20 @@ export class RunExecutor {
       return failure('PROVIDER_CAPABILITY_UNSUPPORTED', 'Interactive mode is not available in this process.');
     }
     this.deps.db.prepare("UPDATE runs SET isolation = 'copy' WHERE id = ?").run(run.id);
-    const turn = await sessions.startTurn(run, session, prompt, start);
+    // Until the turn exists (copying the Repository, spawning, handshaking) the watchdog supervises a stand-in whose
+    // kill aborts the start, so cancel, timeout, FORBIDDEN and a forced exit all work during it.
+    const starting = new AbortController();
+    active.proc = {
+      pid: 0,
+      sessionId: Promise.resolve(null),
+      exited: new Promise<ProviderExit>(() => {}),
+      kill: () => starting.abort(),
+    };
+    const turn = await sessions.startTurn(run, session, prompt, { ...start, signal: starting.signal });
     active.proc = turn;
     active.turn = turn;
+    // Interrupted just as the start finished: the stand-in's abort came too late, so interrupt the live turn.
+    if (active.interrupted !== null && !starting.signal.aborted) turn.kill('SIGTERM');
     if (turn.pid > 0) this.deps.db.prepare('UPDATE runs SET pid = ? WHERE id = ?').run(turn.pid, run.id);
     const exit = await turn.exited;
     active.exited = true;

@@ -135,7 +135,7 @@ Run this checklist separately for each provider in a trusted test Repository. Re
 3. Queue an ad-hoc Run and confirm its selected model, transcript, result and provider label in Run history.
 4. Create an Automation in the same Repository, trigger an Automation Run and confirm its transcript, result and provider label.
 5. Cancel a running test Run and verify it is recorded as interrupted. Send a follow-up to a completed Run and verify it continues the same provider session.
-6. Interactive (Claude Code and pi only): create an Interactive Chat and send two messages; confirm both turns share one process (same `pid` in the Chat's session log) and one copy. Stop the process (wait for the idle timeout or lower `runs.interactiveIdleMinutes`), send a third message and confirm it remembers the earlier context. Leave an uncommitted file in the copy and confirm **Close chat** warns before deleting it.
+6. Interactive (Claude Code and pi only): create an Interactive Chat and send two messages; confirm both turns share one process (the session log under `chat-sessions/<id>.log` has a single `spawned … (pid N)` line for them, and the Chat's pid does not change) and one copy. Stop the process (wait for the idle timeout or lower `runs.interactiveIdleMinutes`), send a third message and confirm it remembers the earlier context. Leave an uncommitted file in the copy and confirm **Close chat** warns before deleting it.
 
 Tests:
 

@@ -43,6 +43,7 @@ function setup(script: Script = {}, bin = FAKE) {
     stdinGraceMs: 150,
     killGraceMs: 150,
     abortDeadlineMs: 150,
+    requestTimeoutMs: 150,
   });
   const start = (overrides: Partial<Parameters<typeof driver.start>[0]> = {}) => {
     const handle = driver.start({
@@ -238,6 +239,33 @@ describe('pi RPC driver', () => {
     expect(response).toEqual({ type: 'extension_ui_response', id: 'ui-1', cancelled: true });
     expect(events.some((e) => e.type === 'question')).toBe(false);
     expect(fs.readFileSync(s.logPath, 'utf8')).toContain('declined extension dialog (select)');
+  });
+
+  test('a get_state that is never answered fails the start and stops the process', async () => {
+    const s = setup({ hangGetState: true });
+    const { handle } = s.start();
+
+    const error = await handle.ready.catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(DriverError);
+    expect((error as DriverError).runError.message).toContain('get_state');
+    expect(await handle.exited).toMatchObject({ signal: 'SIGKILL' });
+  });
+
+  test('stderr is redacted in the log and in the error, and only a bounded tail is kept', async () => {
+    const noise = Array.from({ length: 200 }, (_, i) => `warning ${i}: contact person@example.com ${'x'.repeat(40)}`);
+    const s = setup({ stderrLines: [...noise, 'fatal: stopping'], exitImmediately: 2 });
+    const { handle } = s.start();
+
+    const error = (await handle.ready.catch((e: unknown) => e)) as DriverError;
+
+    const message = error.runError.message;
+    expect(message).toContain('fatal: stopping');
+    expect(message).not.toContain('person@example.com');
+    expect(message.length).toBeLessThan(2_300);
+    const log = fs.readFileSync(s.logPath, 'utf8');
+    expect(log).not.toContain('person@example.com');
+    expect(log).toContain('<redacted-email>');
   });
 
   test('a crash mid-turn emits an error turn-end then exit', async () => {

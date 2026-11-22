@@ -142,16 +142,24 @@ function interactiveChat(opts: { dirty?: boolean; copy?: boolean } = {}) {
   const run = finishedAdhoc();
   core.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(session.id, run.id);
   if (opts.copy !== false) {
-    const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-copy-'));
-    const git = (...args: string[]) =>
-      execFileSync('git', ['-c', 'user.email=t@e.c', '-c', 'user.name=T', ...args], { cwd: copy, stdio: 'pipe' });
-    git('init', '-b', 'main');
-    fs.writeFileSync(path.join(copy, 'a.txt'), 'a');
-    git('add', '.');
-    git('commit', '-m', 'one');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-copy-'));
+    cleanupDirs.push(root);
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', ['-c', 'user.email=t@e.c', '-c', 'user.name=T', ...args], { cwd, stdio: 'pipe' });
+    // A pushed state: the copy is a clone of a remote that has every commit.
+    const remote = path.join(root, 'remote.git');
+    const seed = path.join(root, 'seed');
+    const copy = path.join(root, 'copy');
+    git(root, 'init', '--bare', '-b', 'main', remote);
+    git(root, 'init', '-b', 'main', seed);
+    fs.writeFileSync(path.join(seed, 'a.txt'), 'a');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-m', 'one');
+    git(seed, 'remote', 'add', 'origin', remote);
+    git(seed, 'push', 'origin', 'main');
+    git(root, 'clone', remote, copy);
     if (opts.dirty) fs.writeFileSync(path.join(copy, 'b.txt'), 'dirty');
     core.db.prepare('UPDATE chat_sessions SET copy_path = ? WHERE id = ?').run(copy, session.id);
-    cleanupDirs.push(copy);
   }
   return { run, session };
 }
@@ -173,8 +181,19 @@ test('closeChat with uncommitted or unpushed work returns needsConfirmation and 
   expect(result).toEqual({
     ok: false,
     needsConfirmation: true,
-    work: { uncommitted: true, unpushedCommits: 1 },
+    work: { uncommitted: true, unpushedCommits: 0, unknown: false },
   });
+  expect(closeRequested(session.id)).toBeNull();
+});
+
+test('closeChat requires confirmation when the work check fails', async () => {
+  const { run, session } = interactiveChat();
+  // A copy that is not a git repository: every git check fails, which must never read as "no work".
+  const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-plain-'));
+  cleanupDirs.push(plain);
+  core.db.prepare('UPDATE chat_sessions SET copy_path = ? WHERE id = ?').run(plain, session.id);
+
+  expect(await closeChat(run.id, false)).toMatchObject({ ok: false, needsConfirmation: true, work: { unknown: true } });
   expect(closeRequested(session.id)).toBeNull();
 });
 
@@ -189,9 +208,6 @@ test('closeChat with confirm requests the close', async () => {
 
 test('closeChat of a clean copy closes without confirmation', async () => {
   const { run, session } = interactiveChat();
-  // A pushed state: no unpushed commits means a remote has them.
-  core.db.prepare('UPDATE chat_sessions SET copy_path = NULL WHERE id = ?').run(session.id);
-
   expect(await closeChat(run.id, false)).toEqual({ ok: true });
   expect(closeRequested(session.id)).not.toBeNull();
 });

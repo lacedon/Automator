@@ -5,7 +5,7 @@
 // agent_message_chunk / tool_call / session/request_permission / elicitation/create, session/cancel and
 // unsolicited updates while idle.
 //
-// FAKE_ACP_SCRIPT   JSON script (see `script` below for the keys)
+// FAKE_ACP_SCRIPT   JSON script (`hang: <method>` leaves that request unanswered) (see `script` below for the keys)
 // FAKE_ACP_RECORD   file that receives one JSON line per start/received/sent message
 import fs from 'node:fs';
 import process from 'node:process';
@@ -52,6 +52,8 @@ const capabilities = {
 
 async function handle(message) {
   const { id, method, params } = message;
+  // `hang` names a method that is received but never answered (a stuck provider).
+  if (script.hang !== undefined && script.hang === method) return undefined;
   if (method === 'initialize') {
     return send({
       id,

@@ -1021,13 +1021,33 @@ function fakeTurn(last: string | null = 'All done.'): Turn {
 }
 
 function interactive(
-  opts: { provider?: 'pi' | 'claude-code'; turn?: (n: number) => Turn; config?: DeepPartial<Config> } = {},
+  opts: {
+    provider?: 'pi' | 'claude-code';
+    turn?: (n: number) => Turn;
+    config?: DeepPartial<Config>;
+    // The start hangs (copying, spawning, handshaking) until its signal aborts, as a stuck provider would.
+    hangStart?: boolean;
+  } = {},
 ) {
   const calls: { run: Run; prompt: string; start: Parameters<InteractiveTurns['startTurn']>[3] }[] = [];
   const turns: Turn[] = [];
   const chatSessions: InteractiveTurns = {
     async startTurn(run, _session, prompt, start) {
       calls.push({ run, prompt, start });
+      if (opts.hangStart === true) {
+        const signal = start.signal!;
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve();
+          else signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return {
+          pid: 0,
+          sessionId: Promise.resolve(null),
+          exited: Promise.resolve({ code: null, signal: null, error: { code: 'INTERRUPTED', message: 'aborted' } }),
+          kill() {},
+          lastMessage: () => null,
+        };
+      }
       const turn = opts.turn?.(calls.length) ?? fakeTurn();
       turns.push(turn);
       if (opts.turn === undefined) turn.settle({ code: 0, signal: null });
@@ -1129,6 +1149,47 @@ describe('Interactive turns', () => {
 
     expect(s.turns[0]!.kills).toEqual(['SIGTERM']);
     expect(final).toMatchObject({ resultStatus: 'error', interrupted: 'cancelled', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('cancel while the turn is still starting aborts the start', async () => {
+    const s = interactive({ hangStart: true });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.calls.length === 1);
+    expect(s.calls[0]!.start.signal!.aborted).toBe(false);
+
+    s.db.prepare('UPDATE runs SET cancel_requested_at = ? WHERE id = ?').run(s.clock.now(), run.id);
+    s.executor.watchdog();
+    const final = await pending;
+
+    expect(s.calls[0]!.start.signal!.aborted).toBe(true);
+    expect(final).toMatchObject({ resultStatus: 'error', interrupted: 'cancelled', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('timeout applies while the turn is still starting', async () => {
+    const s = interactive({ hangStart: true });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.calls.length === 1);
+
+    s.clock.advance(1600);
+    s.executor.watchdog();
+    const final = await pending;
+
+    expect(s.calls[0]!.start.signal!.aborted).toBe(true);
+    expect(final).toMatchObject({ interrupted: 'timeout', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('a forced exit aborts a turn that is still starting', async () => {
+    const s = interactive({ hangStart: true });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.calls.length === 1);
+
+    s.executor.killActive();
+    await pending;
+
+    expect(s.calls[0]!.start.signal!.aborted).toBe(true);
   });
 
   test('timeout applies to interactive turns', async () => {

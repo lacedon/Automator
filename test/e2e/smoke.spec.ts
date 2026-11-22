@@ -247,9 +247,14 @@ test('free-form form accepts a manual pre-check script and keeps it on edit', as
 test('interactive chat option follows provider capability', async ({ page }) => {
   const mode = page.locator('#ah-mode');
   const interactive = mode.locator('option[value="interactive"]');
+  // The hint exists only while the provider cannot run Interactive Chats, so it is checked on both sides.
+  const unavailable = page.getByText(
+    'Interactive mode is not available for this provider yet. Follow-up Chats keep working as before.',
+  );
 
   await page.goto('/adhoc');
   await expect(interactive).toBeDisabled();
+  await expect(unavailable).toBeVisible();
 
   const selectProvider = async (provider: 'copilot' | 'pi') => {
     await page.goto('/settings/config');
@@ -270,11 +275,12 @@ test('interactive chat option follows provider capability', async ({ page }) => 
     await expect(interactive).toBeEnabled();
     await mode.selectOption('interactive');
     await expect(mode).toHaveValue('interactive');
-    await expect(page.getByText('Interactive mode is not available for this provider yet.')).toHaveCount(0);
+    await expect(unavailable).toHaveCount(0);
   } finally {
     await selectProvider('copilot');
   }
 
   await page.goto('/adhoc');
   await expect(interactive).toBeDisabled();
+  await expect(unavailable).toBeVisible();
 });

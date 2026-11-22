@@ -33,16 +33,16 @@ function cloneWithRemote(): string {
 
 describe('copyWork', () => {
   test('a clean pushed copy reports no work', async () => {
-    expect(await copyWork(cloneWithRemote())).toEqual({ uncommitted: false, unpushedCommits: 0 });
+    expect(await copyWork(cloneWithRemote())).toEqual({ uncommitted: false, unpushedCommits: 0, unknown: false });
   });
 
   test('uncommitted changes are reported', async () => {
     const copy = cloneWithRemote();
     fs.writeFileSync(path.join(copy, 'new.txt'), 'x');
-    expect(await copyWork(copy)).toEqual({ uncommitted: true, unpushedCommits: 0 });
+    expect(await copyWork(copy)).toEqual({ uncommitted: true, unpushedCommits: 0, unknown: false });
     fs.rmSync(path.join(copy, 'new.txt'));
     fs.writeFileSync(path.join(copy, 'a.txt'), 'changed');
-    expect(await copyWork(copy)).toEqual({ uncommitted: true, unpushedCommits: 0 });
+    expect(await copyWork(copy)).toEqual({ uncommitted: true, unpushedCommits: 0, unknown: false });
   });
 
   test('local commits not on any remote are counted', async () => {
@@ -57,12 +57,56 @@ describe('copyWork', () => {
     git(copy, 'add', '.');
     git(copy, 'commit', '-m', 'd');
 
-    expect(await copyWork(copy)).toEqual({ uncommitted: false, unpushedCommits: 3 });
+    expect(await copyWork(copy)).toEqual({ uncommitted: false, unpushedCommits: 3, unknown: false });
     git(copy, 'push', 'origin', 'main', 'topic');
-    expect(await copyWork(copy)).toEqual({ uncommitted: false, unpushedCommits: 0 });
+    expect(await copyWork(copy)).toEqual({ uncommitted: false, unpushedCommits: 0, unknown: false });
   });
 
   test('a missing copy returns null', async () => {
     expect(await copyWork(path.join(os.tmpdir(), 'definitely-not-here-xyz'))).toBeNull();
+  });
+
+  test('a git failure is unknown, never "no work"', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-status-plain-'));
+    dirs.push(dir);
+    expect((await copyWork(dir))?.unknown).toBe(true);
+  });
+
+  describe('a copy without remotes', () => {
+    // The copy is a cp of the Repository folder: commits the baseline already has are not work.
+    function copyOfLocalRepo(): { baseline: string; copy: string } {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-status-local-'));
+      dirs.push(root);
+      const baseline = path.join(root, 'baseline');
+      git(root, 'init', '-b', 'main', baseline);
+      fs.writeFileSync(path.join(baseline, 'a.txt'), 'a');
+      git(baseline, 'add', '.');
+      git(baseline, 'commit', '-m', 'first');
+      const copy = path.join(root, 'copy');
+      fs.cpSync(baseline, copy, { recursive: true });
+      return { baseline, copy };
+    }
+
+    test('only commits missing from the Repository folder count', async () => {
+      const { baseline, copy } = copyOfLocalRepo();
+      expect(await copyWork(copy, baseline)).toEqual({ uncommitted: false, unpushedCommits: 0, unknown: false });
+      fs.writeFileSync(path.join(copy, 'b.txt'), 'b');
+      git(copy, 'add', '.');
+      git(copy, 'commit', '-m', 'b');
+      expect(await copyWork(copy, baseline)).toEqual({ uncommitted: false, unpushedCommits: 1, unknown: false });
+    });
+
+    test('without a baseline the unpushed state is unknown', async () => {
+      const { copy } = copyOfLocalRepo();
+      expect(await copyWork(copy)).toMatchObject({ unknown: true });
+    });
+
+    test('a baseline the copy cannot compare against is unknown', async () => {
+      const { baseline, copy } = copyOfLocalRepo();
+      fs.writeFileSync(path.join(baseline, 'later.txt'), 'later');
+      git(baseline, 'add', '.');
+      git(baseline, 'commit', '-m', 'later');
+      expect(await copyWork(copy, baseline)).toMatchObject({ unknown: true });
+    });
   });
 });

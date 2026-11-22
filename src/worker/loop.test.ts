@@ -289,6 +289,17 @@ describe('WorkerLoop', () => {
     expect(order).toEqual(['stopAll']);
   });
 
+  test('a failing stopAll is logged and does not break the shutdown', async () => {
+    const { core, loop } = setup();
+    vi.spyOn(core.chatSessions, 'stopAll').mockRejectedValue(new Error('stuck process'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await loop.iterate();
+
+    await expect(loop.stop()).resolves.toBeUndefined();
+
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining('stopping chat sessions failed: stuck process'));
+  });
+
   test('forced exit kills live sessions', () => {
     const { core } = setup();
     const killActive = vi.spyOn(core.executor, 'killActive');

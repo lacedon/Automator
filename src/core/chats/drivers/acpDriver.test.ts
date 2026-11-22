@@ -19,7 +19,12 @@ afterEach(async () => {
 
 type Script = Record<string, unknown>;
 
-function setup(provider: AcpProvider, script: Script = {}, extraEnv: Record<string, string> = {}) {
+function setup(
+  provider: AcpProvider,
+  script: Script = {},
+  extraEnv: Record<string, string> = {},
+  requestTimeoutMs?: number,
+) {
   const config = testConfig({
     providers: {
       copilot: { bin: FAKE, defaultModel: 'copilot-model', models: [] },
@@ -44,6 +49,7 @@ function setup(provider: AcpProvider, script: Script = {}, extraEnv: Record<stri
   const driver = createAcpDriver(provider, config, resolveSecrets(config, env), {
     stdinGraceMs: 150,
     killGraceMs: 150,
+    ...(requestTimeoutMs === undefined ? {} : { requestTimeoutMs }),
   });
   const start = (overrides: Partial<Parameters<typeof driver.start>[0]> = {}) => {
     const handle = driver.start({
@@ -326,18 +332,20 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     const s = setup(provider, { sessionId: 'stored-1', replay: ['old answer'], autoModeNotice: true });
     const { handle, events } = s.start({ providerSessionId: 'stored-1' });
     await handle.ready;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Everything the agent sent before this turn's reply has been processed once the turn ends.
+    await handle.send('first prompt');
+    await until(() => turnEnd(events));
 
-    expect(events.filter((e) => e.type === 'text')).toEqual([]);
-    expect(events.some((e) => e.type === 'turn-start')).toBe(false);
+    expect(texts(events)).toBe('ok'); // neither the replayed history nor the Auto mode notice
+    expect(events.filter((e) => e.type === 'turn-start')).toEqual([{ type: 'turn-start', prompted: true }]);
   });
 
   test('auth status payloads and emails never reach the log', async () => {
     const s = setup(provider, { authNoise: true });
-    const { handle } = s.start();
+    const { handle, events } = s.start();
     await handle.ready;
     await handle.send('hi');
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await until(() => turnEnd(events));
 
     const log = fs.readFileSync(s.logPath, 'utf8');
     expect(log).not.toContain('person@example.com');
@@ -345,6 +353,23 @@ describe.each(providers)('ACP driver (%s)', (provider) => {
     expect(log).toContain('(redacted)');
     expect(log).toContain('session/prompt');
   });
+
+  test.each(['initialize', 'session/new'])(
+    'a handshake request that is never answered (%s) fails the start',
+    async (hang) => {
+      const s = setup(provider, { hang }, {}, 150);
+      const { handle } = s.start();
+
+      const error = await handle.ready.then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(DriverError);
+      expect((error as DriverError).runError.message).toContain(hang);
+      expect(await handle.exited).toMatchObject({ signal: 'SIGKILL' });
+    },
+  );
 
   test('a missing executable fails with SPAWN_FAILED and a troubleshooting hint', async () => {
     const s = setup(provider);

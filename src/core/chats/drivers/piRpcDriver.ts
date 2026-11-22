@@ -5,19 +5,21 @@ import type { Config } from '../../config/schema';
 import type { RunError } from '../../domain/types';
 import type { ProviderExit } from '../../runs/providerLauncher';
 import { lineSplitter } from '../../runs/liveTranscript';
+import { MAX_LINE_CHARS } from './jsonRpc';
 import {
   DriverError,
   type SessionDriver,
   type SessionEvent,
   type SessionHandle,
   type SessionStartOptions,
-  type StopTimings,
+  HANDSHAKE_REQUEST_TIMEOUT_MS,
+  type DriverTimings,
   type TurnStopReason,
 } from './sessionDriver';
 import { spawnSessionProcess } from './sessionProcess';
 import { piToolArgs } from './toolPolicy';
 
-export type PiDriverTimings = Partial<StopTimings> & { abortDeadlineMs?: number };
+export type PiDriverTimings = DriverTimings & { abortDeadlineMs?: number };
 const DEFAULT_ABORT_DEADLINE_MS = 10_000;
 const STDERR_TAIL = 2_000;
 
@@ -52,7 +54,7 @@ class PiSession implements SessionHandle {
   private readonly bin: string;
   private readonly providerSessionId: string;
   private readonly resuming: boolean;
-  private readonly stderr: string[] = [];
+  private stderrTail = ''; // the last STDERR_TAIL characters of (redacted) stderr, never more
   private readonly responses = new Map<string, { resolve(value: Rec): void; reject(error: Error): void }>();
   private nextId = 1;
   private promptInFlight = false;
@@ -62,10 +64,12 @@ class PiSession implements SessionHandle {
   private providerFailure: string | null = null;
   private fatal: RunError | null = null;
   private readonly abortDeadlineMs: number;
+  private readonly requestTimeoutMs: number;
 
   constructor(bin: string, secrets: Secrets, options: SessionStartOptions, timings: PiDriverTimings) {
     this.bin = bin;
     this.abortDeadlineMs = timings.abortDeadlineMs ?? DEFAULT_ABORT_DEADLINE_MS;
+    this.requestTimeoutMs = timings.requestTimeoutMs ?? HANDSHAKE_REQUEST_TIMEOUT_MS;
     this.resuming = options.providerSessionId !== undefined;
     // The id of a new session is generated here and stored by the caller as provider_session_id.
     this.providerSessionId = options.providerSessionId ?? randomUUID();
@@ -80,7 +84,10 @@ class PiSession implements SessionHandle {
       ...(this.resuming ? ['--session', this.providerSessionId] : ['--session-id', this.providerSessionId]),
       ...piToolArgs(options.tools),
     ];
-    const splitter = lineSplitter((line) => this.onLine(line));
+    const splitter = lineSplitter((line) => this.onLine(line), {
+      maxLineChars: MAX_LINE_CHARS,
+      onOversize: (chars) => this.proc.log(`oversized line (${chars} chars) dropped`),
+    });
     this.proc = spawnSessionProcess({
       bin,
       args,
@@ -89,8 +96,8 @@ class PiSession implements SessionHandle {
       secrets,
       logPath: options.logPath,
       onStdout: (chunk) => splitter.push(chunk),
-      onStderr: (chunk) => {
-        this.stderr.push(chunk.toString('utf8'));
+      onStderrLine: (line) => {
+        this.stderrTail = `${this.stderrTail}${line}\n`.slice(-STDERR_TAIL);
       },
       timings,
     });
@@ -118,22 +125,36 @@ class PiSession implements SessionHandle {
     }
   }
 
-  private request(command: Rec): Promise<Rec> {
+  private request(command: Rec, timeoutMs?: number): Promise<Rec> {
     if (this.proc.hasExited()) return Promise.reject(new Error('The provider process has exited'));
     const id = `r${this.nextId++}`;
     return new Promise((resolve, reject) => {
-      this.responses.set(id, { resolve, reject });
+      const timer =
+        timeoutMs === undefined
+          ? null
+          : setTimeout(() => {
+              if (this.responses.delete(id)) {
+                this.proc.kill();
+                reject(new DriverError({ code: 'PROVIDER_ERROR', message: `pi did not answer ${str(command.type)}.` }));
+              }
+            }, timeoutMs);
+      this.responses.set(id, {
+        resolve: (value) => {
+          if (timer !== null) clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          if (timer !== null) clearTimeout(timer);
+          reject(error);
+        },
+      });
       this.write({ id, ...command });
     });
   }
 
-  private stderrTail(): string {
-    return this.stderr.join('').trim().slice(-STDERR_TAIL);
-  }
-
   private async handshake(): Promise<{ providerSessionId: string }> {
     try {
-      const state = await this.request({ type: 'get_state' });
+      const state = await this.request({ type: 'get_state' }, this.requestTimeoutMs);
       if (state.success !== true) {
         throw new DriverError({
           code: 'PROVIDER_ERROR',
@@ -158,7 +179,7 @@ class PiSession implements SessionHandle {
       }
       return exit.error;
     }
-    const tail = this.stderrTail();
+    const tail = this.stderrTail.trim();
     if (this.resuming && /No session found/i.test(tail)) {
       return {
         code: 'SESSION_RESUME_FAILED',

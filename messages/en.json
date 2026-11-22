@@ -255,6 +255,7 @@
     "closeSessionMessage": "Close this chat? Its working copy will be deleted and you cannot send more messages.",
     "closeSessionConfirm": "Close chat",
     "closeChatWorkWarning": "This chat's working copy has work that is not saved elsewhere: {details}. Closing deletes the copy. Close anyway?",
+    "closeChatWorkUnknown": "Automator could not check this chat's working copy for unsaved work (uncommitted changes or unpushed commits). Closing deletes the copy. Close anyway?",
     "workUncommitted": "uncommitted changes",
     "workUnpushed": "{count, plural, one {# unpushed commit} other {# unpushed commits}}",
     "sessionState": "{state, select, live {Session running} stopped {Session stopped; it resumes on your next message} closing {Closing…} other {Chat closed}}"

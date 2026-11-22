@@ -5,15 +5,16 @@ import type { Config } from '../../config/schema';
 import type { ProviderName, RunError } from '../../domain/types';
 import { copilotAuthEnvNames } from '../../runs/childProcess';
 import type { ProviderExit } from '../../runs/providerLauncher';
-import { createJsonRpcPeer, JsonRpcError } from './jsonRpc';
+import { createJsonRpcPeer, JsonRpcError, JsonRpcTimeoutError } from './jsonRpc';
 import {
   asRunError,
   DriverError,
+  HANDSHAKE_REQUEST_TIMEOUT_MS,
+  type DriverTimings,
   type SessionDriver,
   type SessionEvent,
   type SessionHandle,
   type SessionStartOptions,
-  type StopTimings,
   type ToolPolicy,
   type TurnStopReason,
 } from './sessionDriver';
@@ -84,7 +85,7 @@ export function createAcpDriver(
   provider: AcpProvider,
   baseConfig: Config,
   baseSecrets: Secrets,
-  timings: Partial<StopTimings> = {},
+  timings: DriverTimings = {},
 ): SessionDriver {
   return {
     provider,
@@ -121,15 +122,17 @@ class AcpSession implements SessionHandle {
   private turnFinished = true;
   private fatal: RunError | null = null;
   private readonly toolTitles = new Map<string, string>();
+  private readonly requestTimeoutMs: number;
 
   constructor(
     private readonly provider: AcpProvider,
     private readonly command: AcpCommand,
     secrets: Secrets,
     private readonly options: SessionStartOptions,
-    timings: Partial<StopTimings>,
+    timings: DriverTimings,
   ) {
     const input = new PassThrough();
+    this.requestTimeoutMs = timings.requestTimeoutMs ?? HANDSHAKE_REQUEST_TIMEOUT_MS;
     this.proc = spawnSessionProcess({
       bin: command.bin,
       args: command.args,
@@ -171,9 +174,24 @@ class AcpSession implements SessionHandle {
     }
   }
 
+  // A handshake request that is never answered kills the process and fails the start instead of hanging it.
+  private async call<T>(method: string, params: unknown): Promise<T> {
+    try {
+      return await this.peer.request<T>(method, params, { timeoutMs: this.requestTimeoutMs });
+    } catch (error) {
+      if (!(error instanceof JsonRpcTimeoutError)) throw error;
+      this.proc.log(`handshake timeout: ${error.message}`);
+      this.proc.kill();
+      throw new DriverError({
+        code: 'PROVIDER_ERROR',
+        message: `${providerLabels[this.provider]} did not answer ${method}: ${error.message}. The process was stopped.`,
+      });
+    }
+  }
+
   private async handshake(): Promise<{ providerSessionId: string }> {
     try {
-      const init = await this.peer.request<Rec>('initialize', {
+      const init = await this.call<Rec>('initialize', {
         protocolVersion: 1,
         // Elicitation is not advertised until PR 4 handles questions.
         clientCapabilities: {},
@@ -200,9 +218,9 @@ class AcpSession implements SessionHandle {
           });
         }
         try {
-          await this.peer.request('session/load', { sessionId: resumeId, cwd: this.options.cwd, mcpServers });
+          await this.call('session/load', { sessionId: resumeId, cwd: this.options.cwd, mcpServers });
         } catch (error) {
-          if (this.peer.closedNow()) throw error;
+          if (this.peer.closedNow() || error instanceof DriverError) throw error;
           const detail =
             error instanceof JsonRpcError ? `${error.message} (code ${error.code})` : asRunError(error).message;
           throw new DriverError({
@@ -212,7 +230,7 @@ class AcpSession implements SessionHandle {
         }
         sessionId = resumeId;
       } else {
-        const created = await this.peer.request<Rec>('session/new', { cwd: this.options.cwd, mcpServers });
+        const created = await this.call<Rec>('session/new', { cwd: this.options.cwd, mcpServers });
         const id = str(created.sessionId);
         if (id === undefined) {
           throw new DriverError({ code: 'PROVIDER_ERROR', message: 'The provider did not return a session id.' });
@@ -235,9 +253,9 @@ class AcpSession implements SessionHandle {
   private async configure(sessionId: string): Promise<void> {
     if (this.provider === 'copilot') return;
     try {
-      await this.peer.request('session/set_config_option', { sessionId, configId: 'model', value: this.options.model });
+      await this.call('session/set_config_option', { sessionId, configId: 'model', value: this.options.model });
     } catch (error) {
-      if (this.peer.closedNow()) throw error;
+      if (this.peer.closedNow() || error instanceof DriverError) throw error;
       throw new DriverError({
         code: 'MODEL_UNSUPPORTED',
         message: `${providerLabels[this.provider]} rejected model "${this.options.model}": ${asRunError(error).message}`,
@@ -246,13 +264,13 @@ class AcpSession implements SessionHandle {
     // The Claude adapter would otherwise ask for permissions; allowAll maps to its bypass mode (as the one-shot launcher).
     if (this.provider === 'claude-code' && this.options.tools.allowAll) {
       try {
-        await this.peer.request('session/set_config_option', {
+        await this.call('session/set_config_option', {
           sessionId,
           configId: 'mode',
           value: 'bypassPermissions',
         });
       } catch (error) {
-        if (this.peer.closedNow()) throw error;
+        if (this.peer.closedNow() || error instanceof DriverError) throw error;
         // Permission requests are still answered by policy, so a refused mode is not fatal.
         this.proc.log(`could not set bypassPermissions: ${asRunError(error).message}`);
       }
@@ -366,6 +384,7 @@ class AcpSession implements SessionHandle {
     if (this.turnFinished) return;
     this.turnFinished = true;
     this.promptInFlight = false;
+    this.toolTitles.clear();
     this.proc.emit({ type: 'turn-end', ...end });
   }
 

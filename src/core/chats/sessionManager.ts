@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -5,7 +6,7 @@ import type { ConfigFor } from '../config/resolver';
 import type { Database } from '../db/open';
 import { toChatSession } from '../db/rows';
 import type { ChatProcessState, ChatSession, Clock, Run, RunError } from '../domain/types';
-import type { DataDir } from '../files/dataDir';
+import { CHAT_COPYING_PREFIX as COPYING_PREFIX, type DataDir } from '../files/dataDir';
 import type { RepositoryService } from '../repositories/repositoryService';
 import { createLiveTranscript, reportLiveFailure, type LiveTranscript } from '../runs/liveTranscript';
 import type { ProviderExit, RunningProcess } from '../runs/providerLauncher';
@@ -24,11 +25,21 @@ export interface ChatSessionManagerDeps {
   drivers: SessionDrivers;
   configFor: ConfigFor;
   repositories: RepositoryService;
+  // How long a provider process may take to become ready (initialize + session/new|load) before it is killed.
+  handshakeTimeoutMs?: number;
+  // How long a failed close waits before it is retried.
+  closeRetryMs?: number;
 }
+
+export const SESSION_HANDSHAKE_TIMEOUT_MS = 60_000;
+export const CLOSE_RETRY_MS = 30_000;
 
 // The turn as the executor supervises it: a process-like handle whose `exited` resolves when the turn settles.
 export type TurnHandle = RunningProcess & { lastMessage(): string | null };
-export type TurnStart = Omit<SessionStartOptions, 'cwd' | 'providerSessionId' | 'logPath' | 'sessionDir'>;
+// `signal` aborts a turn that is still starting (copying the Repository, spawning, handshaking).
+export type TurnStart = Omit<SessionStartOptions, 'cwd' | 'providerSessionId' | 'logPath' | 'sessionDir'> & {
+  signal?: AbortSignal;
+};
 
 type Turn = {
   runId: number;
@@ -63,17 +74,52 @@ const failure = (error: RunError): TurnHandle => ({
 
 const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+class Aborted extends Error {}
+class HandshakeTimeout extends Error {}
+const ABORTED: RunError = { code: 'INTERRUPTED', message: 'The turn was cancelled before the provider started it' };
+
+// Rejects with Aborted as soon as the signal fires; the underlying work keeps running and must clean up after itself.
+function raceAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return promise;
+  if (signal.aborted) {
+    promise.catch(() => {});
+    return Promise.reject(new Aborted());
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Aborted());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 // One long-lived provider process per Interactive Chat, owned by the worker: lazy start and resume by provider
 // session id, idle timeout, LRU eviction, close requests, and one working copy per Chat.
 export class ChatSessionManager {
   private readonly live = new Map<number, Live>();
   private readonly starting = new Set<number>();
   private readonly closing = new Set<number>();
+  private readonly closeRetryAt = new Map<number, number>();
+  private readonly copying = new Map<number, Promise<void>>();
   private readonly background = new Set<Promise<unknown>>();
 
   constructor(private readonly deps: ChatSessionManagerDeps) {}
 
   liveCount(): number {
+    let count = 0;
+    for (const live of this.live.values()) if (!live.exited) count += 1; // processes being stopped still hold a slot
+    return count;
+  }
+
+  private runningCount(): number {
     let count = 0;
     for (const live of this.live.values()) if (!live.exited && live.stopping === null) count += 1;
     return count;
@@ -81,7 +127,8 @@ export class ChatSessionManager {
 
   // Ensures the copy and a live process (starting or resuming it, evicting if needed), sends the prompt, appends the
   // events to the Run's transcript.md, and settles `exited` when the turn ends.
-  async startTurn(run: Run, session: ChatSession, prompt: string, start: TurnStart): Promise<TurnHandle> {
+  async startTurn(run: Run, session: ChatSession, prompt: string, turnStart: TurnStart): Promise<TurnHandle> {
+    const { signal, ...start } = turnStart;
     const id = session.id;
     if (this.starting.has(id) || this.live.get(id)?.turn != null) {
       throw new Error(`Chat session #${id} already has a turn in flight`);
@@ -89,10 +136,11 @@ export class ChatSessionManager {
     this.starting.add(id);
     try {
       const row = this.row(id) ?? session;
-      const copy = await this.ensureCopy(row);
+      const copy = await this.ensureCopy(row, signal);
       if ('error' in copy) return failure(copy.error);
-      const live = await this.ensureLive(row, copy.path, start);
+      const live = await this.ensureLive(row, copy.path, start, signal);
       if ('error' in live) return failure(live.error);
+      if (signal?.aborted === true) return failure(ABORTED);
       return await this.beginTurn(live.live, run, prompt);
     } finally {
       this.starting.delete(id);
@@ -103,7 +151,7 @@ export class ChatSessionManager {
   tick(): void {
     const now = this.deps.clock.now();
     for (const live of this.live.values()) {
-      if (live.exited || live.stopping !== null || live.turn !== null) continue;
+      if (live.exited || live.stopping !== null || live.turn !== null || this.starting.has(live.id)) continue;
       const idleMs = this.deps.configFor(live.repository).runs.interactiveIdleMinutes * 60_000;
       if (now - live.lastUsedAt >= idleMs) this.stopLive(live);
     }
@@ -163,17 +211,36 @@ export class ChatSessionManager {
     }
   }
 
-  private async ensureCopy(row: ChatSession): Promise<{ path: string } | { error: RunError }> {
+  // The copy is made in a temporary directory and renamed into place, so an interrupted copy is never mistaken
+  // for a complete one. Recovery removes the leftovers.
+  private async ensureCopy(
+    row: ChatSession,
+    signal: AbortSignal | undefined,
+  ): Promise<{ path: string } | { error: RunError }> {
     const repository = this.deps.repositories.get(row.repository);
     if (repository === null) {
       return { error: { code: 'REPOSITORY_UNAVAILABLE', message: `Unknown Repository "${row.repository}"` } };
     }
     const copy = row.copyPath ?? this.deps.dataDir.chatWorkspacePath(row.id, repository.folder);
     if (!fs.existsSync(copy)) {
+      let copying = this.copying.get(row.id);
+      if (copying === undefined) {
+        const holder = path.dirname(copy);
+        const temp = path.join(holder, `${COPYING_PREFIX}${randomUUID()}`);
+        copying = fsp
+          .cp(repository.folder, path.join(temp, path.basename(copy)), { recursive: true, verbatimSymlinks: true })
+          .then(() => fsp.rename(path.join(temp, path.basename(copy)), copy))
+          .finally(async () => {
+            this.copying.delete(row.id);
+            await fsp.rm(temp, { recursive: true, force: true }).catch(() => {});
+          });
+        this.copying.set(row.id, copying);
+        copying.catch(() => {}); // an abandoned copy (cancelled turn) must not become an unhandled rejection
+      }
       try {
-        await fsp.cp(repository.folder, copy, { recursive: true, verbatimSymlinks: true });
+        await raceAbort(copying, signal);
       } catch (e) {
-        this.deps.dataDir.removeChatWorkspace(row.id);
+        if (e instanceof Aborted) return { error: ABORTED };
         return {
           error: { code: 'WORKSPACE_COPY_FAILED', message: `Could not copy the Repository folder: ${errorMessage(e)}` },
         };
@@ -188,14 +255,23 @@ export class ChatSessionManager {
   private async ensureLive(
     row: ChatSession,
     cwd: string,
-    start: TurnStart,
+    start: Omit<TurnStart, 'signal'>,
+    signal: AbortSignal | undefined,
   ): Promise<{ live: Live } | { error: RunError }> {
     const existing = this.live.get(row.id);
     if (existing !== undefined && !existing.exited && existing.stopping === null) return { live: existing };
     // A process that is being stopped must be gone before its replacement starts, or both would own the session.
     if (existing?.stopping != null) await existing.stopping.catch(() => {});
 
-    this.evictFor(this.deps.configFor(row.repository).runs.maxInteractiveSessions);
+    const limit = this.deps.configFor(row.repository).runs.maxInteractiveSessions;
+    this.evictFor(limit);
+    // Evicted processes hold their slot until they are gone, or the limit would be exceeded while they stop.
+    if (this.liveCount() >= limit) {
+      await Promise.allSettled(
+        [...this.live.values()].flatMap((live) => (live.stopping === null ? [] : [live.stopping])),
+      );
+    }
+    if (signal?.aborted === true) return { error: ABORTED };
 
     const driver = this.deps.drivers[row.provider];
     if (driver === undefined) {
@@ -239,15 +315,31 @@ export class ChatSessionManager {
     );
     this.live.set(row.id, live);
 
+    const timeoutMs = this.deps.handshakeTimeoutMs ?? SESSION_HANDSHAKE_TIMEOUT_MS;
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new HandshakeTimeout()), timeoutMs);
+    });
+    handle.ready.catch(() => {});
     try {
-      const ready = await handle.ready;
+      const ready = await raceAbort(Promise.race([handle.ready, deadline]), signal);
       if (ready.providerSessionId !== row.providerSessionId) this.storeProviderSession(row.id, ready.providerSessionId);
     } catch (e) {
-      const error = asRunError(e);
+      const error: RunError =
+        e instanceof Aborted
+          ? ABORTED
+          : e instanceof HandshakeTimeout
+            ? {
+                code: 'PROVIDER_ERROR',
+                message: `The ${row.provider} session did not become ready within ${Math.round(timeoutMs / 1000)} s and was stopped.`,
+              }
+            : asRunError(e);
       this.log(row.id, `session did not start: ${error.code}: ${error.message}`);
       live.handle.kill();
       this.onExited(live, { code: null, signal: null });
       return { error };
+    } finally {
+      clearTimeout(timer);
     }
     this.setProcess(row.id, 'idle', handle.pid);
     return { live };
@@ -260,9 +352,9 @@ export class ChatSessionManager {
   // Stops idle processes, least recently used first and whatever their Project, until a new one fits.
   // Busy processes are never evicted, so the limit can be exceeded while every live session is mid-turn.
   private evictFor(limit: number): void {
-    while (this.liveCount() >= limit) {
+    while (this.runningCount() >= limit) {
       const candidate = [...this.live.values()]
-        .filter((live) => !live.exited && live.stopping === null && live.turn === null)
+        .filter((live) => !live.exited && live.stopping === null && live.turn === null && !this.starting.has(live.id))
         .sort((a, b) => a.lastUsedAt - b.lastUsedAt)[0];
       if (candidate === undefined) return;
       this.stopLive(candidate);
@@ -424,6 +516,7 @@ export class ChatSessionManager {
       .all() as { id: number }[];
     for (const { id } of rows) {
       if (this.closing.has(id) || this.starting.has(id)) continue;
+      if ((this.closeRetryAt.get(id) ?? 0) > this.deps.clock.now()) continue;
       const live = this.live.get(id);
       if (live?.turn != null) continue;
       const open = this.deps.db
@@ -431,7 +524,19 @@ export class ChatSessionManager {
         .get(id);
       if (open !== undefined) continue;
       this.closing.add(id);
-      this.track(this.finishClose(id).finally(() => this.closing.delete(id)));
+      this.track(
+        this.finishClose(id)
+          .then(() => this.closeRetryAt.delete(id))
+          .catch((e: unknown) => {
+            // Keep the request, say why, and wait before the next attempt instead of failing again every tick.
+            const retryMs = this.deps.closeRetryMs ?? CLOSE_RETRY_MS;
+            this.closeRetryAt.set(id, this.deps.clock.now() + retryMs);
+            const message = `closing the chat failed (retrying in ${Math.round(retryMs / 1000)} s): ${errorMessage(e)}`;
+            this.log(id, message);
+            console.error(`Chat session #${id}: ${message}`);
+          })
+          .finally(() => this.closing.delete(id)),
+      );
     }
   }
 

@@ -13,8 +13,27 @@ export class JsonRpcError extends Error {
   }
 }
 
+export class JsonRpcTimeoutError extends Error {
+  constructor(
+    readonly method: string,
+    timeoutMs: number,
+  ) {
+    super(`No response to ${method} within ${Math.round(timeoutMs / 1000)} s`);
+    this.name = 'JsonRpcTimeoutError';
+  }
+}
+
+export const MAX_LINE_CHARS = 8 * 1024 * 1024;
+export const MAX_WRITE_BUFFER = 16 * 1024 * 1024;
+
+export type JsonRpcOptions = {
+  maxLineChars?: number; // longer incoming lines are dropped and logged
+  maxWriteBuffer?: number; // an output that falls this far behind fails the peer
+};
+
 export interface JsonRpcPeer {
-  request<T>(method: string, params: unknown): Promise<T>;
+  // `timeoutMs` bounds the wait for the response; long-running requests (session/prompt) pass none.
+  request<T>(method: string, params: unknown, options?: { timeoutMs?: number }): Promise<T>;
   notify(method: string, params: unknown): void;
   onRequest(method: string, handler: (params: unknown) => Promise<unknown> | unknown): void;
   onNotification(method: string, handler: (params: unknown) => void): void;
@@ -39,7 +58,9 @@ export function createJsonRpcPeer(
   input: NodeJS.ReadableStream,
   output: NodeJS.WritableStream,
   log: (line: string) => void = () => {},
+  options: JsonRpcOptions = {},
 ): JsonRpcPeer {
+  const maxWriteBuffer = options.maxWriteBuffer ?? MAX_WRITE_BUFFER;
   let nextId = 1;
   let closed = false;
   const pending = new Map<number | string, { resolve(value: unknown): void; reject(error: Error): void }>();
@@ -57,8 +78,20 @@ export function createJsonRpcPeer(
       output.write(`${line}\n`);
     } catch (error) {
       log(`write failed: ${error instanceof Error ? error.message : String(error)}`);
+      closeAll();
+      return;
+    }
+    // Nothing reads the output fast enough: stop buffering without bound and fail the session instead.
+    const buffered = (output as { writableLength?: number }).writableLength ?? 0;
+    if (buffered > maxWriteBuffer) {
+      log(`output backed up (${buffered} bytes buffered); closing the connection`);
+      closeAll();
     }
   };
+  output.on('error', (error: Error) => {
+    log(`write failed: ${error.message}`);
+    closeAll();
+  });
 
   const closeAll = (): void => {
     if (closed) return;
@@ -112,22 +145,26 @@ export function createJsonRpcPeer(
     }
   };
 
-  const splitter = lineSplitter((line) => {
-    if (closed || line.trim() === '') return;
-    log(`< ${line}`);
-    let value: unknown;
-    try {
-      value = JSON.parse(line);
-    } catch {
-      log('malformed JSON line ignored');
-      return;
-    }
-    if (!isRecord(value)) {
-      log('malformed JSON-RPC message ignored');
-      return;
-    }
-    handle(value as Message);
-  });
+  const onOversize = (chars: number) => log(`oversized line (${chars} chars) dropped`);
+  const splitter = lineSplitter(
+    (line) => {
+      if (closed || line.trim() === '') return;
+      log(`< ${line}`);
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch {
+        log('malformed JSON line ignored');
+        return;
+      }
+      if (!isRecord(value)) {
+        log('malformed JSON-RPC message ignored');
+        return;
+      }
+      handle(value as Message);
+    },
+    { maxLineChars: options.maxLineChars ?? MAX_LINE_CHARS, onOversize },
+  );
   input.on('data', (chunk: Buffer | string) => splitter.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
   const onEnd = () => {
     splitter.end();
@@ -138,11 +175,27 @@ export function createJsonRpcPeer(
   input.on('error', onEnd);
 
   return {
-    request<T>(method: string, params: unknown): Promise<T> {
+    request<T>(method: string, params: unknown, requestOptions: { timeoutMs?: number } = {}): Promise<T> {
       if (closed) return Promise.reject(new Error('The connection is closed'));
       const id = nextId++;
       return new Promise<T>((resolve, reject) => {
-        pending.set(id, { resolve: (value) => resolve(value as T), reject });
+        const timeoutMs = requestOptions.timeoutMs;
+        const timer =
+          timeoutMs === undefined
+            ? null
+            : setTimeout(() => {
+                if (pending.delete(id)) reject(new JsonRpcTimeoutError(method, timeoutMs));
+              }, timeoutMs);
+        pending.set(id, {
+          resolve: (value) => {
+            if (timer !== null) clearTimeout(timer);
+            resolve(value as T);
+          },
+          reject: (error) => {
+            if (timer !== null) clearTimeout(timer);
+            reject(error);
+          },
+        });
         write({ jsonrpc: '2.0', id, method, params });
       });
     },

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export const CHAT_COPYING_PREFIX = '.copying-';
+
 export class DataDir {
   readonly root: string;
   readonly db: string;
@@ -85,6 +87,22 @@ export class DataDir {
 
   removeChatWorkspace(sessionId: number): void {
     fs.rmSync(this.chatWorkspaceRoot(sessionId), { recursive: true, force: true });
+  }
+
+  // A copy in progress lives in a `.copying-*` directory next to the final one; only a crash leaves one behind.
+  removeIncompleteChatCopies(): void {
+    for (const id of this.chatWorkspaceIds()) {
+      const root = this.chatWorkspaceRoot(id);
+      let names: string[];
+      try {
+        names = fs.readdirSync(root);
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        if (name.startsWith(CHAT_COPYING_PREFIX)) fs.rmSync(path.join(root, name), { recursive: true, force: true });
+      }
+    }
   }
 
   chatWorkspaceIds(): number[] {

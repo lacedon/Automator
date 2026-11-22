@@ -104,6 +104,25 @@ describe('createLiveTranscript', () => {
   });
 });
 
+describe('lineSplitter line limit', () => {
+  test('lines over the limit are reported instead of delivered, across chunks, and later lines survive', () => {
+    const lines: string[] = [];
+    const oversized: number[] = [];
+    const splitter = lineSplitter((line) => lines.push(line), {
+      maxLineChars: 10,
+      onOversize: (chars) => oversized.push(chars),
+    });
+    splitter.push(Buffer.from('ok\n'));
+    splitter.push(Buffer.from('x'.repeat(8)));
+    splitter.push(Buffer.from('x'.repeat(8))); // no newline yet: the partial line is dropped, not buffered
+    splitter.push(Buffer.from('xx\nfine\n'));
+    splitter.push(Buffer.from(`${'y'.repeat(30)}\nlast`));
+    splitter.end();
+    expect(lines).toEqual(['ok', 'fine', 'last']);
+    expect(oversized).toEqual([18, 30]);
+  });
+});
+
 describe('lineSplitter', () => {
   test('long newline-less output is handled in one pass and emitted at the end', () => {
     const lines: string[] = [];

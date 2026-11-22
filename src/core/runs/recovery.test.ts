@@ -16,7 +16,7 @@ import { FreeformPrecheck } from '../prechecks/freeform';
 import type { Prechecks } from '../prechecks/index';
 import type { JiraPrecheck } from '../prechecks/jira';
 import type { CopilotLauncher } from './copilotLauncher';
-import { recoverInterruptedRuns } from './recovery';
+import { processLooksLikeSession, recoverInterruptedRuns } from './recovery';
 import type { ResultFileV1 } from './runExecutor';
 
 const cleanups: (() => void)[] = [];
@@ -53,6 +53,8 @@ function setup() {
     launchers: { copilot: launcher, 'claude-code': launcher, codex: launcher, opencode: launcher, pi: launcher },
     prechecks,
     currentBranch: vi.fn(async () => 'main'),
+    // The tests use `sleep` as the stand-in provider process.
+    ownsSessionProcess: vi.fn(() => true),
     onNeedsYou,
   };
   return { db: t.db, clock, dataDir, deps, events, onNeedsYou };
@@ -209,6 +211,51 @@ describe('recoverInterruptedRuns: Interactive Chats', () => {
     expect(fs.existsSync(copies.get(closed)!)).toBe(false);
     expect(fs.existsSync(copies.get(closing)!)).toBe(false);
     expect(fs.existsSync(copies.get(orphan)!)).toBe(false);
+  });
+
+  test('a stored pid that now belongs to another process is left alone', async () => {
+    const s = setup();
+    const child = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+    cleanups.push(() => child.kill('SIGKILL'));
+    const sessionId = chat(s.db, { pid: child.pid! });
+    const runId = insertRunning(s.db, null, s.clock.now(), child.pid!);
+    s.db.prepare('UPDATE runs SET chat_session_id = ? WHERE id = ?').run(sessionId, runId);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    s.deps.ownsSessionProcess = vi.fn(() => false);
+
+    await recoverInterruptedRuns(s.deps);
+
+    expect(s.deps.ownsSessionProcess).toHaveBeenCalledWith(child.pid, expect.arrayContaining(['pi']));
+    expect(() => process.kill(child.pid!, 0)).not.toThrow(); // still running
+    expect(s.db.prepare('SELECT process_state, pid FROM chat_sessions WHERE id = ?').get(sessionId)).toEqual({
+      process_state: 'stopped',
+      pid: null,
+    });
+    expect(toRun(s.db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).interrupted).toBe('worker-restart');
+  });
+
+  test('the default pid check recognises the provider executable and nothing else', async () => {
+    const child = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+    cleanups.push(() => child.kill('SIGKILL'));
+    expect(processLooksLikeSession(child.pid!, ['sleep'])).toBe(true);
+    expect(processLooksLikeSession(child.pid!, ['claude-agent-acp', 'pi'])).toBe(false);
+    child.kill('SIGKILL');
+    await once(child, 'exit');
+    expect(processLooksLikeSession(child.pid!, ['sleep'])).toBe(false);
+  });
+
+  test('incomplete copies left by a crash are removed and complete ones are kept', async () => {
+    const s = setup();
+    const id = chat(s.db);
+    const copy = makeCopy(s, id);
+    const partial = path.join(s.dataDir.chatWorkspaceRoot(id), '.copying-abc', 'repo');
+    fs.mkdirSync(partial, { recursive: true });
+    fs.writeFileSync(path.join(partial, 'half.txt'), 'x');
+
+    await recoverInterruptedRuns(s.deps);
+
+    expect(fs.existsSync(copy)).toBe(true);
+    expect(fs.existsSync(path.dirname(partial))).toBe(false);
   });
 
   test('per-Run copies are still cleared', async () => {

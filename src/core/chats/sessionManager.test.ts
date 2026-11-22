@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, expect, test } from 'vitest';
+import fsp from 'node:fs/promises';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { tempDb } from '../../../test/helpers/db';
@@ -50,9 +51,11 @@ class FakeHandle implements SessionHandle {
     });
     this.ready = behaviour.readyError
       ? Promise.reject(new DriverError(behaviour.readyError))
-      : Promise.resolve({ providerSessionId: options.providerSessionId ?? `prov-${n}` });
+      : behaviour.readyNever
+        ? new Promise(() => {})
+        : Promise.resolve({ providerSessionId: options.providerSessionId ?? `prov-${n}` });
     this.ready.catch(() => {});
-    if (!behaviour.readyError) {
+    if (!behaviour.readyError && !behaviour.readyNever) {
       const id = options.providerSessionId ?? `prov-${n}`;
       queueMicrotask(() => this.emit({ type: 'session', providerSessionId: id }));
     }
@@ -97,7 +100,7 @@ class FakeHandle implements SessionHandle {
   }
   stop(): Promise<ProviderExit> {
     this.stopped = true;
-    this.finish({ code: 0, signal: null });
+    if (!this.behaviour.stopHangs) this.finish({ code: 0, signal: null });
     return this.exited;
   }
   kill(): void {
@@ -108,6 +111,8 @@ class FakeHandle implements SessionHandle {
 
 type FakeBehaviour = {
   readyError?: { code: string; message: string };
+  readyNever?: boolean; // the handshake never completes
+  stopHangs?: boolean; // stop() does not end the process until the test calls finish()
   onSend: (handle: FakeHandle, message: string) => void;
 };
 
@@ -132,7 +137,22 @@ function fakeDriver(behaviour: Partial<FakeBehaviour> = {}) {
   return { driver, handles, behaviour: merged };
 }
 
-function setup(options: { config?: Partial<Config['runs']>; behaviour?: Partial<FakeBehaviour> } = {}) {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function until(condition: () => boolean, label: string): Promise<void> {
+  for (let i = 0; i < 200; i += 1) {
+    if (condition()) return;
+    await sleep(5);
+  }
+  throw new Error(`timed out waiting for ${label}`);
+}
+
+function setup(
+  options: {
+    config?: Partial<Config['runs']>;
+    behaviour?: Partial<FakeBehaviour>;
+    handshakeTimeoutMs?: number;
+  } = {},
+) {
   const t = tempDb();
   const clock = fakeClock();
   const config = testConfig({ runs: options.config ?? {} });
@@ -157,6 +177,8 @@ function setup(options: { config?: Partial<Config['runs']>; behaviour?: Partial<
     drivers: { pi: fake.driver },
     configFor,
     repositories,
+    ...(options.handshakeTimeoutMs === undefined ? {} : { handshakeTimeoutMs: options.handshakeTimeoutMs }),
+    closeRetryMs: 60_000,
   });
   const newRun = (session: ChatSession): Run => {
     const info = t.db
@@ -175,7 +197,21 @@ function setup(options: { config?: Partial<Config['runs']>; behaviour?: Partial<
   const startOptions = { model: 'm', env: {}, tools: open };
   const turn = (run: Run, session: ChatSession, prompt: string) =>
     manager.startTurn(run, sessions.get(session.id)!, prompt, startOptions);
-  return { ...t, db: t.db, clock, config, dataDir, sessions, fake, manager, newChat, newRun, turn, repositories };
+  return {
+    ...t,
+    startOptions,
+    db: t.db,
+    clock,
+    config,
+    dataDir,
+    sessions,
+    fake,
+    manager,
+    newChat,
+    newRun,
+    turn,
+    repositories,
+  };
 }
 
 describe('ChatSessionManager', () => {
@@ -288,6 +324,189 @@ describe('ChatSessionManager', () => {
     expect(s.fake.handles).toHaveLength(2);
     expect(s.fake.handles[1]!.options.providerSessionId).toBe('prov-1');
     expect(s.sessions.get(session.id)!.providerSessionId).toBe('prov-1');
+  });
+
+  describe('starting a turn', () => {
+    const slowCopy = (ms: number) => {
+      const real = fsp.cp.bind(fsp);
+      return vi.spyOn(fsp, 'cp').mockImplementation(async (...args: Parameters<typeof fsp.cp>) => {
+        await sleep(ms);
+        return real(...args);
+      });
+    };
+    const copyingDirs = (s: ReturnType<typeof setup>, id: number) =>
+      fs.existsSync(s.dataDir.chatWorkspaceRoot(id))
+        ? fs.readdirSync(s.dataDir.chatWorkspaceRoot(id)).filter((name) => name.startsWith('.copying-'))
+        : [];
+
+    test('a cancel during the Repository copy ends the start without a process', async () => {
+      slowCopy(80);
+      const s = setup();
+      const { session, run } = s.newChat();
+      const abort = new AbortController();
+
+      const pending = s.manager.startTurn(run, s.sessions.get(session.id)!, 'go', {
+        ...s.startOptions,
+        signal: abort.signal,
+      });
+      await sleep(10);
+      abort.abort();
+      const turn = await pending;
+
+      expect((await turn.exited).error?.code).toBe('INTERRUPTED');
+      expect(s.fake.handles).toHaveLength(0);
+      await sleep(150); // the abandoned copy finishes and cleans up after itself
+      expect(copyingDirs(s, session.id)).toEqual([]);
+      expect(s.manager.liveCount()).toBe(0);
+    });
+
+    test('a cancel during the handshake kills the process and ends the start', async () => {
+      const s = setup({ behaviour: { readyNever: true } });
+      const { session, run } = s.newChat();
+      const abort = new AbortController();
+
+      const pending = s.manager.startTurn(run, s.sessions.get(session.id)!, 'go', {
+        ...s.startOptions,
+        signal: abort.signal,
+      });
+      await until(() => s.fake.handles.length === 1, 'the process to start');
+      abort.abort();
+      const turn = await pending;
+
+      expect((await turn.exited).error?.code).toBe('INTERRUPTED');
+      expect(s.fake.handles[0]!.killed).toBe(true);
+      expect(s.sessions.get(session.id)).toMatchObject({ processState: 'stopped', pid: null });
+      expect(s.manager.liveCount()).toBe(0);
+    });
+
+    test('a handshake that never completes is killed after the deadline with a clear error', async () => {
+      const s = setup({ behaviour: { readyNever: true }, handshakeTimeoutMs: 30 });
+      const { session, run } = s.newChat();
+
+      const turn = await s.turn(run, session, 'go');
+      const exit = await turn.exited;
+
+      expect(exit.error).toMatchObject({ code: 'PROVIDER_ERROR' });
+      expect(exit.error?.message).toMatch(/did not become ready within/);
+      expect(s.fake.handles[0]!.killed).toBe(true);
+      expect(s.sessions.get(session.id)).toMatchObject({ processState: 'stopped', pid: null });
+      expect(s.manager.liveCount()).toBe(0);
+    });
+
+    test('an interrupted copy is never mistaken for a complete one', async () => {
+      const failing = vi.spyOn(fsp, 'cp').mockImplementationOnce(async (_source, destination) => {
+        fs.mkdirSync(String(destination), { recursive: true });
+        fs.writeFileSync(path.join(String(destination), 'partial.txt'), 'half');
+        throw new Error('disk full');
+      });
+      const s = setup();
+      const { session, run } = s.newChat();
+      const copy = s.dataDir.chatWorkspacePath(session.id, s.config.repositories.pages!.folder);
+
+      const first = await s.turn(run, session, 'one');
+      expect((await first.exited).error?.code).toBe('WORKSPACE_COPY_FAILED');
+      expect(fs.existsSync(copy)).toBe(false);
+      expect(copyingDirs(s, session.id)).toEqual([]);
+      expect(s.sessions.get(session.id)!.copyPath).toBeNull();
+
+      failing.mockRestore();
+      const second = await s.turn(s.newRun(session), session, 'two');
+      expect(await second.exited).toEqual({ code: 0, signal: null });
+      expect(fs.readFileSync(path.join(copy, 'README.md'), 'utf8')).toBe('readme');
+      expect(fs.existsSync(path.join(copy, 'partial.txt'))).toBe(false);
+    });
+  });
+
+  test('idle timeout and eviction skip a session whose turn is starting', async () => {
+    const s = setup({ config: { interactiveIdleMinutes: 30, maxInteractiveSessions: 1 } });
+    const a = s.newChat('pages');
+    await (
+      await s.turn(a.run, a.session, 'one')
+    ).exited;
+    s.clock.advance(31 * 60_000);
+
+    // The turn is claimed (starting) but has not reached the process yet: tick must not stop it.
+    const second = s.turn(s.newRun(a.session), a.session, 'two');
+    s.manager.tick();
+    await s.manager.drain();
+    expect(s.fake.handles[0]!.stopped).toBe(false);
+    await (
+      await second
+    ).exited;
+    expect(s.fake.handles).toHaveLength(1);
+    expect(s.fake.handles[0]!.sent).toEqual(['one', 'two']);
+
+    // Another Chat starting at the limit must not evict the session that is about to be used.
+    s.clock.advance(31 * 60_000);
+    const third = s.turn(s.newRun(a.session), a.session, 'three');
+    const b = s.newChat('api');
+    const other = s.turn(b.run, b.session, 'other');
+    await (
+      await third
+    ).exited;
+    await other;
+    expect(s.fake.handles[0]!.sent).toEqual(['one', 'two', 'three']);
+  });
+
+  test('processes that are still stopping count toward maxInteractiveSessions', async () => {
+    const s = setup({ config: { maxInteractiveSessions: 1 }, behaviour: { stopHangs: true } });
+    const a = s.newChat('pages');
+    await (
+      await s.turn(a.run, a.session, 'one')
+    ).exited;
+    expect(s.manager.liveCount()).toBe(1);
+
+    const b = s.newChat('api');
+    const pending = s.turn(b.run, b.session, 'two');
+    await until(() => s.fake.handles[0]!.stopped, 'the eviction');
+    await sleep(20);
+    expect(s.fake.handles).toHaveLength(1); // the new process waits for the old one to be gone
+    expect(s.manager.liveCount()).toBe(1);
+
+    s.fake.handles[0]!.finish({ code: 0, signal: null });
+    await (
+      await pending
+    ).exited;
+    expect(s.fake.handles).toHaveLength(2);
+  });
+
+  describe('a close that fails', () => {
+    test('is logged and retried after a back-off, not on every tick', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const s = setup();
+      const { session, run } = s.newChat();
+      await (
+        await s.turn(run, session, 'one')
+      ).exited;
+      s.db.prepare('UPDATE runs SET status = ?, ended_at = 1 WHERE id = ?').run('finished', run.id);
+      s.db.prepare('UPDATE chat_sessions SET close_requested_at = 1 WHERE id = ?').run(session.id);
+      const remove = vi.spyOn(s.dataDir, 'removeChatWorkspace').mockImplementation(() => {
+        throw new Error('EBUSY: resource busy');
+      });
+
+      s.manager.tick();
+      await s.manager.drain();
+      s.manager.tick();
+      await s.manager.drain();
+      expect(remove).toHaveBeenCalledTimes(1);
+      expect(s.sessions.get(session.id)!.closedAt).toBeNull();
+      expect(fs.readFileSync(s.dataDir.chatSessionLogPath(session.id), 'utf8')).toMatch(
+        /closing the chat failed.*EBUSY/,
+      );
+      expect(error).toHaveBeenCalled();
+
+      s.clock.advance(61_000);
+      s.manager.tick();
+      await s.manager.drain();
+      expect(remove).toHaveBeenCalledTimes(2);
+
+      remove.mockRestore();
+      s.clock.advance(61_000);
+      s.manager.tick();
+      await s.manager.drain();
+      expect(s.sessions.get(session.id)!.closedAt).not.toBeNull();
+      error.mockRestore();
+    });
   });
 
   test('after a worker restart the next turn starts the process lazily, resumes by session id and keeps the copy', async () => {
