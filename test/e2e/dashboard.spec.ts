@@ -160,7 +160,9 @@ test('New chat mode selector defaults to Follow-up and disables Interactive', as
   const mode = page.locator('#ah-mode');
   await expect(mode).toHaveValue('follow-up');
   await expect(mode.locator('option[value="interactive"]')).toBeDisabled();
-  await expect(page.getByText('Interactive mode is not available for this provider yet.')).toBeVisible();
+  await expect(
+    page.getByText('Interactive mode is not available for this provider yet. Follow-up Chats keep working as before.'),
+  ).toBeVisible();
 });
 
 test('Home no longer lists recently completed Runs', async ({ page }) => {

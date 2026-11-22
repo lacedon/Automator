@@ -63,7 +63,8 @@ export function singleRunThread(deps: ReadDeps, run: Run): ThreadView {
   };
 }
 
-function replyBlock(deps: ReadDeps, tip: Run): string | null {
+function replyBlock(deps: ReadDeps, tip: Run, interactive: boolean): string | null {
+  if (interactive) return 'Interactive Chats are not available yet';
   if (tip.status !== 'finished') return `Waiting for Run #${tip.id} to finish`;
   if (tip.sessionId === null) return 'No Copilot session to continue';
   const repository = deps.repositories.get(tip.repository);
@@ -100,7 +101,7 @@ export function runThread(deps: ReadDeps, run: Run): ThreadView | null {
   }
 
   const tip = chain[chain.length - 1]!;
-  const blocked = replyBlock(deps, tip);
+  const blocked = replyBlock(deps, tip, root.chatSessionId !== null || tip.chatSessionId !== null);
   return {
     runs: chain.map((r) => toThreadRun(deps, r)),
     replyToRunId: blocked === null ? tip.id : null,

@@ -9,6 +9,7 @@ import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { Result } from '../domain/result';
 import { DataDir } from '../files/dataDir';
+import { ChatSessionService } from '../chats/chatSessionService';
 import { QueueService } from '../queue/queueService';
 import { WatchService, type WatchServiceDeps, type TargetPreview } from './watchService';
 
@@ -28,7 +29,7 @@ function setup(opts: { config?: Config; preview?: WatchServiceDeps['preview'] } 
   const dataDir = new DataDir(path.dirname(t.file));
   const config = opts.config ?? testConfig({ providers: { copilot: { models: ['gpt-x', 'm1', 'watch-model'] } } });
   const repositories = testRepositories(t.db, config);
-  const queue = new QueueService(t.db, clock, dataDir, config, repositories);
+  const queue = new QueueService(t.db, clock, dataDir, config, repositories, new ChatSessionService(t.db, clock));
   const service = new WatchService({ db: t.db, clock, dataDir, config, repositories, queue, preview: opts.preview });
   return { db: t.db, clock, dataDir, config, repositories, queue, service };
 }

@@ -118,7 +118,6 @@ export function AdhocForm({
               value={repository}
               onChange={(e) => {
                 setRepository(e.target.value);
-                if (!(options.byRepository[e.target.value] ?? options).interactive.supported) setMode('follow-up');
               }}
             >
               {repo === undefined && <option value={repository}>{repository}</option>}
@@ -155,18 +154,20 @@ export function AdhocForm({
               id="ah-mode"
               name="mode"
               className={inputClass('mode')}
+              aria-describedby={interactive.supported ? undefined : 'ah-mode-hint'}
               value={effectiveMode}
               onChange={(e) => setMode(e.target.value === 'interactive' ? 'interactive' : 'follow-up')}
             >
               <option value="follow-up">{t('modeFollowUp')}</option>
-              <option
-                value="interactive"
-                disabled={!interactive.supported}
-                title={interactive.supported ? undefined : (interactive.reason ?? undefined)}
-              >
+              <option value="interactive" disabled={!interactive.supported}>
                 {t('modeInteractive')}
               </option>
             </select>
+            {!interactive.supported && (
+              <div id="ah-mode-hint" className="field-hint muted">
+                {t('modeInteractiveUnavailable')}
+              </div>
+            )}
           </div>
           <div className="field">
             <label htmlFor="ah-model">{t('model')}</label>
@@ -186,7 +187,6 @@ export function AdhocForm({
             </select>
           </div>
         </div>
-        {!interactive.supported && <div className="field-hint muted">{t('modeInteractiveUnavailable')}</div>}
         <div className="field-hint muted">{t('provider', { provider: providerLabel(settings.provider) })}</div>
       </div>
     </form>

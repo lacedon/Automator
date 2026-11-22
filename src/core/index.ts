@@ -266,7 +266,8 @@ export function createCore(
     gitlabMeCache: metaMeCache(db, 'gitlab', deps.gitlab, secretsOf),
     githubMeCache: metaMeCache(db, 'github', deps.github, secretsOf),
   });
-  const queue = new QueueService(db, clock, dataDir, config, repositories, {
+  const chats = new ChatSessionService(db, clock);
+  const queue = new QueueService(db, clock, dataDir, config, repositories, chats, {
     configFor,
     ticketTitle: async (conn, key) => (await deps.jira(conn).issue(key)).summary,
   });
@@ -318,7 +319,7 @@ export function createCore(
       },
     }),
     queue,
-    chats: new ChatSessionService(db, clock),
+    chats,
     scheduler: new Scheduler({ db, clock, config, configFor, dataDir, queue, repositories, prechecks, onNeedsYou }),
     executor: new RunExecutor(executorDeps),
     cleanup: new CleanupService({ db, clock, config, configFor, allConfigs: () => configs.all(), dataDir }),

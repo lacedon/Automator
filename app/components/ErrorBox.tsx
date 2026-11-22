@@ -20,7 +20,7 @@ function describe(error: SimpleError, t: T): string {
     case 'UPGRADE_FAILED':
       return error.message;
     case 'INVALID_STATE':
-      return error.message ?? t('invalidState', { action: error.action, state: error.state.replace('_', ' ') });
+      return t('invalidState', { action: error.action, state: error.state.replace('_', ' ') });
     case 'RUN_IN_PROGRESS':
       return t('runInProgress', { runId: error.runId });
     case 'JIRA_DISABLED':

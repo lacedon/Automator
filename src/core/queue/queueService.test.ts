@@ -10,6 +10,7 @@ import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
 import type { ProviderName } from '../domain/types';
 import { DataDir } from '../files/dataDir';
+import { ChatSessionService } from '../chats/chatSessionService';
 import { QueueService } from './queueService';
 
 const cleanups: (() => void)[] = [];
@@ -46,7 +47,7 @@ function setup(
     dataDir,
     config,
     repositories,
-    queue: new QueueService(t.db, clock, dataDir, config, repositories, {
+    queue: new QueueService(t.db, clock, dataDir, config, repositories, new ChatSessionService(t.db, clock), {
       ticketTitle: opts.ticketTitle,
       interactiveSupport: opts.interactiveSupport,
     }),
@@ -883,12 +884,29 @@ describe('Chat modes', () => {
     expect(queue.requestFollowUp(first.value.run.id, 'more')).toEqual({
       ok: false,
       error: {
-        code: 'INVALID_STATE',
-        state: 'finished',
-        action: 'followUp',
+        code: 'INVALID_INPUT',
+        field: 'run',
         message: 'Interactive Chats are not available yet',
       },
     });
+  });
+
+  test('deleting a non-last Run of an Interactive Chat leaves its close unrequested', async () => {
+    const { db, queue } = setup({ interactiveSupport: supported });
+    const first = await queue.requestAdhoc({ repository: 'pages', prompt: 'hi', mode: 'interactive' });
+    if (!first.ok) throw new Error('setup');
+    const sessionId = first.value.run.chatSessionId;
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(first.value.run.id);
+    const second = queue.enqueueAdhoc({
+      repository: 'pages',
+      prompt: 'more',
+      model: 'm',
+      parentRunId: first.value.run.id,
+      chatSessionId: sessionId!,
+    });
+    db.prepare("UPDATE runs SET status = 'finished' WHERE id = ?").run(second.id);
+    expect(queue.deleteAdhoc(first.value.run.id).ok).toBe(true);
+    expect(sessions(db)).toEqual([expect.objectContaining({ close_requested_at: null })]);
   });
 
   test('deleting the last Run of an Interactive Chat requests its close', async () => {

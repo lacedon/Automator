@@ -64,6 +64,6 @@ export function interactiveSupport(provider: ProviderName): { supported: boolean
   const capabilities = INTERACTIVE_CAPABILITIES[provider];
   return {
     supported: capabilities.interactive,
-    reason: capabilities.interactive ? null : (capabilities.reason ?? NOT_YET),
+    reason: capabilities.interactive ? null : capabilities.reason,
   };
 }

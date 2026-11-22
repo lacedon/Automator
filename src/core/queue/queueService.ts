@@ -70,18 +70,15 @@ function mergeInstructions(existing: string | null, added: string | undefined): 
 }
 
 export class QueueService {
-  private readonly sessions: ChatSessionService;
-
   constructor(
     private readonly db: Database,
     private readonly clock: Clock,
     private readonly dataDir: DataDir,
     private readonly config: Config,
     private readonly repositories: RepositoryService,
+    private readonly sessions: ChatSessionService,
     private readonly deps: QueueDeps = {},
-  ) {
-    this.sessions = new ChatSessionService(db, clock);
-  }
+  ) {}
 
   private interactiveSupport(provider: ProviderName): { supported: boolean; reason: string | null } {
     return (this.deps.interactiveSupport ?? interactiveSupport)(provider);
@@ -194,12 +191,7 @@ export class QueueService {
         if (parent.status !== 'finished')
           return err({ code: 'INVALID_STATE', state: parent.status, action: 'followUp' });
         if (parent.chat_session_id !== null)
-          return err({
-            code: 'INVALID_STATE',
-            state: parent.status,
-            action: 'followUp',
-            message: 'Interactive Chats are not available yet',
-          });
+          return err({ code: 'INVALID_INPUT', field: 'run', message: 'Interactive Chats are not available yet' });
         if (this.db.prepare('SELECT 1 FROM runs WHERE parent_run_id = ?').get(runId))
           return err({ code: 'INVALID_INPUT', field: 'run', message: 'Reply on the latest Run in the thread' });
         if (parent.session_id === null)
@@ -505,7 +497,8 @@ export class QueueService {
           return err({ code: 'INVALID_STATE', state: row.status, action: 'deleteAdhoc' });
         }
         this.db.prepare('DELETE FROM runs WHERE id = ?').run(runId);
-        // Deleting the last Run of an Interactive Chat ends the Chat; the worker finalizes the close.
+        // Deleting the last Run of an Interactive Chat requests its close. The worker will finalize it once the
+        // session runtime ships (PR 3); until then the request is only recorded.
         if (
           row.chat_session_id !== null &&
           !this.db.prepare('SELECT 1 FROM runs WHERE chat_session_id = ?').get(row.chat_session_id)

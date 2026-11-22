@@ -119,11 +119,17 @@ export function toNeedsYouEvent(row: unknown): NeedsYouEvent {
   };
 }
 
+function chatMode(value: unknown): 'interactive' {
+  // Only Interactive Chats have a row; anything else is corrupt data.
+  if (value !== 'interactive') throw new Error(`Unexpected chat_sessions.mode: ${String(value)}`);
+  return value;
+}
+
 export function toChatSession(row: unknown): ChatSession {
   const r = row as Row;
   return {
     id: r.id as number,
-    mode: 'interactive',
+    mode: chatMode(r.mode),
     repository: r.repository as string,
     provider: r.provider as ProviderName,
     model: r.model as string,

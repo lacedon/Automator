@@ -2,6 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { openDb } from '../../src/core/db/open';
 import { systemClock } from '../../src/core/domain/types';
 import { DataDir } from '../../src/core/files/dataDir';
+import { ChatSessionService } from '../../src/core/chats/chatSessionService';
 import { QueueService } from '../../src/core/queue/queueService';
 import { testConfig } from '../helpers/config';
 import { RepositoryService } from '../../src/core/repositories/repositoryService';
@@ -10,7 +11,14 @@ const { file, root, barrier } = workerData as { file: string; root: string; barr
 const db = openDb(file);
 const config = testConfig();
 const repositories = new RepositoryService(db, config);
-const queue = new QueueService(db, systemClock, new DataDir(root), config, repositories);
+const queue = new QueueService(
+  db,
+  systemClock,
+  new DataDir(root),
+  config,
+  repositories,
+  new ChatSessionService(db, systemClock),
+);
 
 const gate = new Int32Array(barrier);
 Atomics.add(gate, 0, 1);

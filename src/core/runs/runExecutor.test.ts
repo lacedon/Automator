@@ -13,6 +13,7 @@ import { toRun, toWatch } from '../db/rows';
 import type { NeedsYouEvent, Run, WatchKind, WorkflowType } from '../domain/types';
 import { DataDir } from '../files/dataDir';
 import { createReadModels } from '../read-models/index';
+import { ChatSessionService } from '../chats/chatSessionService';
 import { QueueService } from '../queue/queueService';
 import { HttpError } from '../http/fetchWithRetry';
 import { FreeformPrecheck } from '../prechecks/freeform';
@@ -874,7 +875,14 @@ describe('RunExecutor', () => {
 
     test('follow-up that fails before Copilot starts keeps its session and the thread offers a reply on it', async () => {
       const s = setup();
-      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config, s.repositories);
+      const queue = new QueueService(
+        s.db,
+        s.clock,
+        s.dataDir,
+        s.config,
+        s.repositories,
+        new ChatSessionService(s.db, s.clock),
+      );
       const parentRunId = finishedParent(s.db, 'parent-session');
       const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
       s.db.prepare("UPDATE runs SET status = 'running', started_at = ? WHERE id = ?").run(s.clock.now(), queued.id);
@@ -902,7 +910,14 @@ describe('RunExecutor', () => {
 
     test('follow-up whose parent was deleted while queued still resumes the session with follow-up framing', async () => {
       const s = setup();
-      const queue = new QueueService(s.db, s.clock, s.dataDir, s.config, s.repositories);
+      const queue = new QueueService(
+        s.db,
+        s.clock,
+        s.dataDir,
+        s.config,
+        s.repositories,
+        new ChatSessionService(s.db, s.clock),
+      );
       const parentRunId = finishedParent(s.db, 'parent-session');
       const queued = (queue.requestFollowUp(parentRunId, 'More') as { value: { run: Run } }).value.run;
       expect(queue.deleteAdhoc(parentRunId)).toEqual({ ok: true, value: undefined });

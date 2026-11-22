@@ -2,6 +2,8 @@
 
 > Amended: Runs are serialized per checkout, not globally. Runs for different Repositories run in parallel, and `runs.isolation: copy` lets one Repository run several Runs in per-Run copies (see README).
 
+> Amended by [ADR 0006](./0006-interactive-provider-sessions.md): Interactive Chats work in their own per-Chat copy of the Repository folder and are not serialized against the shared checkout.
+
 Each Watch names a Repository mapped to an existing local folder; Copilot starts directly in that folder to reuse its local skills, instructions and configured MCP environment. All Watch-linked and ad-hoc Runs against the same checkout share one serialized queue, deliberately choosing existing checkouts over managed worktrees or fresh clones to preserve the user's local setup.
 
 ## Consequences

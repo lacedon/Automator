@@ -35,7 +35,7 @@ How a Chat continues, chosen when the Chat is created and fixed for its life: Fo
 _Avoid_: Chat type
 
 **Follow-up mode**:
-The default Chat mode. Each reply starts a new one-shot provider process that resumes the provider session. A Follow-up Chat has no Chat session row.
+The default Chat mode. Each reply starts a new one-shot provider process that resumes the provider session. A Follow-up Chat has no Chat session.
 
 **Interactive mode**:
 A Chat mode in which one long-lived provider process per Chat can ask the user questions mid-turn and schedule itself to continue later. It works in its own copy of the Repository folder, never the shared checkout. Disabled for every provider until the session runtime ships.
@@ -47,7 +47,7 @@ The stored record of an Interactive Chat: provider, model, Agent, provider sessi
 A Chat-session state (planned) in which an Interactive Chat's turn is paused on a question to the user. Distinct from **Needs you**, which is an Automation state.
 
 **Follow-up run**:
-An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same Copilot session.
+An Ad-hoc run started by replying in the Chat tab of an earlier Ad-hoc run; it resumes the same provider session.
 _Avoid_: continuation, reopen
 
 **Workflow type**:

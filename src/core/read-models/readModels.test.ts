@@ -531,7 +531,7 @@ describe('read models', () => {
 
     test('thread view reports the chat mode', async () => {
       const { db, read } = setup();
-      const plain = insertRun(db, { ...adhoc });
+      const plain = insertRun(db, { ...adhoc, session_id: 's' });
       const sessionId = Number(
         db
           .prepare(
@@ -544,6 +544,11 @@ describe('read models', () => {
 
       expect((await read.runDetail(plain))!.thread!.chat).toEqual({ mode: 'follow-up', sessionId: null });
       expect((await read.runDetail(interactive))!.thread!.chat).toEqual({ mode: 'interactive', sessionId });
+      expect((await read.runDetail(interactive))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: 'Interactive Chats are not available yet',
+      });
+      expect((await read.runDetail(plain))!.thread!.replyBlockedReason).toBeNull();
       expect((await read.runDetail(interactive))!.chat.chat).toEqual({ mode: 'interactive', sessionId });
     });
 
