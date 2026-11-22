@@ -4,7 +4,15 @@ import type { Config } from '../config/schema';
 import type { Run, Watch } from '../domain/types';
 import type { EventSummary, Snapshot } from '../prechecks/types';
 import type { Repository } from '../repositories/repositoryService';
-import { ADHOC_RULES, buildAdhocPrompt, buildWatchPrompt, FIXED_RULES, MAX_EVENTS_CHARS } from './promptBuilder';
+import {
+  ADHOC_RULES,
+  buildAdhocPrompt,
+  buildInteractivePrompt,
+  buildWatchPrompt,
+  FIXED_RULES,
+  INTERACTIVE_RULES,
+  MAX_EVENTS_CHARS,
+} from './promptBuilder';
 
 const RESULT_PATH = '/data/runs/7/copilot-result.json';
 const AGENT = 'Agent: handle new outside comments.';
@@ -558,5 +566,62 @@ describe('buildAdhocPrompt', () => {
       expect(prompt).toContain(`## Ticket\n\n- ${url}`);
       expect(prompt).not.toContain(`https://jira.example.com/browse/${url}`);
     });
+  });
+});
+
+describe('buildInteractivePrompt', () => {
+  const base = () => {
+    const cfg = config();
+    return {
+      config: cfg,
+      repository: repository(cfg),
+      agentInstructions: AGENT,
+      operationTemplate: null,
+    };
+  };
+  const chatRun = (partial: Partial<Run> = {}) =>
+    run({ watchId: null, trigger: 'adhoc', chatSessionId: 1, adhocPrompt: 'Fix the footer', ...partial });
+
+  test('first turn carries rules, agent instructions, request and validation but no result-file section', () => {
+    const prompt = buildInteractivePrompt({ ...base(), run: chatRun(), firstTurn: true });
+    expect(prompt).toContain(INTERACTIVE_RULES);
+    expect(prompt).toContain(AGENT);
+    expect(prompt).toContain('Fix the footer');
+    expect(prompt).toContain('- `npm test`');
+    expect(prompt).not.toContain('## Result');
+    expect(prompt).not.toContain('write exactly this JSON');
+    expect(prompt).not.toContain('Nobody answers questions');
+    expect(prompt).not.toContain('non-interactively');
+    expect(prompt).toContain('say so in your reply and end your turn');
+  });
+
+  test('later turns send only the message', () => {
+    const prompt = buildInteractivePrompt({
+      ...base(),
+      run: chatRun({ adhocPrompt: 'Now the header' }),
+      firstTurn: false,
+    });
+    expect(prompt).toBe('Now the header');
+  });
+
+  test('a branched Interactive Chat first turn includes the earlier conversation', () => {
+    const prompt = buildInteractivePrompt({
+      ...base(),
+      run: chatRun({ branchContext: 'User: hi\n\nAgent: hello' }),
+      firstTurn: true,
+    });
+    expect(prompt).toContain('## Earlier conversation');
+    expect(prompt).toContain('Agent: hello');
+  });
+
+  test('ticket and additions appear on the first turn', () => {
+    const prompt = buildInteractivePrompt({
+      ...base(),
+      run: chatRun({ ticketKey: 'ABC-1', ticketTitle: 'Footer' }),
+      firstTurn: true,
+      projectPromptAddition: 'Project note',
+    });
+    expect(prompt).toContain('ABC-1: Footer');
+    expect(prompt).toContain('Project note');
   });
 });

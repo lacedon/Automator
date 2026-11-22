@@ -13,7 +13,7 @@ import {
   type Outcome,
   type RunStatus,
 } from '@core/index';
-import { WorkerLoop } from './loop';
+import { forceKill, WorkerLoop } from './loop';
 
 const DAY = 86_400_000;
 const cleanups: (() => void)[] = [];
@@ -246,5 +246,68 @@ describe('WorkerLoop', () => {
     expect(onLockLost).toHaveBeenCalledOnce();
     expect(errors).toHaveBeenCalledWith(expect.stringMatching(/Z lost worker lock; exiting$/));
     expect(status(a)).toBe('queued');
+  });
+
+  test('the worker ticks the session manager every iteration', async () => {
+    const { core, loop } = setup();
+    const tick = vi.spyOn(core.chatSessions, 'tick');
+
+    await loop.iterate();
+    await loop.iterate();
+
+    expect(tick).toHaveBeenCalledTimes(2);
+  });
+
+  test('a failing session tick does not stop the iteration', async () => {
+    const { core, loop, procs, adhoc } = setup();
+    vi.spyOn(core.chatSessions, 'tick').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    adhoc();
+
+    await loop.iterate();
+
+    await waitFor(() => procs.length === 1);
+  });
+
+  test('graceful stop stops all sessions after the active Runs drain', async () => {
+    const { core, loop, procs, status, adhoc } = setup();
+    const order: string[] = [];
+    vi.spyOn(core.chatSessions, 'stopAll').mockImplementation(async () => {
+      order.push('stopAll');
+    });
+    const id = adhoc();
+    await loop.iterate();
+    await waitFor(() => procs.length === 1);
+
+    const stopping = loop.stop();
+    procs[0]!.finish();
+    await stopping;
+
+    expect(status(id)).toBe('finished');
+    expect(order).toEqual(['stopAll']);
+  });
+
+  test('a failing stopAll is logged and does not break the shutdown', async () => {
+    const { core, loop } = setup();
+    vi.spyOn(core.chatSessions, 'stopAll').mockRejectedValue(new Error('stuck process'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await loop.iterate();
+
+    await expect(loop.stop()).resolves.toBeUndefined();
+
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining('stopping chat sessions failed: stuck process'));
+  });
+
+  test('forced exit kills live sessions', () => {
+    const { core } = setup();
+    const killActive = vi.spyOn(core.executor, 'killActive');
+    const killAll = vi.spyOn(core.chatSessions, 'killAll');
+
+    forceKill(core);
+
+    expect(killActive).toHaveBeenCalledTimes(1);
+    expect(killAll).toHaveBeenCalledTimes(1);
   });
 });

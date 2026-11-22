@@ -3,6 +3,17 @@ import { heartbeat, type Core } from '@core/index';
 const ts = () => new Date().toISOString();
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+// Forced exit: never leave a provider process running in a checkout or a Chat copy.
+export function forceKill(core: Core): void {
+  for (const kill of [() => core.executor.killActive(), () => core.chatSessions.killAll()]) {
+    try {
+      kill();
+    } catch (e) {
+      console.error(`${ts()} force kill failed: ${message(e)}`);
+    }
+  }
+}
+
 export class WorkerLoop {
   private readonly tickMs: number;
   private readonly schedulerEveryMs: number;
@@ -34,6 +45,7 @@ export class WorkerLoop {
       this.onLockLost();
     }
     this.guard('watchdog', () => core.executor.watchdog());
+    this.guard('chat sessions', () => core.chatSessions.tick());
     if (this.stopping) return;
 
     for (;;) {
@@ -87,9 +99,15 @@ export class WorkerLoop {
 
   // Stops claiming and scheduling; keeps the watchdog ticking until the active Runs and any pending tick end.
   async stop(): Promise<void> {
+    const { core } = this;
     this.stopping = true;
     await this.current;
     while (this.active.size > 0) await Promise.all(this.active);
+    try {
+      await core.chatSessions.stopAll();
+    } catch (e) {
+      console.error(`${ts()} stopping chat sessions failed: ${message(e)}`);
+    }
     if (this.ticking !== null) await this.ticking;
     this.started = false;
     if (this.timer !== null) clearTimeout(this.timer);

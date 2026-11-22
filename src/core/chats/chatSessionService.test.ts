@@ -42,11 +42,39 @@ describe('ChatSessionService', () => {
 });
 
 describe('interactive capabilities', () => {
-  test('every provider is unsupported with a reason in this version', () => {
-    for (const provider of Object.keys(INTERACTIVE_CAPABILITIES) as (keyof typeof INTERACTIVE_CAPABILITIES)[]) {
-      const support = interactiveSupport(provider);
-      expect(support.supported).toBe(false);
-      expect(support.reason).toBeTruthy();
+  test('claude-code and pi are interactive; the other ACP providers are gated off with a reason', () => {
+    expect(interactiveSupport('claude-code')).toEqual({ supported: true, reason: null });
+    expect(interactiveSupport('pi')).toEqual({ supported: true, reason: null });
+    for (const [provider, name] of [
+      ['copilot', 'Copilot'],
+      ['codex', 'Codex'],
+      ['opencode', 'OpenCode'],
+    ] as const) {
+      expect(interactiveSupport(provider)).toEqual({
+        supported: false,
+        reason: `Interactive mode is not available for ${name} yet: its ACP session resume is not verified`,
+      });
     }
+  });
+
+  test('the table matches the provider spike', () => {
+    expect(INTERACTIVE_CAPABILITIES['claude-code']).toEqual({
+      interactive: true,
+      protocol: 'acp',
+      resume: true,
+      automatorTools: 'mcp',
+      nativeQuestions: 'acp-elicitation',
+      nativeTimers: true,
+      reason: null,
+    });
+    expect(INTERACTIVE_CAPABILITIES.pi).toEqual({
+      interactive: true,
+      protocol: 'pi-rpc',
+      resume: true,
+      automatorTools: 'pi-extension',
+      nativeQuestions: 'pi-extension-ui',
+      nativeTimers: false,
+      reason: null,
+    });
   });
 });

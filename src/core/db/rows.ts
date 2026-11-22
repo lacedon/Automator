@@ -1,4 +1,5 @@
 import type {
+  ChatProcessState,
   ChatSession,
   ClosedReason,
   Cursor,
@@ -139,5 +140,8 @@ export function toChatSession(row: unknown): ChatSession {
     lastActivityAt: r.last_activity_at as number,
     closeRequestedAt: r.close_requested_at as number | null,
     closedAt: r.closed_at as number | null,
+    processState: r.process_state as ChatProcessState,
+    pid: r.pid as number | null,
+    copyPath: r.copy_path as string | null,
   };
 }

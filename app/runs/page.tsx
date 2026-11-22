@@ -18,14 +18,18 @@ type SearchParams = Record<string, string | string[] | undefined>;
 type Outcome = NonNullable<RunFilter['outcome']>;
 type Filter = { outcome?: Outcome; repo?: string; q?: string; from?: string; to?: string };
 
-const OUTCOME_CHIPS: { outcome: Outcome | undefined; label: 'all' | 'needsYou' | 'errors' | 'acted' | 'nothing' }[] = [
+const OUTCOME_CHIPS: {
+  outcome: Outcome | undefined;
+  label: 'all' | 'needsYou' | 'errors' | 'acted' | 'nothing' | 'replied';
+}[] = [
   { outcome: undefined, label: 'all' },
   { outcome: 'needs-you', label: 'needsYou' },
   { outcome: 'error', label: 'errors' },
   { outcome: 'acted', label: 'acted' },
   { outcome: 'nothing', label: 'nothing' },
+  { outcome: 'done', label: 'replied' },
 ];
-const OUTCOMES: readonly Outcome[] = ['needs-you', 'acted', 'nothing', 'error'];
+const OUTCOMES: readonly Outcome[] = ['needs-you', 'acted', 'nothing', 'done', 'error'];
 
 function pick<T extends string>(value: string | string[] | undefined, allowed?: readonly T[]): T | undefined {
   const v = Array.isArray(value) ? value[0] : value;

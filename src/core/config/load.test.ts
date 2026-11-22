@@ -141,6 +141,30 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ path: file, env: {} })).toThrow('providers.codex.defaultModel');
   });
 
+  test('interactive Run settings have defaults', () => {
+    const { file } = writeConfig({ repositories: {}, gitlab: {} });
+    const config = loadConfig({ path: file, env: {} });
+    expect(config.runs.maxInteractiveSessions).toBe(3);
+    expect(config.runs.interactiveIdleMinutes).toBe(30);
+    expect(config.providers['claude-code'].acpBin).toBe('claude-agent-acp');
+    expect(config.providers.codex.acpBin).toBe('codex-acp');
+    expect(config.providers.copilot).not.toHaveProperty('acpBin');
+    expect(config.providers.pi).not.toHaveProperty('acpBin');
+  });
+
+  test('interactive Run settings are validated', () => {
+    for (const runs of [{ maxInteractiveSessions: 0 }, { interactiveIdleMinutes: 1.5 }]) {
+      const { file } = writeConfig({ repositories: {}, gitlab: {}, runs });
+      expect(() => loadConfig({ path: file, env: {} })).toThrow(/runs\./);
+    }
+    const { file } = writeConfig({
+      repositories: {},
+      gitlab: {},
+      providers: { 'claude-code': { acpBin: '' } },
+    });
+    expect(() => loadConfig({ path: file, env: {} })).toThrow('providers.claude-code.acpBin');
+  });
+
   test('applies defaults', () => {
     const { dir, file } = writeConfig({ repositories: {}, gitlab: {} });
     const config = loadConfig({ path: file, env: {} });

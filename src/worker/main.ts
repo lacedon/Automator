@@ -7,7 +7,7 @@ import {
   releaseWorkerLock,
   resolveJiraDoneNames,
 } from '@core/index';
-import { WorkerLoop } from './loop';
+import { forceKill, WorkerLoop } from './loop';
 import { createShutdownHandler } from './shutdownSignals';
 
 const ts = () => new Date().toISOString();
@@ -83,7 +83,7 @@ function main(): void {
     },
     onForce: (signal) => {
       console.log(`${ts()} ${signal} again, killing the active runs and exiting immediately`);
-      attempt('kill active runs', () => core.executor.killActive());
+      attempt('kill active runs and sessions', () => forceKill(core));
       process.exit(1);
     },
   });

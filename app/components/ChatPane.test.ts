@@ -6,7 +6,11 @@ import type { ThreadView } from '@core/index';
 import en from '../../messages/en.json';
 import { ChatPane, canClose } from './ChatPane';
 
-vi.mock('../actions/chat', () => ({ sendRunMessage: async () => null, branchRun: async () => null }));
+vi.mock('../actions/chat', () => ({
+  sendRunMessage: async () => null,
+  branchRun: async () => null,
+  closeChat: async () => ({ ok: true }),
+}));
 vi.mock('../actions/runs', () => ({ closeRun: async () => ({ ok: true }) }));
 
 const run = { status: 'finished', outcome: null, error: null, interrupted: null, closedAt: null } as const;
@@ -20,7 +24,12 @@ test('canClose is true only for open finished Needs you or Error Runs', () => {
   expect(canClose({ ...run, status: 'running', outcome: 'needs-you' })).toBe(false);
 });
 
-function render(outcome: 'needs-you' | 'acted', closedAt: number | null, branchedFromRunId: number | null = null) {
+function render(
+  outcome: 'needs-you' | 'acted' | 'done',
+  closedAt: number | null,
+  branchedFromRunId: number | null = null,
+  chat: ThreadView['chat'] = { mode: 'follow-up', sessionId: null, state: null, canClose: false },
+) {
   const thread: ThreadView = {
     runs: [
       {
@@ -42,7 +51,7 @@ function render(outcome: 'needs-you' | 'acted', closedAt: number | null, branche
     replyToRunId: null,
     replyBlockedReason: null,
     branchedFromRunId,
-    chat: { mode: 'follow-up', sessionId: null },
+    chat,
   };
   return renderToStaticMarkup(
     // eslint-disable-next-line react/no-children-prop -- the provider's props type requires children
@@ -74,4 +83,30 @@ test('offers a Branch action on a finished response and links a branched chat to
 
 test('shows a muted mode label for ad-hoc chats', () => {
   expect(render('acted', null)).toContain('Follow-up mode');
+});
+
+const interactive = (state: 'live' | 'stopped' | 'closing' | 'closed', canClose: boolean): ThreadView['chat'] => ({
+  mode: 'interactive',
+  sessionId: 3,
+  state,
+  canClose,
+});
+
+test('interactive chats show the session state and a Close chat button while closable', () => {
+  const live = render('done', null, null, interactive('live', true));
+  expect(live).toContain('Session running');
+  expect(live).toContain('Close chat');
+  expect(live).toContain('Replied');
+  expect(render('done', null, null, interactive('stopped', true))).toContain('it resumes on your next message');
+  expect(render('done', null, null, interactive('closing', false))).toContain('Closing…');
+  const closed = render('done', null, null, interactive('closed', false));
+  expect(closed).toContain('Chat closed');
+  expect(closed).not.toContain('Close chat');
+  expect(render('done', null, null, interactive('live', false))).not.toContain('Close chat');
+});
+
+test('Follow-up chats show no session state or Close chat for a done Run', () => {
+  const markup = render('acted', null);
+  expect(markup).not.toContain('Session running');
+  expect(markup).not.toContain('Close chat');
 });

@@ -88,13 +88,15 @@ Provider selection is installation-wide. Change it in **Settings → Configurati
 
 Install each CLI and authenticate it as the same OS user that runs Automator, following its official setup guide:
 
-| Provider           | Install / setup                                                                        | Native authentication               | Version check        |
-| ------------------ | -------------------------------------------------------------------------------------- | ----------------------------------- | -------------------- |
-| GitHub Copilot CLI | [Install guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | Complete login in the `copilot` CLI | `copilot --version`  |
-| Claude Code        | [Setup guide](https://code.claude.com/docs/en/setup)                                   | `claude auth login`                 | `claude --version`   |
-| OpenAI Codex CLI   | [CLI guide](https://developers.openai.com/codex/cli)                                   | `codex login`                       | `codex --version`    |
-| OpenCode           | [Install guide](https://opencode.ai/docs/)                                             | `opencode auth login`               | `opencode --version` |
-| pi                 | [Install guide](https://docs.pi.dev/latest/quickstart)                                 | `pi auth login <provider>`          | `pi --version`       |
+| Provider                                    | Install / setup                                                                        | Native authentication               | Version check                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- | ---------------------------- |
+| GitHub Copilot CLI                          | [Install guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | Complete login in the `copilot` CLI | `copilot --version`          |
+| Claude Code                                 | [Setup guide](https://code.claude.com/docs/en/setup)                                   | `claude auth login`                 | `claude --version`           |
+| OpenAI Codex CLI                            | [CLI guide](https://developers.openai.com/codex/cli)                                   | `codex login`                       | `codex --version`            |
+| OpenCode                                    | [Install guide](https://opencode.ai/docs/)                                             | `opencode auth login`               | `opencode --version`         |
+| pi                                          | [Install guide](https://docs.pi.dev/latest/quickstart)                                 | `pi auth login <provider>`          | `pi --version`               |
+| Claude Code ACP adapter (Interactive Chats) | `npm i -g @agentclientprotocol/claude-agent-acp` (0.109.1 tested)                      | uses Claude Code's own login        | `claude-agent-acp --version` |
+| Codex ACP adapter (not yet enabled)         | `npm i -g @agentclientprotocol/codex-acp`                                              | uses Codex's own login              | `codex-acp --version`        |
 
 pi can be installed with `curl -fsSL https://pi.dev/install.sh | sh`.
 
@@ -108,6 +110,21 @@ Troubleshooting:
 - `AUTH_FAILED`: complete the provider's native login as the Automator OS user, then restart Automator.
 - `MODEL_UNSUPPORTED`: check the exact model ID against the provider CLI and add it to that provider's supported model list.
 - `PROVIDER_CAPABILITY_UNSUPPORTED`: clear `runs.denyTools` or select Copilot, which is the only adapter that currently enforces that setting.
+- `SPAWN_FAILED` in an Interactive Chat with Claude Code: the ACP adapter is missing. Install it with `npm i -g @agentclientprotocol/claude-agent-acp` as the Automator OS user, or set `providers.claude-code.acpBin` to its absolute path (default `claude-agent-acp`; Codex uses `providers.codex.acpBin`, default `codex-acp`).
+- `SESSION_RESUME_FAILED`: the provider no longer knows the Chat's session (for example its session store was cleaned). The Chat's copy is intact; start a new Chat or branch it.
+
+### Interactive Chats
+
+A Chat created in **Interactive** mode keeps one provider process alive across its messages instead of starting a new one per reply. It is available for Claude Code (through the ACP adapter above) and pi. Copilot, Codex and OpenCode have ACP drivers that are covered by tests but stay disabled in the mode selector until their session resume is verified; their Chats can only use Follow-up mode.
+
+- **Own copy.** An Interactive Chat works in a full recursive copy of the Repository folder under the Data Dir `chat-workspaces/<chat session id>/`, never in the shared checkout, regardless of `runs.isolation`. The copy is made on the first message and costs disk space like a copy-isolated Run. It survives worker restarts.
+- **Turns.** Each message is one Run (trigger `adhoc`, outcome `done`, shown as "Replied"). Its summary is the agent's last message. No result file is required, and `result.json` is still written. Runs of one Chat never overlap, and they count toward the Repository's `runs.maxConcurrent`.
+- **Idle timeout and eviction.** A process with no turn for `runs.interactiveIdleMinutes` (default 30) is stopped. At most `runs.maxInteractiveSessions` (default 3) processes live at once; starting another stops the least recently used idle one. Both can be overridden per Project. The next message restarts the process lazily and resumes the provider session by id; if the provider cannot resume, the turn fails with `SESSION_RESUME_FAILED` and no new session is started silently.
+- **Restart.** A turn running when the worker restarts is recorded as interrupted and its process is killed; the copy is kept.
+- **Close chat.** **Close chat** stops the process and deletes the copy. If the copy has uncommitted changes or commits that no remote has, you must confirm first. Deleting the last Run of a Chat also closes it. A closed Chat accepts no more messages.
+- **Tool policy.** Permission requests are answered by policy and never shown to you; the rules are the same as in Follow-up mode (Agent tool settings only for Copilot, `runs.denyTools` for pi and Copilot). Questions the provider raises on its own are declined and logged; asking you questions mid-turn is not available yet.
+- **pi** sessions are stored in the Data Dir `chat-pi-sessions/`, not in your own pi directory. Protocol logs are written to `chat-sessions/<id>.log`; account details are never logged.
+- **API.** A finished interactive turn reports `"outcome": "done"` with the agent's last message as `summary`.
 
 ### Provider smoke checklist
 
@@ -118,6 +135,7 @@ Run this checklist separately for each provider in a trusted test Repository. Re
 3. Queue an ad-hoc Run and confirm its selected model, transcript, result and provider label in Run history.
 4. Create an Automation in the same Repository, trigger an Automation Run and confirm its transcript, result and provider label.
 5. Cancel a running test Run and verify it is recorded as interrupted. Send a follow-up to a completed Run and verify it continues the same provider session.
+6. Interactive (Claude Code and pi only): create an Interactive Chat and send two messages; confirm both turns share one process (the session log under `chat-sessions/<id>.log` has a single `spawned … (pid N)` line for them, and the Chat's pid does not change) and one copy. Stop the process (wait for the idle timeout or lower `runs.interactiveIdleMinutes`), send a third message and confirm it remembers the earlier context. Leave an uncommitted file in the copy and confirm **Close chat** warns before deleting it.
 
 Tests:
 
@@ -150,7 +168,7 @@ npm run check   # type check, lint, dependency rules and Vitest
 - **Roles and permissions.** Roles are configured in Settings → Users & roles as sets of two permissions: `read` (see everything in a Project) and `write` (do actions with everything; includes `read`). A user can hold several roles, each assigned globally or for one Project; a permission is held if any assignment grants it, so nothing conflicts and access is denied by default. Managing users, roles and global settings takes a global `write`; the last global writer cannot be removed. There are no direct User–Repository grants: Project access covers every Repository in the Project. Server Actions, pages and file routes enforce this on the server: global settings need a global `write`, acting on an Automation or Run needs `write` on its Repository's Project, and lists, the project switcher and detail pages only show what the user can `read` (others answer 404). Existing Automations and Runs belong to `admin`; new ones belong to their creator.
 - **Two processes, one start command:** the Next.js dashboard and a separate long-running **worker** that schedules checks and runs the selected provider. Both use the same SQLite database.
 - **Repositories:** Repository records are managed in Settings and stored in SQLite. Each names a local folder, a GitLab and/or GitHub connection, an optional Jira connection, and validation commands. Connection hosts and credential environment-variable references remain in config. Every Automation and ad-hoc Run refers to a Repository by name; target URLs are matched against its named service connections. The selected CLI starts directly in the folder, so its supported local instructions, skills and MCP setup apply. The automator never clones repositories or creates worktrees.
-- **Per-Repository queue:** Runs for different Repositories execute at the same time, while queued Runs wait in order for their own Repository without blocking the others. With the default `runs.isolation: "shared"`, a Repository (or several Repository records pointing at the same folder) runs one Run at a time in its configured folder. With `runs.isolation: "copy"`, each Run works in a full recursive copy of the folder (including `.git` and untracked files) under the Data Dir `workspaces/` folder, up to `runs.maxConcurrent` (default 2) Runs per Repository at once; the copy is deleted when the Run ends, and copies orphaned by a crash are removed at the next worker start. Both settings can be overridden per Project. Several protections stop the same work from running twice, including across processes.
+- **Per-Repository queue:** Runs for different Repositories execute at the same time, while queued Runs wait in order for their own Repository without blocking the others. With the default `runs.isolation: "shared"`, a Repository (or several Repository records pointing at the same folder) runs one Run at a time in its configured folder. With `runs.isolation: "copy"`, each Run works in a full recursive copy of the folder (including `.git` and untracked files) under the Data Dir `workspaces/` folder, up to `runs.maxConcurrent` (default 2) Runs per Repository at once; the copy is deleted when the Run ends, and copies orphaned by a crash are removed at the next worker start. Interactive Chat turns always run in the Chat's own long-lived copy under `chat-workspaces/` (see Interactive Chats), count toward `runs.maxConcurrent`, and never overlap within one Chat. Both settings can be overridden per Project. Several protections stop the same work from running twice, including across processes.
 - **Provider sessions:** each new Run starts a new provider session; a follow-up resumes its parent Run's session. Prompts include the Automation instructions, summaries of recent Runs and any resolution note you left.
 
 ## Domain
@@ -285,7 +303,7 @@ Reviewer comments and other outside content are treated as untrusted requests, n
 
 Every Run must finish with a JSON result:
 
-- `outcome`: `nothing` | `acted` | `needs-you`
+- `outcome`: `nothing` | `acted` | `needs-you` (Interactive Chat turns finish with `done`, set by Automator rather than written by the agent)
 - `summary`: what happened
 
 When an Automation moves to **Needs you**:

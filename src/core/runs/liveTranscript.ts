@@ -79,22 +79,54 @@ export function reportLiveFailure(live: LiveTranscript, logPath: string): void {
   }
 }
 
-export function lineSplitter(onLine: (line: string) => void): { push(chunk: Buffer): void; end(): void } {
+export type LineSplitterOptions = {
+  // Lines longer than this are not delivered: onOversize gets their length instead and the memory is released.
+  maxLineChars?: number;
+  onOversize?: (chars: number) => void;
+};
+
+export function lineSplitter(
+  onLine: (line: string) => void,
+  options: LineSplitterOptions = {},
+): { push(chunk: Buffer): void; end(): void } {
+  const max = options.maxLineChars ?? Number.POSITIVE_INFINITY;
   const decoder = new StringDecoder('utf8');
   let pending = '';
+  let skipping = false; // inside an oversized line, discarding until its newline
+  let skipped = 0;
+  const deliver = (line: string) => {
+    if (line.length > max) options.onOversize?.(line.length);
+    else onLine(line);
+  };
   // Only the newly added text is scanned for newlines, so long newline-less output stays linear.
-  const emit = (text: string, final: boolean) => {
+  const emit = (input: string, final: boolean) => {
+    let text = input;
+    if (skipping) {
+      const nl = text.indexOf('\n');
+      if (nl === -1) {
+        skipped += text.length;
+        if (final) options.onOversize?.(skipped);
+        return;
+      }
+      options.onOversize?.(skipped + nl);
+      skipping = false;
+      text = text.slice(nl + 1);
+    }
     const scanFrom = pending.length;
     pending += text;
     let start = 0;
     for (let nl = pending.indexOf('\n', scanFrom); nl !== -1; nl = pending.indexOf('\n', start)) {
       const end = nl > start && pending[nl - 1] === '\r' ? nl - 1 : nl;
-      onLine(pending.slice(start, end));
+      deliver(pending.slice(start, end));
       start = nl + 1;
     }
     pending = pending.slice(start);
     if (final && pending !== '') {
-      onLine(pending.replace(/\r$/, ''));
+      deliver(pending.replace(/\r$/, ''));
+      pending = '';
+    } else if (pending.length > max) {
+      skipping = true;
+      skipped = pending.length;
       pending = '';
     }
   };

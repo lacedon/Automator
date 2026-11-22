@@ -21,7 +21,9 @@ import type { Prechecks } from '../prechecks/index';
 import type { JiraPrecheck } from '../prechecks/jira';
 import type { Precheck, Snapshot } from '../prechecks/types';
 import { createCopilotLauncher, type CopilotExit, type CopilotLauncher, type RunningProcess } from './copilotLauncher';
-import { copilotResultSchema, RunExecutor, type ResultFileV1 } from './runExecutor';
+import { copilotResultSchema, RunExecutor, type InteractiveTurns, type ResultFileV1 } from './runExecutor';
+import type { ProviderExit } from './providerLauncher';
+import type { TurnHandle } from '../chats/sessionManager';
 
 const FAKE = path.resolve('test/fixtures/fake-copilot.mjs');
 const cleanups: (() => void)[] = [];
@@ -44,6 +46,7 @@ type SetupOpts = {
   jiraHasToken?: boolean;
   authorize?: (run: Run) => string | null;
   credentialEnv?: (run: Run) => Record<string, string>;
+  chatSessions?: InteractiveTurns;
 };
 
 function setup(opts: SetupOpts = {}) {
@@ -100,6 +103,7 @@ function setup(opts: SetupOpts = {}) {
     prechecks,
     currentBranch,
     onNeedsYou,
+    ...(opts.chatSessions === undefined ? {} : { chatSessions: opts.chatSessions }),
     ...(opts.authorize === undefined ? {} : { authorize: opts.authorize }),
     ...(opts.credentialEnv === undefined ? {} : { credentialEnv: opts.credentialEnv }),
   });
@@ -984,5 +988,273 @@ describe('Interactive Chat guard', () => {
     expect(final.error?.code).toBe('PROVIDER_CAPABILITY_UNSUPPORTED');
     expect(s.starts).toEqual([]);
     expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', resultStatus: 'error' });
+  });
+});
+
+type Turn = {
+  handle: TurnHandle;
+  kills: string[];
+  settle(exit: ProviderExit): void;
+};
+
+function fakeTurn(last: string | null = 'All done.'): Turn {
+  const kills: string[] = [];
+  let settle!: (exit: ProviderExit) => void;
+  const exited = new Promise<ProviderExit>((resolve) => {
+    settle = resolve;
+  });
+  return {
+    kills,
+    settle,
+    handle: {
+      pid: 0,
+      sessionId: Promise.resolve(null),
+      exited,
+      kill: (signal) => {
+        kills.push(signal);
+        if (signal === 'SIGTERM')
+          settle({ code: null, signal: null, error: { code: 'PROVIDER_ERROR', message: 'cancelled' } });
+      },
+      lastMessage: () => last,
+    },
+  };
+}
+
+function interactive(
+  opts: {
+    provider?: 'pi' | 'claude-code';
+    turn?: (n: number) => Turn;
+    config?: DeepPartial<Config>;
+    // The start hangs (copying, spawning, handshaking) until its signal aborts, as a stuck provider would.
+    hangStart?: boolean;
+  } = {},
+) {
+  const calls: { run: Run; prompt: string; start: Parameters<InteractiveTurns['startTurn']>[3] }[] = [];
+  const turns: Turn[] = [];
+  const chatSessions: InteractiveTurns = {
+    async startTurn(run, _session, prompt, start) {
+      calls.push({ run, prompt, start });
+      if (opts.hangStart === true) {
+        const signal = start.signal!;
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve();
+          else signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return {
+          pid: 0,
+          sessionId: Promise.resolve(null),
+          exited: Promise.resolve({ code: null, signal: null, error: { code: 'INTERRUPTED', message: 'aborted' } }),
+          kill() {},
+          lastMessage: () => null,
+        };
+      }
+      const turn = opts.turn?.(calls.length) ?? fakeTurn();
+      turns.push(turn);
+      if (opts.turn === undefined) turn.settle({ code: 0, signal: null });
+      return turn.handle;
+    },
+  };
+  const s = setup({ chatSessions, ...(opts.config === undefined ? {} : { config: opts.config }) });
+  const provider = opts.provider ?? 'pi';
+  const session = s.db
+    .prepare(
+      `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
+       VALUES ('interactive', 'pages', ?, 'm1', 1, 1) RETURNING id`,
+    )
+    .get(provider) as { id: number };
+  const turnRun = (prompt: string) => {
+    const run = claim(s.db, s.clock.now(), null, { adhocPrompt: prompt });
+    s.db
+      .prepare("UPDATE runs SET chat_session_id = ?, provider = ?, isolation = 'copy' WHERE id = ?")
+      .run(session.id, provider, run.id);
+    return runOf(s.db, run.id);
+  };
+  return { ...s, calls, turns, sessionId: session.id, turnRun };
+}
+
+describe('Interactive turns', () => {
+  test('an interactive turn finishes done with the last agent message as summary and without copilot-result.json', async () => {
+    const s = interactive();
+    const run = s.turnRun('Fix the footer');
+
+    const final = await s.executor.execute(run);
+
+    expect(final).toMatchObject({ resultStatus: 'success', outcome: 'done', summary: 'All done.', error: null });
+    expect(runOf(s.db, run.id)).toMatchObject({ status: 'finished', outcome: 'done', summary: 'All done.' });
+    expect(fs.existsSync(s.dataDir.copilotResultPath(run.id))).toBe(false);
+    expect(s.starts).toEqual([]);
+    expect(s.calls).toHaveLength(1);
+    expect(s.calls[0]!.prompt).toContain('Fix the footer');
+    expect(s.calls[0]!.prompt).not.toContain('write exactly this JSON');
+    expect(s.calls[0]!.start.tools).toEqual({ allowAll: true, allowed: [], blocked: [], denyTools: [] });
+    expect(s.calls[0]!.start.model).toBe('m1');
+  });
+
+  test('summary is cut to 500 characters', async () => {
+    const s = interactive({ turn: () => fakeTurn('x'.repeat(900)) });
+    const run = s.turnRun('go');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.turns.length === 1);
+    s.turns[0]!.settle({ code: 0, signal: null });
+    expect((await pending).summary).toHaveLength(500);
+  });
+
+  test('result.json is still written for interactive turns', async () => {
+    const s = interactive();
+    const run = s.turnRun('go');
+
+    await s.executor.execute(run);
+
+    expect(readResult(s.dataDir.resultPath(run.id))).toMatchObject({
+      status: 'success',
+      outcome: 'done',
+      runId: run.id,
+    });
+  });
+
+  test('only the first turn carries the rules; later turns send just the message', async () => {
+    const s = interactive();
+    await s.executor.execute(s.turnRun('first'));
+    await s.executor.execute(s.turnRun('second'));
+
+    expect(s.calls[0]!.prompt).toContain('## Rules');
+    expect(s.calls[1]!.prompt).toBe('second');
+    expect(fs.readFileSync(s.dataDir.promptPath(s.calls[1]!.run.id), 'utf8')).toBe('second');
+  });
+
+  test('a failed first turn sends the full prompt again', async () => {
+    const s = interactive({ turn: (n) => fakeTurn(n === 1 ? null : 'ok') });
+    const first = s.executor.execute(s.turnRun('first'));
+    await waitFor(() => s.turns.length === 1);
+    s.turns[0]!.settle({ code: null, signal: null, error: { code: 'SPAWN_FAILED', message: 'no binary' } });
+    expect((await first).error?.code).toBe('SPAWN_FAILED');
+
+    const second = s.executor.execute(s.turnRun('second'));
+    await waitFor(() => s.turns.length === 2);
+    s.turns[1]!.settle({ code: 0, signal: null });
+    await second;
+
+    expect(s.calls[1]!.prompt).toContain('## Rules');
+  });
+
+  test('cancel during an interactive turn cancels the turn and records interrupted', async () => {
+    const s = interactive({ turn: () => fakeTurn() });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.turns.length === 1);
+
+    s.db.prepare('UPDATE runs SET cancel_requested_at = ? WHERE id = ?').run(s.clock.now(), run.id);
+    s.executor.watchdog();
+    const final = await pending;
+
+    expect(s.turns[0]!.kills).toEqual(['SIGTERM']);
+    expect(final).toMatchObject({ resultStatus: 'error', interrupted: 'cancelled', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('cancel while the turn is still starting aborts the start', async () => {
+    const s = interactive({ hangStart: true });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.calls.length === 1);
+    expect(s.calls[0]!.start.signal!.aborted).toBe(false);
+
+    s.db.prepare('UPDATE runs SET cancel_requested_at = ? WHERE id = ?').run(s.clock.now(), run.id);
+    s.executor.watchdog();
+    const final = await pending;
+
+    expect(s.calls[0]!.start.signal!.aborted).toBe(true);
+    expect(final).toMatchObject({ resultStatus: 'error', interrupted: 'cancelled', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('timeout applies while the turn is still starting', async () => {
+    const s = interactive({ hangStart: true });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.calls.length === 1);
+
+    s.clock.advance(1600);
+    s.executor.watchdog();
+    const final = await pending;
+
+    expect(s.calls[0]!.start.signal!.aborted).toBe(true);
+    expect(final).toMatchObject({ interrupted: 'timeout', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('a forced exit aborts a turn that is still starting', async () => {
+    const s = interactive({ hangStart: true });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.calls.length === 1);
+
+    s.executor.killActive();
+    await pending;
+
+    expect(s.calls[0]!.start.signal!.aborted).toBe(true);
+  });
+
+  test('timeout applies to interactive turns', async () => {
+    const s = interactive({ turn: () => fakeTurn() });
+    const run = s.turnRun('long');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.turns.length === 1);
+
+    s.clock.advance(1600);
+    s.executor.watchdog();
+    const final = await pending;
+
+    expect(final).toMatchObject({ interrupted: 'timeout', error: { code: 'INTERRUPTED' } });
+  });
+
+  test('a provider crash fails the turn', async () => {
+    const s = interactive({ turn: () => fakeTurn() });
+    const run = s.turnRun('boom');
+    const pending = s.executor.execute(run);
+    await waitFor(() => s.turns.length === 1);
+    s.turns[0]!.settle({
+      code: 9,
+      signal: null,
+      error: { code: 'PROVIDER_ERROR', message: 'Provider exited with code 9.' },
+    });
+
+    expect(await pending).toMatchObject({ resultStatus: 'error', error: { code: 'PROVIDER_ERROR' } });
+  });
+
+  test('a resume failure is a visible SESSION_RESUME_FAILED', async () => {
+    const s = interactive({ turn: () => fakeTurn() });
+    const pending = s.executor.execute(s.turnRun('x'));
+    await waitFor(() => s.turns.length === 1);
+    s.turns[0]!.settle({ code: null, signal: null, error: { code: 'SESSION_RESUME_FAILED', message: 'gone' } });
+
+    expect((await pending).error).toEqual({ code: 'SESSION_RESUME_FAILED', message: 'gone' });
+  });
+
+  test('an Agent with tool permissions fails for pi with PROVIDER_CAPABILITY_UNSUPPORTED before the turn starts', async () => {
+    const s = interactive();
+    s.db.prepare('UPDATE agents SET allow_all_tools = 0, allowed_tools = \'["shell"]\'').run();
+    const run = s.turnRun('x');
+
+    const final = await s.executor.execute(run);
+
+    expect(final.error?.code).toBe('PROVIDER_CAPABILITY_UNSUPPORTED');
+    expect(s.calls).toEqual([]);
+  });
+
+  test('runs.denyTools is rejected for claude-code but passed to pi', async () => {
+    const claude = interactive({ provider: 'claude-code', config: { runs: { denyTools: ['gitlab(merge)'] } } });
+    expect((await claude.executor.execute(claude.turnRun('x'))).error?.code).toBe('PROVIDER_CAPABILITY_UNSUPPORTED');
+
+    const pi = interactive({ config: { runs: { denyTools: ['gitlab(merge)'] } } });
+    await pi.executor.execute(pi.turnRun('x'));
+    expect(pi.calls[0]!.start.tools.denyTools).toEqual(['gitlab(merge)']);
+  });
+
+  test('Follow-up Runs still use the launcher path', async () => {
+    const s = interactive();
+    const run = claim(s.db, s.clock.now(), null, { adhocPrompt: 'plain' });
+
+    await s.executor.execute(runOf(s.db, run.id));
+
+    expect(s.calls).toEqual([]);
+    expect(s.starts).toHaveLength(1);
   });
 });

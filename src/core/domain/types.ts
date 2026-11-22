@@ -3,8 +3,8 @@ export type WorkflowType = 'mr-watch' | 'jira-watch' | 'free-watch' | 'ticket-ad
 export type ProviderName = 'copilot' | 'claude-code' | 'codex' | 'opencode' | 'pi';
 export type WatchState = 'active' | 'paused' | 'needs_you' | 'closed';
 export type RunStatus = 'queued' | 'running' | 'finished';
-export type Trigger = 'schedule' | 'manual' | 'adhoc';
-export type Outcome = 'nothing' | 'acted' | 'needs-you';
+export type Trigger = 'schedule' | 'manual' | 'adhoc' | 'answer' | 'timer' | 'agent';
+export type Outcome = 'nothing' | 'acted' | 'needs-you' | 'done';
 export type Interrupted = 'timeout' | 'cancelled' | 'worker-restart';
 export type ClosedReason = 'merged' | 'mr-closed' | 'jira-done' | 'user';
 export type InitialReview = 'baseline-only' | 'unresolved';
@@ -53,6 +53,7 @@ export interface Watch {
 }
 
 export type ChatMode = 'follow-up' | 'interactive';
+export type ChatProcessState = 'stopped' | 'starting' | 'idle' | 'busy';
 
 export interface ChatSession {
   id: number;
@@ -66,6 +67,9 @@ export interface ChatSession {
   lastActivityAt: number;
   closeRequestedAt: number | null;
   closedAt: number | null;
+  processState: ChatProcessState;
+  pid: number | null;
+  copyPath: string | null;
 }
 
 export interface Run {

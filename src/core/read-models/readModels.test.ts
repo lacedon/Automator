@@ -529,27 +529,77 @@ describe('read models', () => {
       expect((await read.runDetail(id))!.thread).toBeNull();
     });
 
-    test('thread view reports the chat mode', async () => {
-      const { db, read } = setup();
-      const plain = insertRun(db, { ...adhoc, session_id: 's' });
-      const sessionId = Number(
+    const interactiveChat = (db: Database, extra: Record<string, unknown> = {}) => {
+      const cols = { process_state: 'stopped', ...extra };
+      const names = Object.keys(cols);
+      return Number(
         db
           .prepare(
-            `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at)
-             VALUES ('interactive', 'pages', 'copilot', 'm', 1, 1)`,
+            `INSERT INTO chat_sessions (mode, repository, provider, model, created_at, last_activity_at, ${names.join(', ')})
+             VALUES ('interactive', 'pages', 'pi', 'm', 1, 1, ${names.map(() => '?').join(', ')})`,
           )
-          .run().lastInsertRowid,
+          .run(...Object.values(cols)).lastInsertRowid,
       );
-      const interactive = insertRun(db, { ...adhoc, chat_session_id: sessionId });
+    };
 
-      expect((await read.runDetail(plain))!.thread!.chat).toEqual({ mode: 'follow-up', sessionId: null });
-      expect((await read.runDetail(interactive))!.thread!.chat).toEqual({ mode: 'interactive', sessionId });
-      expect((await read.runDetail(interactive))!.thread).toMatchObject({
-        replyToRunId: null,
-        replyBlockedReason: 'Interactive Chats are not available yet',
-      });
+    test('thread view reports the chat mode and interactive session state', async () => {
+      const { db, read } = setup();
+      const plain = insertRun(db, { ...adhoc, session_id: 's', status: 'finished' });
+      const live = interactiveChat(db, { process_state: 'idle', pid: 5 });
+      const stopped = interactiveChat(db);
+      const closing = interactiveChat(db, { close_requested_at: 5 });
+      const closed = interactiveChat(db, { closed_at: 6 });
+      const run = (chat: number) => insertRun(db, { ...adhoc, chat_session_id: chat, status: 'finished' });
+      const [a, b, c, d] = [run(live), run(stopped), run(closing), run(closed)];
+
+      const chatOf = async (id: number) => (await read.runDetail(id))!.thread!.chat;
+      expect(await chatOf(plain)).toEqual({ mode: 'follow-up', sessionId: null, state: null, canClose: false });
+      expect(await chatOf(a)).toEqual({ mode: 'interactive', sessionId: live, state: 'live', canClose: true });
+      expect(await chatOf(b)).toEqual({ mode: 'interactive', sessionId: stopped, state: 'stopped', canClose: true });
+      expect(await chatOf(c)).toEqual({ mode: 'interactive', sessionId: closing, state: 'closing', canClose: false });
+      expect(await chatOf(d)).toEqual({ mode: 'interactive', sessionId: closed, state: 'closed', canClose: false });
       expect((await read.runDetail(plain))!.thread!.replyBlockedReason).toBeNull();
-      expect((await read.runDetail(interactive))!.chat.chat).toEqual({ mode: 'interactive', sessionId });
+      expect((await read.runDetail(a))!.thread).toMatchObject({ replyToRunId: a, replyBlockedReason: null });
+    });
+
+    test('reply is blocked with a reason while a turn runs or after close', async () => {
+      const { db, read } = setup();
+      const chat = interactiveChat(db, { process_state: 'busy' });
+      const running = insertRun(db, { ...adhoc, chat_session_id: chat, status: 'running' });
+      expect((await read.runDetail(running))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: `Waiting for Run #${running} to finish`,
+      });
+      expect((await read.runDetail(running))!.thread!.chat.canClose).toBe(false);
+
+      const closed = interactiveChat(db, { closed_at: 3 });
+      const done = insertRun(db, { ...adhoc, chat_session_id: closed, status: 'finished' });
+      expect((await read.runDetail(done))!.thread).toMatchObject({
+        replyToRunId: null,
+        replyBlockedReason: 'This chat is closed',
+      });
+      const closing = interactiveChat(db, { close_requested_at: 3 });
+      const last = insertRun(db, { ...adhoc, chat_session_id: closing, status: 'finished' });
+      expect((await read.runDetail(last))!.thread!.replyBlockedReason).toBe('This chat is closing');
+    });
+
+    test('runs list filters by the new triggers', () => {
+      const { db, read } = setup();
+      const answer = insertRun(db, {
+        trigger: 'answer',
+        priority: 0,
+        adhoc_prompt: 'a',
+        status: 'finished',
+        outcome: 'done',
+      });
+      insertRun(db, { trigger: 'adhoc', priority: 0, adhoc_prompt: 'b', status: 'finished' });
+      const timer = insertRun(db, { trigger: 'timer', priority: 0, adhoc_prompt: 'c', status: 'finished' });
+      const agent = insertRun(db, { trigger: 'agent', priority: 0, adhoc_prompt: 'd', status: 'finished' });
+
+      expect(read.runList({ trigger: 'answer' }).map((r) => r.id)).toEqual([answer]);
+      expect(read.runList({ trigger: 'timer' }).map((r) => r.id)).toEqual([timer]);
+      expect(read.runList({ trigger: 'agent' }).map((r) => r.id)).toEqual([agent]);
+      expect(read.runList({ outcome: 'done' }).map((r) => r.id)).toEqual([answer]);
     });
 
     test('thread lists root to tip for any Run in the chain', async () => {

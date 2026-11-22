@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export const CHAT_COPYING_PREFIX = '.copying-';
+
 export class DataDir {
   readonly root: string;
   readonly db: string;
@@ -72,6 +74,55 @@ export class DataDir {
 
   clearWorkspaces(): void {
     fs.rmSync(path.join(this.root, 'workspaces'), { recursive: true, force: true });
+  }
+
+  // An Interactive Chat's copy lives outside workspaces/, which startup recovery clears, so it survives restarts.
+  chatWorkspaceRoot(sessionId: number): string {
+    return path.join(this.root, 'chat-workspaces', String(sessionId));
+  }
+
+  chatWorkspacePath(sessionId: number, folder: string): string {
+    return path.join(this.chatWorkspaceRoot(sessionId), path.basename(folder));
+  }
+
+  removeChatWorkspace(sessionId: number): void {
+    fs.rmSync(this.chatWorkspaceRoot(sessionId), { recursive: true, force: true });
+  }
+
+  // A copy in progress lives in a `.copying-*` directory next to the final one; only a crash leaves one behind.
+  removeIncompleteChatCopies(): void {
+    for (const id of this.chatWorkspaceIds()) {
+      const root = this.chatWorkspaceRoot(id);
+      let names: string[];
+      try {
+        names = fs.readdirSync(root);
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        if (name.startsWith(CHAT_COPYING_PREFIX)) fs.rmSync(path.join(root, name), { recursive: true, force: true });
+      }
+    }
+  }
+
+  chatWorkspaceIds(): number[] {
+    try {
+      return fs
+        .readdirSync(path.join(this.root, 'chat-workspaces'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+        .map((entry) => Number(entry.name));
+    } catch {
+      return [];
+    }
+  }
+
+  chatSessionLogPath(sessionId: number): string {
+    return path.join(this.root, 'chat-sessions', `${sessionId}.log`);
+  }
+
+  // pi keeps its session files here instead of the user's own pi directory.
+  chatPiSessionsDir(): string {
+    return path.join(this.root, 'chat-pi-sessions');
   }
 
   notifyTranscriptPath(eventId: number): string {

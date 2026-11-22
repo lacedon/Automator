@@ -62,6 +62,34 @@ describe('readEditableConfig', () => {
     });
   });
 
+  test('Settings shows interactive Run settings with defaults when absent from the file', () => {
+    const { file } = writeConfig(config);
+    expect(readEditableConfig(file).runs).toMatchObject({ maxInteractiveSessions: 3, interactiveIdleMinutes: 30 });
+
+    const configured = writeConfig({ ...config, runs: { maxInteractiveSessions: 6, interactiveIdleMinutes: 5 } });
+    expect(readEditableConfig(configured.file).runs).toMatchObject({
+      maxInteractiveSessions: 6,
+      interactiveIdleMinutes: 5,
+    });
+  });
+
+  test('ACP adapter executables round-trip', () => {
+    const { file } = writeConfig(config);
+    const editable = readEditableConfig(file);
+    expect(editable.providers['claude-code']).toMatchObject({ acpBin: 'claude-agent-acp' });
+    expect(editable.providers.codex).toMatchObject({ acpBin: 'codex-acp' });
+    expect(editable.providers.pi).not.toHaveProperty('acpBin');
+    Object.assign(editable.providers['claude-code'], { acpBin: '/opt/claude-agent-acp' });
+    editable.runs = { ...editable.runs, maxInteractiveSessions: 4 };
+
+    writeEditableConfig(file, editable);
+
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    expect(saved.providers['claude-code'].acpBin).toBe('/opt/claude-agent-acp');
+    expect(saved.runs.maxInteractiveSessions).toBe(4);
+    expect(readEditableConfig(file).providers['claude-code']).toMatchObject({ acpBin: '/opt/claude-agent-acp' });
+  });
+
   test('legacy Copilot settings are exposed and saved under providers.copilot', () => {
     const { file } = writeConfig({
       ...config,
@@ -82,7 +110,7 @@ describe('readEditableConfig', () => {
 
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
     expect(saved).not.toHaveProperty('copilotBin');
-    expect(saved.runs).toEqual({ timeoutMinutes: 10 });
+    expect(saved.runs).toEqual({ timeoutMinutes: 10, maxInteractiveSessions: 3, interactiveIdleMinutes: 30 });
     expect(saved.providers.copilot).toEqual({
       bin: '/opt/copilot',
       defaultModel: 'other',

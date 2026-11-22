@@ -16,6 +16,7 @@ function files(run: RunRow): ('transcript.md' | 'result.json')[] {
 
 export function RunsTable({ runs }: { runs: RunRow[] }) {
   const t = useTranslations('RunsTable');
+  const tTrigger = useTranslations('Trigger');
   const locale = useLocale();
   if (runs.length === 0) return <EmptyState>{t('empty')}</EmptyState>;
   return (
@@ -38,7 +39,7 @@ export function RunsTable({ runs }: { runs: RunRow[] }) {
             <td>
               <Link href={`/runs/${run.id}`}>{run.id}</Link>
             </td>
-            <td>{run.trigger}</td>
+            <td>{tTrigger(run.trigger)}</td>
             <td>{providerLabel(run.provider)}</td>
             <td className="nowrap">{run.startedAt === null ? '—' : formatDateTime(run.startedAt, locale)}</td>
             <td className="nowrap">{run.tookMs === null ? '—' : formatTook(run.tookMs, locale)}</td>

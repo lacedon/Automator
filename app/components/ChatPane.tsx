@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { startTransition, useActionState, useRef, useState, type FormEvent } from 'react';
-import type { Skill, ThreadRun, ThreadView } from '@core/index';
-import { branchRun, sendRunMessage, type BranchFormState, type ChatFormState } from '../actions/chat';
+import { startTransition, useActionState, useRef, useState, useTransition, type FormEvent } from 'react';
+import type { AppError, CopyWork, Skill, ThreadRun, ThreadView } from '@core/index';
+import { branchRun, closeChat, sendRunMessage, type BranchFormState, type ChatFormState } from '../actions/chat';
 import { closeRun } from '../actions/runs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ErrorBox } from './ErrorBox';
@@ -21,6 +21,68 @@ export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | '
     run.closedAt === null &&
     run.interrupted === null &&
     (run.outcome === 'needs-you' || run.error !== null)
+  );
+}
+
+// An Interactive Chat's close deletes its working copy: unsaved work needs an explicit confirmation first.
+function CloseSessionButton({ runId }: { runId: number }) {
+  const t = useTranslations('Chat');
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [work, setWork] = useState<CopyWork | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [pending, startClose] = useTransition();
+
+  const run = (confirmed: boolean) =>
+    startClose(async () => {
+      const result = await closeChat(runId, confirmed);
+      if (result.ok) {
+        dialog.current?.close();
+        return;
+      }
+      if ('needsConfirmation' in result) {
+        setWork(result.work);
+        dialog.current?.showModal();
+        return;
+      }
+      setError(result.error);
+    });
+
+  const details =
+    work === null
+      ? ''
+      : [
+          ...(work.uncommitted ? [t('workUncommitted')] : []),
+          ...(work.unpushedCommits > 0 ? [t('workUnpushed', { count: work.unpushedCommits })] : []),
+        ].join(', ');
+  return (
+    <>
+      <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => run(false)}>
+        {t('closeSession')}
+      </button>
+      {error !== null && <ErrorBox error={error} />}
+      <dialog ref={dialog} className="confirm" onCancel={(e) => pending && e.preventDefault()}>
+        <p>
+          {work === null
+            ? t('closeSessionMessage')
+            : work.unknown
+              ? t('closeChatWorkUnknown')
+              : t('closeChatWorkWarning', { details })}
+        </p>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={pending}
+            onClick={() => dialog.current?.close()}
+          >
+            {t('branchCancel')}
+          </button>
+          <button type="button" className="btn btn-danger" disabled={pending} onClick={() => run(true)}>
+            {t('closeSessionConfirm')}
+          </button>
+        </div>
+      </dialog>
+    </>
   );
 }
 
@@ -174,6 +236,16 @@ export function ChatPane({
         <p className="muted chat-mode">
           {thread.chat.mode === 'interactive' ? t('modeInteractive') : t('modeFollowUp')}
         </p>
+      )}
+      {thread.chat.state !== null && (
+        <p className="muted chat-session-state" role="status">
+          {t('sessionState', { state: thread.chat.state })}
+        </p>
+      )}
+      {thread.chat.canClose && (
+        <div className="actions">
+          <CloseSessionButton runId={currentRunId} />
+        </div>
       )}
       {thread.branchedFromRunId !== null && (
         <p className="muted">

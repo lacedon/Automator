@@ -118,7 +118,10 @@
     "priorityLabel": {
       "schedule": "programada",
       "manual": "manual",
-      "adhoc": "ad hoc"
+      "adhoc": "ad hoc",
+      "answer": "respuesta",
+      "timer": "temporizador",
+      "agent": "agente"
     },
     "running": "En ejecución",
     "waiting": "En espera · primero las manuales y ad hoc",
@@ -150,7 +153,10 @@
   "Trigger": {
     "schedule": "programada",
     "manual": "manual",
-    "adhoc": "ad hoc"
+    "adhoc": "ad hoc",
+    "answer": "respuesta",
+    "timer": "temporizador",
+    "agent": "agente"
   },
   "Pill": {
     "done": "Hecho",
@@ -166,7 +172,8 @@
     "state_needs_you": "Requiere tu acción",
     "state_active": "Activa",
     "state_paused": "En pausa",
-    "state_closed": "Cerrada"
+    "state_closed": "Cerrada",
+    "outcomeDone": "Respondió"
   },
   "RunMeta": {
     "adhoc": "ad hoc:",
@@ -212,7 +219,8 @@
     "task": "Tarea / resultado",
     "outcome": "Resultado",
     "startedQueued": "Inicio / en cola",
-    "help": "Los resultados registran lo ocurrido en su momento. Una ejecución pasada que requería tu acción puede estar ya resuelta. Los filtros de fecha usan la hora local de inicio, o la de encolado si nunca se inició."
+    "help": "Los resultados registran lo ocurrido en su momento. Una ejecución pasada que requería tu acción puede estar ya resuelta. Los filtros de fecha usan la hora local de inicio, o la de encolado si nunca se inició.",
+    "replied": "Respondió"
   },
   "RunDetail": {
     "chats": "Chats",
@@ -242,7 +250,15 @@
     "skillGlobal": "Skill global",
     "skillLocal": "Skill local (este repositorio)",
     "modeFollowUp": "Modo de seguimiento",
-    "modeInteractive": "Modo interactivo"
+    "modeInteractive": "Modo interactivo",
+    "closeSession": "Cerrar chat",
+    "closeSessionMessage": "¿Cerrar este chat? Se eliminará su copia de trabajo y no podrás enviar más mensajes.",
+    "closeSessionConfirm": "Cerrar chat",
+    "closeChatWorkWarning": "La copia de trabajo de este chat tiene trabajo que no está guardado en otro sitio: {details}. Al cerrar se elimina la copia. ¿Cerrar de todos modos?",
+    "closeChatWorkUnknown": "Automator no pudo comprobar si la copia de trabajo de este chat tiene trabajo sin guardar (cambios sin confirmar o commits sin subir). Al cerrar se elimina la copia. ¿Cerrar de todos modos?",
+    "workUncommitted": "cambios sin confirmar",
+    "workUnpushed": "{count, plural, one {# commit sin subir} other {# commits sin subir}}",
+    "sessionState": "{state, select, live {Sesión en marcha} stopped {Sesión detenida; se reanuda con tu próximo mensaje} closing {Cerrando…} other {Chat cerrado}}"
   },
   "RunFiles": {
     "transcript": "Transcripción",

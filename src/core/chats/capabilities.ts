@@ -1,7 +1,7 @@
 import type { ProviderName } from '../domain/types';
 
 export type InteractiveCapabilities = {
-  interactive: boolean; // gates Interactive mode (all false until the session runtime ships)
+  interactive: boolean; // gates Interactive mode; the copilot/codex/opencode drivers exist but stay gated until resume is verified
   protocol: 'acp' | 'pi-rpc';
   resume: boolean; // provider session can be reloaded by id
   automatorTools: 'mcp' | 'pi-extension' | 'none';
@@ -9,8 +9,6 @@ export type InteractiveCapabilities = {
   nativeTimers: boolean; // unprompted turns may occur
   reason: string | null; // tooltip text when interactive is false
 };
-
-const NOT_YET = 'Interactive mode is not available for this provider yet';
 
 export const INTERACTIVE_CAPABILITIES: Record<ProviderName, InteractiveCapabilities> = {
   copilot: {
@@ -20,16 +18,16 @@ export const INTERACTIVE_CAPABILITIES: Record<ProviderName, InteractiveCapabilit
     automatorTools: 'none',
     nativeQuestions: 'none',
     nativeTimers: false,
-    reason: NOT_YET,
+    reason: 'Interactive mode is not available for Copilot yet: its ACP session resume is not verified',
   },
   'claude-code': {
-    interactive: false,
+    interactive: true,
     protocol: 'acp',
-    resume: false,
-    automatorTools: 'none',
-    nativeQuestions: 'none',
-    nativeTimers: false,
-    reason: NOT_YET,
+    resume: true,
+    automatorTools: 'mcp',
+    nativeQuestions: 'acp-elicitation',
+    nativeTimers: true,
+    reason: null,
   },
   codex: {
     interactive: false,
@@ -38,7 +36,7 @@ export const INTERACTIVE_CAPABILITIES: Record<ProviderName, InteractiveCapabilit
     automatorTools: 'none',
     nativeQuestions: 'none',
     nativeTimers: false,
-    reason: NOT_YET,
+    reason: 'Interactive mode is not available for Codex yet: its ACP session resume is not verified',
   },
   opencode: {
     interactive: false,
@@ -47,16 +45,16 @@ export const INTERACTIVE_CAPABILITIES: Record<ProviderName, InteractiveCapabilit
     automatorTools: 'none',
     nativeQuestions: 'none',
     nativeTimers: false,
-    reason: NOT_YET,
+    reason: 'Interactive mode is not available for OpenCode yet: its ACP session resume is not verified',
   },
   pi: {
-    interactive: false,
+    interactive: true,
     protocol: 'pi-rpc',
-    resume: false,
-    automatorTools: 'none',
-    nativeQuestions: 'none',
+    resume: true,
+    automatorTools: 'pi-extension',
+    nativeQuestions: 'pi-extension-ui',
     nativeTimers: false,
-    reason: NOT_YET,
+    reason: null,
   },
 };
 
