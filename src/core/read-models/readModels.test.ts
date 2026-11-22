@@ -631,7 +631,7 @@ describe('read models', () => {
       });
       // The question card replaces the composer, and Waiting for you does not stop Close chat.
       expect(thread.replyToRunId).toBeNull();
-      expect(thread.replyBlockedReason).toBe('Waiting for your answer');
+      expect(thread.replyBlockedReason).toEqual({ code: 'waiting-answer' });
       expect(thread.chat.canClose).toBe(true);
     });
 
@@ -720,7 +720,7 @@ describe('read models', () => {
       const running = insertRun(db, { ...adhoc, chat_session_id: chat, status: 'running' });
       expect((await read.runDetail(running))!.thread).toMatchObject({
         replyToRunId: null,
-        replyBlockedReason: `Waiting for Run #${running} to finish`,
+        replyBlockedReason: { code: 'run-unfinished', runId: running },
       });
       expect((await read.runDetail(running))!.thread!.chat.canClose).toBe(false);
 
@@ -728,11 +728,11 @@ describe('read models', () => {
       const done = insertRun(db, { ...adhoc, chat_session_id: closed, status: 'finished' });
       expect((await read.runDetail(done))!.thread).toMatchObject({
         replyToRunId: null,
-        replyBlockedReason: 'This chat is closed',
+        replyBlockedReason: { code: 'chat-closed' },
       });
       const closing = interactiveChat(db, { close_requested_at: 3 });
       const last = insertRun(db, { ...adhoc, chat_session_id: closing, status: 'finished' });
-      expect((await read.runDetail(last))!.thread!.replyBlockedReason).toBe('This chat is closing');
+      expect((await read.runDetail(last))!.thread!.replyBlockedReason).toEqual({ code: 'chat-closing' });
     });
 
     test('runs list filters by the new triggers', () => {
@@ -790,7 +790,7 @@ describe('read models', () => {
 
       expect((await read.runDetail(root))!.thread).toMatchObject({
         replyToRunId: null,
-        replyBlockedReason: `Waiting for Run #${tip} to finish`,
+        replyBlockedReason: { code: 'run-unfinished', runId: tip },
       });
     });
 
@@ -800,7 +800,7 @@ describe('read models', () => {
 
       expect((await read.runDetail(root))!.thread).toMatchObject({
         replyToRunId: null,
-        replyBlockedReason: 'No Copilot session to continue',
+        replyBlockedReason: { code: 'no-session' },
       });
     });
 
@@ -810,7 +810,7 @@ describe('read models', () => {
 
       expect((await read.runDetail(root))!.thread).toMatchObject({
         replyToRunId: null,
-        replyBlockedReason: 'Repository "gone" is no longer configured',
+        replyBlockedReason: { code: 'repository-missing', repository: 'gone' },
       });
     });
 
@@ -820,7 +820,7 @@ describe('read models', () => {
 
       expect((await read.runDetail(root))!.thread).toMatchObject({
         replyToRunId: null,
-        replyBlockedReason: 'Repository "constructor" is no longer configured',
+        replyBlockedReason: { code: 'repository-missing', repository: 'constructor' },
       });
     });
 

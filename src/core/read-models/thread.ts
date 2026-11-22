@@ -34,10 +34,20 @@ export type ThreadRun = {
 // live: a provider process is up; stopped: it will resume on the next message; closing/closed: no more messages.
 export type ThreadChatState = 'live' | 'stopped' | 'closing' | 'closed';
 
+// Why a Chat cannot take a reply. Structured so core stays UI-agnostic; the UI renders it per locale.
+export type ReplyBlockedReason =
+  | { code: 'chat-closed' }
+  | { code: 'chat-closing' }
+  | { code: 'run-unfinished'; runId: number }
+  | { code: 'waiting-answer' }
+  | { code: 'no-session' }
+  | { code: 'repository-missing'; repository: string }
+  | { code: 'repository-invalid'; repository: string; issues: string[] };
+
 export type ThreadView = {
   runs: ThreadRun[];
   replyToRunId: number | null;
-  replyBlockedReason: string | null;
+  replyBlockedReason: ReplyBlockedReason | null;
   branchedFromRunId: number | null;
   chat: {
     mode: ChatMode;
@@ -133,17 +143,17 @@ export function singleRunThread(deps: ReadDeps, run: Run): ThreadView {
   };
 }
 
-function replyBlock(deps: ReadDeps, tip: Run, chat: ThreadView['chat']): string | null {
-  if (chat.state === 'closed') return 'This chat is closed';
-  if (chat.state === 'closing') return 'This chat is closing';
-  if (tip.status !== 'finished') return `Waiting for Run #${tip.id} to finish`;
-  if (chat.question !== null) return 'Waiting for your answer';
+function replyBlock(deps: ReadDeps, tip: Run, chat: ThreadView['chat']): ReplyBlockedReason | null {
+  if (chat.state === 'closed') return { code: 'chat-closed' };
+  if (chat.state === 'closing') return { code: 'chat-closing' };
+  if (tip.status !== 'finished') return { code: 'run-unfinished', runId: tip.id };
+  if (chat.question !== null) return { code: 'waiting-answer' };
   // An Interactive Chat's provider session belongs to the Chat; only Follow-up needs one on the Run.
-  if (chat.mode === 'follow-up' && tip.sessionId === null) return 'No Copilot session to continue';
+  if (chat.mode === 'follow-up' && tip.sessionId === null) return { code: 'no-session' };
   const repository = deps.repositories.get(tip.repository);
-  if (repository === null) return `Repository "${tip.repository}" is no longer configured`;
+  if (repository === null) return { code: 'repository-missing', repository: tip.repository };
   const issues = deps.repositories.status(repository.name);
-  if (issues.length > 0) return `Repository "${repository.name}" is invalid: ${issues.join('; ')}`;
+  if (issues.length > 0) return { code: 'repository-invalid', repository: repository.name, issues };
   return null;
 }
 

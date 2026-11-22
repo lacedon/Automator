@@ -12,7 +12,7 @@ import {
   useTransition,
   type FormEvent,
 } from 'react';
-import type { AppError, CopyWork, Skill, ThreadRun, ThreadView } from '@core/index';
+import type { AppError, CopyWork, ReplyBlockedReason, Skill, ThreadRun, ThreadView } from '@core/index';
 import {
   answerQuestion,
   branchRun,
@@ -155,6 +155,25 @@ function BranchForm({ runId }: { runId: number }) {
       </div>
     </form>
   );
+}
+
+function replyBlockedText(t: ReturnType<typeof useTranslations<'Chat'>>, reason: ReplyBlockedReason): string {
+  switch (reason.code) {
+    case 'chat-closed':
+      return t('replyChatClosed');
+    case 'chat-closing':
+      return t('replyChatClosing');
+    case 'run-unfinished':
+      return t('replyRunUnfinished', { id: reason.runId });
+    case 'waiting-answer':
+      return t('replyWaitingAnswer');
+    case 'no-session':
+      return t('replyNoSession');
+    case 'repository-missing':
+      return t('replyRepositoryMissing', { repository: reason.repository });
+    case 'repository-invalid':
+      return t('replyRepositoryInvalid', { repository: reason.repository, issues: reason.issues.join('; ') });
+  }
 }
 
 // The agent asked something: the card replaces the composer until the question is answered. A choice question
@@ -439,7 +458,7 @@ export function ChatPane({
       {thread.chat.question !== null ? (
         <QuestionCard question={thread.chat.question} runId={thread.runs[thread.runs.length - 1]!.id} />
       ) : thread.replyToRunId === null ? (
-        thread.replyBlockedReason !== null && <p className="muted">{thread.replyBlockedReason}</p>
+        thread.replyBlockedReason !== null && <p className="muted">{replyBlockedText(t, thread.replyBlockedReason)}</p>
       ) : (
         <form ref={formRef} action={formAction} onSubmit={submit} className="watch-form chat-form">
           {failed !== null && <ErrorBox error={failed} unknownRepositoryOutcome={tError('noRunQueued')} />}
