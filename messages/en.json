@@ -227,6 +227,8 @@
     "closeConfirm": "Mark as Done",
     "run": "Run #{id}",
     "thisRun": " (this Run)",
+    "transcriptLabel": "Transcript output",
+    "transcriptTruncated": "Showing the end of the transcript. Open the transcript file for the full text.",
     "message": "Message",
     "send": "Send",
     "queued": "Run #{id} queued",

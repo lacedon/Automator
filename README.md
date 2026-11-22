@@ -316,7 +316,7 @@ Failures:
   - transcript location.
 - Failures before the provider starts have no transcript.
 - Pre-checks that find no changes are not Runs and produce no files.
-- v1 only shows a transcript after the Run finishes. There's no live streaming.
+- The transcript is written while the Run is in progress, and the Chat and Automation Run pages show its latest 64 KiB inline as plain text, refreshed every 3 seconds. The final file is the same as before. Claude Code, Codex and pi stream whole messages rather than tokens, OpenCode streams text parts, and Copilot streams its stdout (ANSI codes removed). When Copilot finishes, its `--share` export (written to `transcript.md.share.md` and renamed over `transcript.md`) replaces the stdout text if it exists. Copilot's live transcript updates per complete line, so a partial line appears at the next newline. If Copilot buffers stdout until it exits, its live transcript only appears at the end.
 
 ## Configuration and storage
 
@@ -425,7 +425,7 @@ curl -u me:secret http://127.0.0.1:3000/api/runs/7
 
 ## Out of scope for v1
 
-- Live streaming of transcripts
+- Token-level streaming of transcripts (providers that emit whole messages show them as they complete)
 - Editing secrets from the dashboard
 - An MCP tool or skill that lets Copilot create Automations itself (easy to add later on top of the CLI)
 - Worktrees or automatic cloning (see [ADR 0001](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md))

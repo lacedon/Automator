@@ -4,7 +4,7 @@ import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
-import { writeTextAtomic } from '../files/atomic';
+import { createLiveTranscript, lineSplitter, reportLiveFailure } from './liveTranscript';
 import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
@@ -13,35 +13,46 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function normalizeJsonl(output: string): { sessionId: string | null; transcript: string; error?: string } {
+type JsonlResult = { sessionId: string | null; transcript: string; error?: string };
+
+// Per-line extraction shared by the live transcript and the final normalization.
+function createJsonlParser(onText?: (text: string) => void) {
   let sessionId: string | null = null;
   const text: string[] = [];
+  let error: string | undefined;
+  return {
+    line(line: string): void {
+      if (error !== undefined || line.trim() === '') return;
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch (parseError) {
+        error = `Invalid Codex JSONL output: ${parseError instanceof Error ? parseError.message : String(parseError)}`;
+        return;
+      }
+      if (!isRecord(value)) {
+        error = 'Invalid Codex JSONL event';
+        return;
+      }
+      if (value.type === 'thread.started' && typeof value.thread_id === 'string') sessionId = value.thread_id;
+      if (value.type === 'item.completed' && isRecord(value.item)) {
+        if (value.item.type === 'agent_message' && typeof value.item.text === 'string') {
+          text.push(value.item.text);
+          onText?.(value.item.text);
+        }
+      }
+      if (value.type === 'error' && typeof value.message === 'string') error = value.message;
+    },
+    result(): JsonlResult {
+      return { sessionId, transcript: text.join('\n'), ...(error === undefined ? {} : { error }) };
+    },
+  };
+}
 
-  for (const line of output.split(/\r?\n/)) {
-    if (line.trim() === '') continue;
-    let value: unknown;
-    try {
-      value = JSON.parse(line);
-    } catch (error) {
-      return {
-        sessionId,
-        transcript: text.join('\n'),
-        error: `Invalid Codex JSONL output: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-    if (!isRecord(value)) {
-      return { sessionId, transcript: text.join('\n'), error: 'Invalid Codex JSONL event' };
-    }
-    if (value.type === 'thread.started' && typeof value.thread_id === 'string') sessionId = value.thread_id;
-    if (value.type === 'item.completed' && isRecord(value.item)) {
-      if (value.item.type === 'agent_message' && typeof value.item.text === 'string') text.push(value.item.text);
-    }
-    if (value.type === 'error' && typeof value.message === 'string') {
-      return { sessionId, transcript: text.join('\n'), error: value.message };
-    }
-  }
-
-  return { sessionId, transcript: text.join('\n') };
+function normalizeJsonl(output: string): JsonlResult {
+  const parser = createJsonlParser();
+  for (const line of output.split(/\r?\n/)) parser.line(line);
+  return parser.result();
 }
 
 function providerError(exit: ProviderExit, output: string): ProviderExit {
@@ -113,20 +124,27 @@ export function createCodexLauncher(baseConfig: Config, baseSecrets: Secrets): P
         startOptions.prompt,
       ];
       const stdout: Buffer[] = [];
+      const live = createLiveTranscript(startOptions.transcriptPath);
+      const splitter = lineSplitter(createJsonlParser(live.append).line);
       const stderr: Buffer[] = [];
       const child = spawnChild(codexConfig.bin, args, {
         cwd: startOptions.cwd,
         env: startOptions.env,
         secrets,
         logPath: startOptions.logPath,
-        onStdout: (chunk) => stdout.push(chunk),
+        onStdout: (chunk) => {
+          stdout.push(chunk);
+          splitter.push(chunk);
+        },
         onStderr: (chunk) => stderr.push(chunk),
       });
       let normalized: ReturnType<typeof normalizeJsonl> = { sessionId: null, transcript: '' };
       const exited = child.exited.then((exit) => {
+        splitter.end();
         const output = Buffer.concat(stdout).toString('utf8');
         normalized = normalizeJsonl(output);
-        if (normalized.transcript !== '') writeTextAtomic(startOptions.transcriptPath, normalized.transcript);
+        live.finish(normalized.transcript || null);
+        reportLiveFailure(live, startOptions.logPath);
         if (exit.error !== undefined) return exit;
         const errorOutput = `${Buffer.concat(stderr).toString('utf8')}\n${output}`;
         if (exit.code !== 0) return providerError(exit, errorOutput);

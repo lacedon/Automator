@@ -35,6 +35,18 @@ if (mode === 'invalid-json') {
   process.exit(0);
 }
 
+if (mode === 'stream-wait') {
+  process.stdout.write(
+    `${JSON.stringify({ type: 'text', timestamp: Date.now(), sessionID, part: { type: 'text', text: 'First part' } })}\n`,
+  );
+  const release = process.env.FAKE_OPENCODE_RELEASE;
+  const waitDeadline = Date.now() + 15_000;
+  while (release && !fs.existsSync(release)) {
+    // A test that never releases must not leak a spinning child.
+    if (Date.now() > waitDeadline) process.exit(3);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
 process.stdout.write(
   `${JSON.stringify({
     type: 'text',

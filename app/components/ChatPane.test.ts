@@ -35,6 +35,8 @@ function render(outcome: 'needs-you' | 'acted', closedAt: number | null, branche
         closedAt,
         queuedAt: 1,
         endedAt: 2,
+        trigger: 'adhoc',
+        transcript: null,
       },
     ],
     replyToRunId: null,

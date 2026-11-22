@@ -227,6 +227,8 @@
     "closeConfirm": "标记为已完成",
     "run": "运行 #{id}",
     "thisRun": "（本次运行）",
+    "transcriptLabel": "转录输出",
+    "transcriptTruncated": "仅显示转录的末尾部分。打开转录文件可查看全文。",
     "message": "消息",
     "send": "发送",
     "queued": "运行 #{id} 已排队",

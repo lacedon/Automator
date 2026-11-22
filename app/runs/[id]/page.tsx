@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import type { Run, ThreadView } from '@core/index';
 import { RunPill } from '../../components/Pill';
 import { RunErrorCard, RunMeta } from '../../components/RunMeta';
 import { ChatPane } from '../../components/ChatPane';
@@ -11,29 +10,6 @@ import { getCore } from '../../lib/core';
 import { canReadRun } from '../../lib/guard';
 
 export const dynamic = 'force-dynamic';
-
-function singleRunThread(run: Run): ThreadView {
-  return {
-    runs: [
-      {
-        id: run.id,
-        status: run.status,
-        outcome: run.outcome,
-        request: run.adhocPrompt,
-        ticketKey: run.ticketKey,
-        summary: run.summary,
-        error: run.error,
-        interrupted: run.interrupted,
-        closedAt: run.closedAt,
-        queuedAt: run.queuedAt,
-        endedAt: run.endedAt,
-      },
-    ],
-    replyToRunId: null,
-    replyBlockedReason: null,
-    branchedFromRunId: run.branchedFromRunId,
-  };
-}
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,7 +38,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         <RunPill run={run} />
       </div>
       {!keepsRefreshing(run.status, view.thread) && <NoAutoRefresh />}
-      <ChatPane thread={view.thread ?? singleRunThread(run)} currentRunId={run.id} skills={view.skills} />
+      <ChatPane thread={view.chat} currentRunId={run.id} skills={view.skills} />
       <details className="run-details">
         <summary>{t('details')}</summary>
         {run.error !== null && <RunErrorCard error={run.error} />}

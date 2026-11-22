@@ -66,7 +66,7 @@ describe('createCopilotLauncher', () => {
     const args = rec.argv;
     const after = (flag: string) => args[args.indexOf(flag) + 1];
     expect(args).toContain('--allow-all-tools');
-    expect(after('--share')).toBe(s.transcriptPath);
+    expect(after('--share')).toBe(`${s.transcriptPath}.share.md`);
     expect(after('--model')).toBe('m1');
     expect(after('--deny-tool')).toBe('gitlab(merge_merge_request)');
     expect(after('--log-level')).toBe('error');
@@ -74,6 +74,7 @@ describe('createCopilotLauncher', () => {
     expect(args).toEqual(expect.arrayContaining(['--no-color', '--no-ask-user']));
     expect(after('-p')).toContain('write exactly this JSON to');
     expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('# fake transcript\nnothing\n');
+    expect(fs.existsSync(`${s.transcriptPath}.share.md`)).toBe(false);
     expect(JSON.parse(fs.readFileSync(s.resultPath, 'utf8'))).toEqual({ outcome: 'nothing', summary: 'fake nothing' });
   });
 
@@ -319,5 +320,60 @@ describe('childEnv', () => {
       true,
     );
     expect(env).toEqual({ COPILOT_GITHUB_TOKEN: 'copilot', GITHUB_TOKEN: 'github' });
+  });
+
+  async function streamRun(
+    mode: string,
+    extraEnv: Record<string, string> = {},
+    before?: (s: ReturnType<typeof setup>) => void,
+  ) {
+    const s = setup();
+    before?.(s);
+    const launcher = createCopilotLauncher(s.config, resolveSecrets(s.config, {}));
+    const release = path.join(path.dirname(s.transcriptPath), 'release');
+    const proc = launcher.start({
+      cwd: s.repo,
+      prompt: 'Do it.',
+      model: 'm1',
+      transcriptPath: s.transcriptPath,
+      logPath: s.logPath,
+      env: { ...process.env, FAKE_COPILOT_MODE: mode, FAKE_COPILOT_RELEASE: release, ...extraEnv },
+    });
+    const live = () => (fs.existsSync(s.transcriptPath) ? fs.readFileSync(s.transcriptPath, 'utf8') : '');
+    expect(await waitFor(() => live().includes('First line'), 10_000)).toBe(true);
+    expect(live()).not.toContain('Second line');
+    fs.writeFileSync(release, '');
+    expect(await proc.exited).toEqual({ code: 0, signal: null });
+    return s;
+  }
+
+  test('writes the transcript while the provider is still running', async () => {
+    const s = await streamRun('stream-wait');
+    expect(fs.existsSync(s.transcriptPath)).toBe(true);
+  });
+
+  test('share export replaces the live stdout transcript on exit', async () => {
+    const s = await streamRun('stream-wait');
+    expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('# shared export\nfinal\n');
+    expect(fs.existsSync(`${s.transcriptPath}.share.md`)).toBe(false);
+  });
+
+  test('ANSI sequences split across stdout chunks are stripped', async () => {
+    const s = await streamRun('stream-wait-no-share', { FAKE_COPILOT_SPLIT_ANSI: '1' });
+    expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First line\nred\nSecond line\n');
+  });
+
+  test('a stale share sidecar is removed before the Run starts', async () => {
+    const s = await streamRun('stream-wait-no-share', {}, (stale) => {
+      fs.writeFileSync(`${stale.transcriptPath}.share.md`, 'stale export');
+      fs.writeFileSync(stale.transcriptPath, 'stale transcript');
+    });
+    expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First line\nSecond line\n');
+    expect(fs.existsSync(`${s.transcriptPath}.share.md`)).toBe(false);
+  });
+
+  test('stdout transcript is kept when the share export is missing', async () => {
+    const s = await streamRun('stream-wait-no-share');
+    expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First line\nSecond line\n');
   });
 });

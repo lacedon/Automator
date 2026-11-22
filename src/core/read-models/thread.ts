@@ -1,6 +1,7 @@
 import { toRun } from '../db/rows';
-import type { Interrupted, Outcome, Run, RunError, RunStatus } from '../domain/types';
+import type { Interrupted, Outcome, Run, RunError, RunStatus, Trigger } from '../domain/types';
 import type { ReadDeps } from './deps';
+import { readTranscriptExcerpt, type TranscriptExcerpt } from './transcriptExcerpt';
 
 export type ThreadRun = {
   id: number;
@@ -14,6 +15,8 @@ export type ThreadRun = {
   closedAt: number | null;
   queuedAt: number;
   endedAt: number | null;
+  trigger: Trigger;
+  transcript: TranscriptExcerpt | null;
 };
 
 export type ThreadView = {
@@ -23,7 +26,7 @@ export type ThreadView = {
   branchedFromRunId: number | null;
 };
 
-function toThreadRun(run: Run): ThreadRun {
+function toThreadRun(deps: ReadDeps, run: Run): ThreadRun {
   return {
     id: run.id,
     status: run.status,
@@ -36,6 +39,18 @@ function toThreadRun(run: Run): ThreadRun {
     closedAt: run.closedAt,
     queuedAt: run.queuedAt,
     endedAt: run.endedAt,
+    trigger: run.trigger,
+    // A running Run has no recorded path yet; its live file sits at the standard location.
+    transcript: readTranscriptExcerpt(run.transcriptPath ?? deps.dataDir.transcriptPath(run.id)),
+  };
+}
+
+export function singleRunThread(deps: ReadDeps, run: Run): ThreadView {
+  return {
+    runs: [toThreadRun(deps, run)],
+    replyToRunId: null,
+    replyBlockedReason: null,
+    branchedFromRunId: run.branchedFromRunId,
   };
 }
 
@@ -78,7 +93,7 @@ export function runThread(deps: ReadDeps, run: Run): ThreadView | null {
   const tip = chain[chain.length - 1]!;
   const blocked = replyBlock(deps, tip);
   return {
-    runs: chain.map(toThreadRun),
+    runs: chain.map((r) => toThreadRun(deps, r)),
     replyToRunId: blocked === null ? tip.id : null,
     replyBlockedReason: blocked,
     branchedFromRunId: root.branchedFromRunId,

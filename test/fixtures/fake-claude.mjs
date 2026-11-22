@@ -31,6 +31,18 @@ const sessionId = argValue('--resume') ?? 'claude-session-1';
 if (mode !== 'missing-session') {
   process.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: sessionId })}\n`);
 }
+if (mode === 'stream-wait') {
+  process.stdout.write(
+    `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'First part' }] } })}\n`,
+  );
+  const release = process.env.FAKE_CLAUDE_RELEASE;
+  const waitDeadline = Date.now() + 15_000;
+  while (release && !fs.existsSync(release)) {
+    // A test that never releases must not leak a spinning child.
+    if (Date.now() > waitDeadline) process.exit(3);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
 process.stdout.write(
   `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Assistant output' }] } })}\n`,
 );
