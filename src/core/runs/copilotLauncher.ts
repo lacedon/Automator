@@ -1,7 +1,10 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import { childEnv, copilotAuthEnvNames, spawnChild } from './childProcess';
+import { createLiveTranscript, lineSplitter } from './liveTranscript';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions, RunningProcess } from './providerLauncher';
 
 export type CopilotExit = ProviderExit;
@@ -24,6 +27,8 @@ export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets):
       for (const name of copilotAuthEnvNames) {
         if (opts.env[name] !== undefined) secretEnvNames.add(name);
       }
+      // The share export goes to a sidecar so it cannot clobber the live stdout transcript mid-run.
+      const shareTranscriptPath = `${opts.transcriptPath}.share.md`;
       const args = [
         '-p',
         opts.prompt,
@@ -34,7 +39,7 @@ export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets):
         '--add-dir',
         path.dirname(opts.transcriptPath),
         '--share',
-        opts.transcriptPath,
+        shareTranscriptPath,
         '--no-color',
         '--no-ask-user',
         '--log-level',
@@ -48,16 +53,31 @@ export function createCopilotLauncher(baseConfig: Config, baseSecrets: Secrets):
         ...(opts.extraArgs ?? []),
       ];
 
+      const live = createLiveTranscript(opts.transcriptPath, { separator: '' });
+      // Stripping works on whole lines so an escape sequence split across chunks cannot leak through.
+      const splitter = lineSplitter((line) => live.append(`${stripVTControlCharacters(line)}\n`));
       const child = spawnChild(config.providers.copilot.bin, args, {
         cwd: opts.cwd,
         env: opts.env,
         secrets,
         logPath: opts.logPath,
         preserveCopilotAuth: true,
+        onStdout: (chunk) => splitter.push(chunk),
+      });
+      const exited = child.exited.then((exit) => {
+        splitter.end();
+        try {
+          // The share export is the final transcript when Copilot wrote one; otherwise the stdout transcript stays.
+          if (fs.existsSync(shareTranscriptPath)) fs.renameSync(shareTranscriptPath, opts.transcriptPath);
+        } catch {
+          // A transcript problem must never change the Run outcome.
+        }
+        return exit;
       });
 
       return {
         ...child,
+        exited,
         sessionId: Promise.resolve(opts.sessionId ?? null),
       };
     },

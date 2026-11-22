@@ -3,7 +3,7 @@ import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
-import { writeTextAtomic } from '../files/atomic';
+import { createLiveTranscript, lineSplitter } from './liveTranscript';
 import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
@@ -12,50 +12,64 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function normalizeJson(output: string): {
+type JsonResult = {
   sessionId: string | null;
   transcript: string;
   error?: string;
   providerError?: string;
-} {
+};
+
+// Per-line extraction shared by the live transcript and the final normalization.
+function createJsonParser(onText?: (text: string) => void) {
   let sessionId: string | null = null;
   const text: string[] = [];
+  let error: string | undefined;
   let providerFailure: string | undefined;
-
-  for (const line of output.split(/\r?\n/)) {
-    if (line.trim() === '') continue;
-    let value: unknown;
-    try {
-      value = JSON.parse(line);
-    } catch (error) {
+  return {
+    line(line: string): void {
+      if (error !== undefined || line.trim() === '') return;
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch (parseError) {
+        error = `Invalid pi JSON output: ${parseError instanceof Error ? parseError.message : String(parseError)}`;
+        return;
+      }
+      if (!isRecord(value)) {
+        error = 'Invalid pi JSON event';
+        return;
+      }
+      if (value.type === 'session' && typeof value.id === 'string') sessionId = value.id;
+      if (value.type === 'message_end' && isRecord(value.message) && value.message.role === 'assistant') {
+        const { content, stopReason, errorMessage } = value.message;
+        if (Array.isArray(content)) {
+          for (const part of content) {
+            if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') {
+              text.push(part.text);
+              onText?.(part.text);
+            }
+          }
+        }
+        if (stopReason === 'error') {
+          providerFailure = typeof errorMessage === 'string' ? errorMessage : 'pi reported an unspecified error.';
+        }
+      }
+    },
+    result(): JsonResult {
       return {
         sessionId,
         transcript: text.join('\n'),
-        error: `Invalid pi JSON output: ${error instanceof Error ? error.message : String(error)}`,
+        ...(error === undefined ? {} : { error }),
+        ...(providerFailure === undefined ? {} : { providerError: providerFailure }),
       };
-    }
-    if (!isRecord(value)) {
-      return { sessionId, transcript: text.join('\n'), error: 'Invalid pi JSON event' };
-    }
-    if (value.type === 'session' && typeof value.id === 'string') sessionId = value.id;
-    if (value.type === 'message_end' && isRecord(value.message) && value.message.role === 'assistant') {
-      const { content, stopReason, errorMessage } = value.message;
-      if (Array.isArray(content)) {
-        for (const part of content) {
-          if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') text.push(part.text);
-        }
-      }
-      if (stopReason === 'error') {
-        providerFailure = typeof errorMessage === 'string' ? errorMessage : 'pi reported an unspecified error.';
-      }
-    }
-  }
-
-  return {
-    sessionId,
-    transcript: text.join('\n'),
-    ...(providerFailure === undefined ? {} : { providerError: providerFailure }),
+    },
   };
+}
+
+function normalizeJson(output: string): JsonResult {
+  const parser = createJsonParser();
+  for (const line of output.split(/\r?\n/)) parser.line(line);
+  return parser.result();
 }
 
 function providerError(exit: ProviderExit, output: string): ProviderExit {
@@ -115,20 +129,26 @@ export function createPiLauncher(baseConfig: Config, baseSecrets: Secrets): Prov
         startOptions.prompt,
       ];
       const stdout: Buffer[] = [];
+      const live = createLiveTranscript(startOptions.transcriptPath);
+      const splitter = lineSplitter(createJsonParser(live.append).line);
       const stderr: Buffer[] = [];
       const child = spawnChild(piConfig.bin, args, {
         cwd: startOptions.cwd,
         env: { ...startOptions.env, PWD: startOptions.cwd },
         secrets,
         logPath: startOptions.logPath,
-        onStdout: (chunk) => stdout.push(chunk),
+        onStdout: (chunk) => {
+          stdout.push(chunk);
+          splitter.push(chunk);
+        },
         onStderr: (chunk) => stderr.push(chunk),
       });
       let normalized: ReturnType<typeof normalizeJson> = { sessionId: null, transcript: '' };
       const exited = child.exited.then((exit) => {
+        splitter.end();
         const output = Buffer.concat(stdout).toString('utf8');
         normalized = normalizeJson(output);
-        if (normalized.transcript !== '') writeTextAtomic(startOptions.transcriptPath, normalized.transcript);
+        live.finish(normalized.transcript || null);
         if (exit.error !== undefined) return exit;
         if (normalized.error !== undefined) {
           return { ...exit, error: { code: 'OUTPUT_INVALID', message: normalized.error } };

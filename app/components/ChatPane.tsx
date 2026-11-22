@@ -11,6 +11,7 @@ import { ErrorBox } from './ErrorBox';
 import { PromptInput } from './PromptInput';
 import { RunPill } from './Pill';
 import { RunFileLinks } from './RunFileLinks';
+import { bubbleTranscript } from '../lib/chatBubble';
 import { withSkills } from '../lib/skillSuggestions';
 
 export function canClose(run: Pick<ThreadRun, 'status' | 'outcome' | 'error' | 'interrupted' | 'closedAt'>): boolean {
@@ -83,6 +84,8 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
     interrupted: run.interrupted,
     closedAt: run.closedAt,
   };
+  const transcript = bubbleTranscript(run);
+  const transcriptBlock = transcript !== null && <div className="chat-transcript">{transcript}</div>;
   return (
     <div className="chat-run">
       <div className="chat-run-head muted">
@@ -95,13 +98,22 @@ function RunExchange({ run, current }: { run: ThreadRun; current: boolean }) {
           <div>
             <RunPill run={pillRun} />
           </div>
+          {transcriptBlock}
           {run.error !== null ? run.error.message : run.summary}
+        </div>
+      ) : run.status === 'running' ? (
+        <div className="chat-bubble chat-agent">
+          <div>
+            <RunPill run={pillRun} />
+          </div>
+          {transcriptBlock}
         </div>
       ) : (
         <div className="chat-bubble chat-agent muted">{run.status}</div>
       )}
       <div className="chat-run-files muted">
         <RunFileLinks runId={run.id} />
+        {run.transcript?.truncated === true && <span> · {t('transcriptTruncated')}</span>}
       </div>
       {run.status === 'finished' && (
         <div className="actions">

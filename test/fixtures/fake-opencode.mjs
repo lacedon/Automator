@@ -35,6 +35,13 @@ if (mode === 'invalid-json') {
   process.exit(0);
 }
 
+if (mode === 'stream-wait') {
+  process.stdout.write(
+    `${JSON.stringify({ type: 'text', timestamp: Date.now(), sessionID, part: { type: 'text', text: 'First part' } })}\n`,
+  );
+  const release = process.env.FAKE_OPENCODE_RELEASE;
+  while (release && !fs.existsSync(release)) await new Promise((resolve) => setTimeout(resolve, 20));
+}
 process.stdout.write(
   `${JSON.stringify({
     type: 'text',

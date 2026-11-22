@@ -165,10 +165,17 @@ export function seed(core: Core): void {
   );
   insertFinishedRun(closed, 6 * 24 * 60, 'acted', 'Merged after final review');
 
-  db.prepare(
-    `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at, pid)
+  const running = Number(
+    db
+      .prepare(
+        `INSERT INTO runs (repository, status, trigger, priority, reason, adhoc_prompt, model, queued_at, started_at, pid)
      VALUES ('pages', 'running', 'adhoc', 0, 'ad-hoc', 'Summarize open TODOs in src/', 'claude-sonnet-4.5', ?, ?, 4243)`,
-  ).run(now - 5 * MIN, now - 4 * MIN);
+      )
+      .run(now - 5 * MIN, now - 4 * MIN).lastInsertRowid,
+  );
+  // A running Run has no recorded transcript_path yet: its live file sits at the standard location.
+  dataDir.ensureRunDir(running);
+  fs.writeFileSync(dataDir.transcriptPath(running), 'Scanning src/ for TODO comments <b>now</b>\nFound 3 so far');
 
   // Queue, Runs and Ad-hoc pages: waiting rows of every priority, an error before start, a timeout and a finished ad-hoc Run.
   const insertRun = db.prepare(

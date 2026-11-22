@@ -36,6 +36,14 @@ if (mode === 'execution-error') {
   emit(assistant({ content: [], stopReason: 'error', errorMessage: 'Unexpected provider failure' }));
   process.exit(0);
 }
+if (mode === 'stream-wait') {
+  emit({
+    type: 'message_end',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'First part' }], stopReason: 'toolUse' },
+  });
+  const release = process.env.FAKE_PI_RELEASE;
+  while (release && !fs.existsSync(release)) await new Promise((resolve) => setTimeout(resolve, 20));
+}
 emit(assistant({ stopReason: 'stop' }));
 emit({ type: 'agent_settled', aborted: false });
 

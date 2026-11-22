@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { discoverSkills, type Skill } from '../skills/skills';
 import type { Run } from '../domain/types';
 import type { ReadDeps } from './deps';
-import { runThread, type ThreadView } from './thread';
+import { runThread, singleRunThread, type ThreadView } from './thread';
 import { RUNS_WITH_TITLE, ticketLink, tookMs, toRunWithTitle, type TicketLink } from './runs';
 
 export const FILE_CAP_BYTES = 5 * 1024 * 1024;
@@ -18,6 +18,7 @@ export type RunDetailView = {
   result: FileView;
   prompt: FileView;
   thread: ThreadView | null;
+  chat: ThreadView;
   skills: Skill[];
 };
 
@@ -49,6 +50,7 @@ export async function runDetail(deps: ReadDeps, id: number): Promise<RunDetailVi
     readCapped(run.resultPath ?? dataDir.resultPath(id)),
     readCapped(run.promptPath ?? dataDir.promptPath(id)),
   ]);
+  const thread = runThread(deps, run);
   return {
     run,
     watchTitle,
@@ -57,7 +59,8 @@ export async function runDetail(deps: ReadDeps, id: number): Promise<RunDetailVi
     transcript,
     result,
     prompt,
-    thread: runThread(deps, run),
+    thread,
+    chat: thread ?? singleRunThread(deps, run),
     skills: discoverSkills({
       provider: run.provider,
       repositoryFolder: deps.repositories.get(run.repository)?.folder ?? null,

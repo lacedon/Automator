@@ -182,4 +182,19 @@ describe('createClaudeCodeLauncher', () => {
       error: { code: 'PROVIDER_CAPABILITY_UNSUPPORTED', message: expect.stringMatching(/denyTools/i) },
     });
   });
+
+  test('writes the transcript while the provider is still running', async () => {
+    const s = setup({ mode: 'stream-wait' });
+    const release = path.join(path.dirname(s.transcriptPath), 'release');
+    const proc = s.launcher.start({ ...options(s), env: { ...s.env, FAKE_CLAUDE_RELEASE: release } });
+
+    const deadline = Date.now() + 10_000;
+    const live = () => (fs.existsSync(s.transcriptPath) ? fs.readFileSync(s.transcriptPath, 'utf8') : '');
+    while (!live().includes('First part') && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+    expect(live()).toBe('First part');
+
+    fs.writeFileSync(release, '');
+    expect((await proc.exited).error).toBeUndefined();
+    expect(fs.readFileSync(s.transcriptPath, 'utf8')).toBe('First part\nAssistant output');
+  });
 });

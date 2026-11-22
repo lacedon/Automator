@@ -181,6 +181,18 @@ test('ad-hoc run opens on the chat by default', async ({ page }) => {
   await expect(page.locator('.chat .chat-request')).toHaveText('Check <b>the</b> export job');
 });
 
+test("chat shows a running Run's transcript inline", async ({ page }) => {
+  await page.goto('/runs');
+  await page
+    .locator('.run-history')
+    .getByRole('link', { name: /Summarize open TODOs in src\// })
+    .click();
+  await expect(page).toHaveURL(/\/runs\/\d+$/);
+  const transcript = page.locator('.chat .chat-transcript');
+  await expect(transcript).toHaveText('Scanning src/ for TODO comments <b>now</b>\nFound 3 so far');
+  await expect(page.locator('.chat b')).toHaveCount(0);
+});
+
 // Runs last: replying queues a follow-up Run, which would add a row to the Queue page the tests above rely on.
 test('ad-hoc chat: reply queues a follow-up Run', async ({ page }) => {
   await page.goto('/runs');

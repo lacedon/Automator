@@ -35,6 +35,20 @@ if (mode === 'hang') {
   }
   setInterval(() => {}, 1 << 30);
 } else {
+  if (mode === 'stream-wait' || mode === 'stream-wait-no-share') {
+    process.stdout.write('First line\n');
+    if (process.env.FAKE_COPILOT_SPLIT_ANSI) {
+      // One escape sequence split across two writes.
+      process.stdout.write('\u001b[3');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      process.stdout.write('1mred\u001b[0m\n');
+    }
+    const release = process.env.FAKE_COPILOT_RELEASE;
+    while (release && !fs.existsSync(release)) await new Promise((resolve) => setTimeout(resolve, 20));
+    process.stdout.write('Second line\n');
+    if (sharePath && mode === 'stream-wait') fs.writeFileSync(sharePath, '# shared export\nfinal\n');
+    process.exit(0);
+  }
   if (sharePath) fs.writeFileSync(sharePath, `# fake transcript\n${mode}\n`);
 
   const writeResult = (content) => {

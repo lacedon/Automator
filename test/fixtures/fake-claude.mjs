@@ -31,6 +31,13 @@ const sessionId = argValue('--resume') ?? 'claude-session-1';
 if (mode !== 'missing-session') {
   process.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: sessionId })}\n`);
 }
+if (mode === 'stream-wait') {
+  process.stdout.write(
+    `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'First part' }] } })}\n`,
+  );
+  const release = process.env.FAKE_CLAUDE_RELEASE;
+  while (release && !fs.existsSync(release)) await new Promise((resolve) => setTimeout(resolve, 20));
+}
 process.stdout.write(
   `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Assistant output' }] } })}\n`,
 );

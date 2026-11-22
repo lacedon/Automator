@@ -21,6 +21,7 @@ export type { QueueRow, RunningCard } from './queue';
 export type { FileView, RunDetailView } from './runDetail';
 export type { RunFilter, RunRow } from './runs';
 export type { ThreadRun, ThreadView } from './thread';
+export type { TranscriptExcerpt } from './transcriptExcerpt';
 export type { WatchDetailView, WatchSettings } from './watchDetail';
 export type { LastRun, WatchFilter, WatchListView, WatchRow } from './watches';
 

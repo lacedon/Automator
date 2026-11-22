@@ -898,6 +898,13 @@ textarea:focus {
   gap: 6px;
 }
 
+.chat-transcript {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow: auto;
+}
+
 .chat-bubble {
   max-width: 80%;
   padding: 8px 12px;

@@ -610,5 +610,71 @@ describe('read models', () => {
 
       expect((await read.runDetail(a))!.thread!.runs.map((r) => r.id).sort()).toEqual([a, b].sort());
     });
+
+    describe('live transcript', () => {
+      test('thread runs expose the live transcript of a running Run', async () => {
+        const { db, read, dataDir } = setup();
+        const id = insertRun(db, { ...adhoc, status: 'running', session_id: 's' });
+        fs.mkdirSync(dataDir.runDir(id), { recursive: true });
+        fs.writeFileSync(dataDir.transcriptPath(id), 'working on it');
+
+        const view = (await read.runDetail(id))!;
+        expect(view.chat.runs[0]).toMatchObject({
+          trigger: 'adhoc',
+          transcript: { text: 'working on it', truncated: false },
+        });
+      });
+
+      test('finished Runs use the recorded transcript path', async () => {
+        const { db, read, config } = setup();
+        const file = `${config.configDir}/elsewhere.md`;
+        fs.writeFileSync(file, 'recorded text');
+        const id = insertRun(db, { ...adhoc, session_id: 's', transcript_path: file });
+
+        expect((await read.runDetail(id))!.chat.runs[0]!.transcript).toEqual({
+          text: 'recorded text',
+          truncated: false,
+        });
+      });
+
+      test('the excerpt keeps the tail and marks truncation', async () => {
+        const { db, read, dataDir } = setup();
+        const id = insertRun(db, { ...adhoc, session_id: 's' });
+        fs.mkdirSync(dataDir.runDir(id), { recursive: true });
+        // '€' is three bytes, so the tail window starts inside a multibyte sequence.
+        fs.writeFileSync(dataDir.transcriptPath(id), `head${'€'.repeat(30_000)}tail`);
+
+        const excerpt = (await read.runDetail(id))!.chat.runs[0]!.transcript!;
+        expect(excerpt.truncated).toBe(true);
+        expect(excerpt.text.endsWith('€tail')).toBe(true);
+        expect(excerpt.text).not.toContain('head');
+        expect(excerpt.text).not.toContain('\uFFFD');
+        expect(Buffer.byteLength(excerpt.text)).toBeLessThanOrEqual(64 * 1024);
+      });
+
+      test('a Run without a transcript has a null excerpt', async () => {
+        const { db, read } = setup();
+        const id = insertRun(db, { ...adhoc, session_id: 's' });
+
+        expect((await read.runDetail(id))!.chat.runs[0]!.transcript).toBeNull();
+      });
+
+      test('automation Run detail returns a single-run chat with its transcript', async () => {
+        const { db, read, dataDir } = setup();
+        const id = insertRun(db, { watch_id: insertWatch(db), status: 'running' });
+        fs.mkdirSync(dataDir.runDir(id), { recursive: true });
+        fs.writeFileSync(dataDir.transcriptPath(id), 'automation output');
+
+        const view = (await read.runDetail(id))!;
+        expect(view.thread).toBeNull();
+        expect(view.chat.runs).toHaveLength(1);
+        expect(view.chat).toMatchObject({ replyToRunId: null, replyBlockedReason: null });
+        expect(view.chat.runs[0]).toMatchObject({
+          id,
+          trigger: 'schedule',
+          transcript: { text: 'automation output', truncated: false },
+        });
+      });
+    });
   });
 });

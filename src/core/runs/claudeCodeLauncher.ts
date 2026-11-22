@@ -3,7 +3,7 @@ import type { Secrets } from '../config/load';
 import type { Config } from '../config/schema';
 import type { ProviderExit, ProviderLauncher, ProviderStartOptions } from './providerLauncher';
 import { spawnChild } from './childProcess';
-import { writeTextAtomic } from '../files/atomic';
+import { createLiveTranscript, lineSplitter } from './liveTranscript';
 import { failedProcess } from './providerLauncher';
 
 type JsonRecord = Record<string, unknown>;
@@ -12,35 +12,49 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function normalizeStream(output: string): { sessionId: string | null; transcript: string; error?: string } {
+type StreamResult = { sessionId: string | null; transcript: string; error?: string };
+
+// Per-line extraction shared by the live transcript and the final normalization.
+function createStreamParser(onText?: (text: string) => void) {
   let sessionId: string | null = null;
   const text: string[] = [];
-
-  for (const line of output.split(/\r?\n/)) {
-    if (line.trim() === '') continue;
-    let value: unknown;
-    try {
-      value = JSON.parse(line);
-    } catch (error) {
-      return {
-        sessionId,
-        transcript: text.join('\n'),
-        error: `Invalid Claude Code stream-json output: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-    if (!isRecord(value)) {
-      return { sessionId, transcript: text.join('\n'), error: 'Invalid Claude Code stream-json event' };
-    }
-    if (typeof value.session_id === 'string') sessionId = value.session_id;
-    if (value.type === 'assistant' && isRecord(value.message) && Array.isArray(value.message.content)) {
-      for (const part of value.message.content) {
-        if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') text.push(part.text);
+  let error: string | undefined;
+  const add = (part: string) => {
+    text.push(part);
+    onText?.(part);
+  };
+  return {
+    line(line: string): void {
+      if (error !== undefined || line.trim() === '') return;
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch (parseError) {
+        error = `Invalid Claude Code stream-json output: ${parseError instanceof Error ? parseError.message : String(parseError)}`;
+        return;
       }
-    }
-    if (value.type === 'result' && text.length === 0 && typeof value.result === 'string') text.push(value.result);
-  }
+      if (!isRecord(value)) {
+        error = 'Invalid Claude Code stream-json event';
+        return;
+      }
+      if (typeof value.session_id === 'string') sessionId = value.session_id;
+      if (value.type === 'assistant' && isRecord(value.message) && Array.isArray(value.message.content)) {
+        for (const part of value.message.content) {
+          if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') add(part.text);
+        }
+      }
+      if (value.type === 'result' && text.length === 0 && typeof value.result === 'string') add(value.result);
+    },
+    result(): StreamResult {
+      return { sessionId, transcript: text.join('\n'), ...(error === undefined ? {} : { error }) };
+    },
+  };
+}
 
-  return { sessionId, transcript: text.join('\n') };
+function normalizeStream(output: string): StreamResult {
+  const parser = createStreamParser();
+  for (const line of output.split(/\r?\n/)) parser.line(line);
+  return parser.result();
 }
 
 function providerError(exit: ProviderExit, output: string): ProviderExit {
@@ -108,20 +122,26 @@ export function createClaudeCodeLauncher(baseConfig: Config, baseSecrets: Secret
         ...(startOptions.sessionId === undefined ? [] : ['--resume', startOptions.sessionId]),
       ];
       const stdout: Buffer[] = [];
+      const live = createLiveTranscript(startOptions.transcriptPath);
+      const splitter = lineSplitter(createStreamParser(live.append).line);
       const stderr: Buffer[] = [];
       const child = spawnChild(providerConfig.bin, args, {
         cwd: startOptions.cwd,
         env: startOptions.env,
         secrets,
         logPath: startOptions.logPath,
-        onStdout: (chunk) => stdout.push(chunk),
+        onStdout: (chunk) => {
+          stdout.push(chunk);
+          splitter.push(chunk);
+        },
         onStderr: (chunk) => stderr.push(chunk),
       });
       let normalized: ReturnType<typeof normalizeStream> = { sessionId: null, transcript: '' };
       const exited = child.exited.then((exit) => {
+        splitter.end();
         const output = Buffer.concat(stdout).toString('utf8');
         normalized = normalizeStream(output);
-        if (normalized.transcript !== '') writeTextAtomic(startOptions.transcriptPath, normalized.transcript);
+        live.finish(normalized.transcript || null);
         if (exit.error !== undefined) return exit;
         const errorOutput = `${Buffer.concat(stderr).toString('utf8')}\n${output}`;
         if (exit.code !== 0) return providerError(exit, errorOutput);

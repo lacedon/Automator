@@ -30,6 +30,13 @@ if (mode === 'invalid-json') {
 }
 
 process.stdout.write(`${JSON.stringify({ type: 'thread.started', thread_id: sessionId })}\n`);
+if (mode === 'stream-wait') {
+  process.stdout.write(
+    `${JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'First part' } })}\n`,
+  );
+  const release = process.env.FAKE_CODEX_RELEASE;
+  while (release && !fs.existsSync(release)) await new Promise((resolve) => setTimeout(resolve, 20));
+}
 process.stdout.write(
   `${JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'Codex response' } })}\n`,
 );
