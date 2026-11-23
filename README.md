@@ -460,3 +460,39 @@ curl -u me:secret http://127.0.0.1:3000/api/runs/7
 - Editing secrets from the dashboard
 - An MCP tool or skill that lets Copilot create Automations itself (easy to add later on top of the CLI)
 - Worktrees or automatic cloning (see [ADR 0001](./docs/adr/0001-serialize-runs-in-configured-repository-folders.md))
+
+## Telegram bot
+
+Control Automator from Telegram. The bot runs inside the worker and **polls Telegram** (outbound HTTPS only), so there is no webhook, port or tunnel to set up: the machine just needs internet access. It stays off unless you enable it.
+
+Setup:
+
+1. In Telegram, open [@BotFather](https://t.me/BotFather), send `/newbot` and follow the prompts. Copy the bot token it gives you.
+2. Put the token in `.env` (never in the config file or git):
+
+   ```sh
+   AUTOMATOR_TELEGRAM_BOT_TOKEN=<token from BotFather>
+   ```
+
+3. Enable the bot in `automator.config.json`:
+
+   ```json
+   "telegram": { "enabled": true, "tokenEnv": "AUTOMATOR_TELEGRAM_BOT_TOKEN", "dashboardUrl": "http://127.0.0.1:4317" }
+   ```
+
+   `tokenEnv` names the variable that holds the token (default `AUTOMATOR_TELEGRAM_BOT_TOKEN`). `dashboardUrl` is the base of the links the bot sends (set it to an address you can open from your phone). If `telegram` is missing, `enabled` is false or the token variable is empty, the bot does not start.
+
+4. Restart Automator (`npm start`).
+5. Create an access token in Automator (Account → Access tokens), open your bot in Telegram and send `/login atk_…`. The bot deletes your message, links your Telegram account to your Automator user and does **not** store the token. From then on it acts with that user's permissions. If the token is revoked, regenerated or expires (or the user is disabled), the link is removed and you must `/login` again. Until you log in, the bot only answers `/login`. The bot only works in private chats.
+
+Commands:
+
+- `/watches`: open Automations (everything except Closed), those that need you first, with title or URL, kind and status. Tap one for details, its latest Runs and a Run's result (outcome and summary, split to Telegram's message size, with a dashboard link).
+- From an Automation: **Pause / Resume**, **Run now**, and **Close** (asks for confirmation). Each action is authorized on the server for the linked user.
+- `/watch <id>` and `/run <n>`: open an Automation or a Run directly.
+- `/project`: choose the active Project; lists and new chats are limited to its Repositories.
+- `/chat`: guided new Chat: Repository (within the active Project), optional Jira ticket, then model and Agent (defaults, with override), then your first message. The bot starts Follow-up mode Chats.
+- `/chats`: your last 10 Chats. Open one to read its messages; plain text then continues the current Chat as a Follow-up run.
+- `/cancel` leaves a flow; `/logout` unlinks the account.
+
+Messages the bot sends on its own (once each, only to linked users allowed to see the item): an Automation needs you, a Chat Run finished, and a Run failed or was interrupted. Only events that happen after you log in are sent. If Telegram is unreachable, polling and sending are retried with backoff and logged by the worker; errors while handling a message are reported in the chat.
