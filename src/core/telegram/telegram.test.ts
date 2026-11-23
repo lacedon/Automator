@@ -3,7 +3,7 @@ import { fakeClock } from '../../../test/helpers/clock';
 import { testConfig } from '../../../test/helpers/config';
 import { insertWatch } from '../../../test/helpers/db';
 import { createCore, type Core } from '../index';
-import { TelegramApiError, type InlineKeyboard, type TelegramApi, type TelegramUpdate } from './api';
+import { createTelegramApi, TelegramApiError, type InlineKeyboard, type TelegramApi, type TelegramUpdate } from './api';
 import { TelegramBot } from './bot';
 import { createTelegramBot, createTelegramRunner } from './index';
 import { PUSH_LOOKBACK_MS, TelegramPusher } from './push';
@@ -636,6 +636,27 @@ describe('runner and configuration', () => {
     expect(logs.filter((l) => l.includes('polling failed'))).toHaveLength(2);
     expect(store.getState('update_offset')).toBe('42');
     expect(api.texts()).toContain('Send /login');
+  });
+});
+
+describe('createTelegramApi', () => {
+  const respond = (status: number, body: unknown) =>
+    (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+
+  test('carries retry_after from a 429 response', async () => {
+    const real = createTelegramApi(
+      'secret-token',
+      respond(429, { ok: false, description: 'Too Many Requests: retry after 9', parameters: { retry_after: 9 } }),
+    );
+    const error = await real.sendMessage(1, 'x').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TelegramApiError);
+    expect(error).toMatchObject({ status: 429, retryAfterSeconds: 9 });
+    expect((error as Error).message).not.toContain('secret-token');
+  });
+
+  test('has no retry_after on other errors', async () => {
+    const real = createTelegramApi('t', respond(401, { ok: false, description: 'Unauthorized' }));
+    await expect(real.getUpdates(0, 0)).rejects.toMatchObject({ status: 401, retryAfterSeconds: null });
   });
 });
 

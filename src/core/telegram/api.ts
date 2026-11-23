@@ -58,9 +58,19 @@ export function createTelegramApi(token: string, fetchImpl: typeof fetch = fetch
       if (signal?.aborted) throw e;
       throw new TelegramApiError(`${method}: network error (${(e as Error).name})`, null);
     }
-    const json = (await response.json().catch(() => null)) as { ok?: boolean; result?: T; description?: string } | null;
+    const json = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      result?: T;
+      description?: string;
+      parameters?: { retry_after?: number };
+    } | null;
     if (!response.ok || json?.ok !== true)
-      throw new TelegramApiError(`${method}: ${json?.description ?? `HTTP ${response.status}`}`, response.status);
+      throw new TelegramApiError(
+        `${method}: ${json?.description ?? `HTTP ${response.status}`}`,
+        response.status,
+        // On 429 Telegram says how many seconds to wait.
+        json?.parameters?.retry_after ?? null,
+      );
     return json.result as T;
   };
   return {
