@@ -25,6 +25,8 @@ type Candidate = {
 };
 
 const SINCE_KEY = 'push_since';
+// Events older than this are never pushed or scanned again, which keeps each tick and the push log bounded.
+export const PUSH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 // Pushes are derived from the database, so they work whatever process finished the Run and survive restarts.
 // A push is reserved in the log before it is sent, so it goes out once per chat, and is released if sending fails.
@@ -123,10 +125,13 @@ export class TelegramPusher {
       since = t;
       store.setState(SINCE_KEY, String(t));
     }
+    // Pushes older than the window can no longer be candidates (an event predates its push), so their log rows go.
+    const from = Math.max(since, t - PUSH_LOOKBACK_MS);
+    store.prunePushLog(t - PUSH_LOOKBACK_MS);
     const links = store.links();
     if (links.length === 0) return 0;
     let sent = 0;
-    for (const c of this.candidates(since)) {
+    for (const c of this.candidates(from)) {
       for (const link of links) {
         if (c.at < link.linkedAt || !c.allowed(link.userId)) continue;
         if (!users.isFingerprintValid(link.userId, link.tokenFingerprint)) {

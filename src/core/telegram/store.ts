@@ -107,6 +107,10 @@ export class TelegramStore {
     );
   }
 
+  prunePushLog(olderThan: number): void {
+    this.db.prepare('DELETE FROM telegram_push_log WHERE sent_at < ?').run(olderThan);
+  }
+
   releasePush(kind: string, refId: number, chatId: number): void {
     this.db
       .prepare('DELETE FROM telegram_push_log WHERE kind = ? AND ref_id = ? AND chat_id = ?')

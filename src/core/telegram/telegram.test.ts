@@ -6,7 +6,7 @@ import { createCore, type Core } from '../index';
 import { TelegramApiError, type InlineKeyboard, type TelegramApi, type TelegramUpdate } from './api';
 import { TelegramBot } from './bot';
 import { createTelegramBot, createTelegramRunner } from './index';
-import { TelegramPusher } from './push';
+import { PUSH_LOOKBACK_MS, TelegramPusher } from './push';
 import { splitMessage, TELEGRAM_LIMIT } from './format';
 import { TelegramStore } from './store';
 
@@ -327,6 +327,37 @@ describe('push messages', () => {
     expect(text).toContain('boom');
     expect(text).not.toContain('Old');
     expect(await p.tick()).toBe(0);
+  });
+
+  test('only scans the lookback window and prunes the push log', async () => {
+    const p = pusher();
+    await p.tick();
+    await login();
+    clock.advance(1000);
+    const event = (reason: string) => {
+      const id = insertWatch(core.db, { state: 'needs_you' });
+      core.db
+        .prepare(
+          "INSERT INTO needs_you_events (watch_id, reason, created_at, teams_status) VALUES (?, ?, ?, 'pending')",
+        )
+        .run(id, reason, clock.now());
+    };
+    event('first');
+    expect(await p.tick()).toBe(1);
+    expect(core.db.prepare('SELECT count(*) AS n FROM telegram_push_log').get()).toEqual({ n: 1 });
+
+    clock.advance(PUSH_LOOKBACK_MS + 1000);
+    // Simulate a lost log row: the event is now outside the window, so it must not be re-sent.
+    core.db.prepare('DELETE FROM telegram_push_log').run();
+    event('second');
+    api.sent = [];
+    expect(await p.tick()).toBe(1);
+    expect(api.texts()).toContain('second');
+    expect(api.texts()).not.toContain('first');
+
+    clock.advance(PUSH_LOOKBACK_MS + 1000);
+    await p.tick();
+    expect(core.db.prepare('SELECT count(*) AS n FROM telegram_push_log').get()).toEqual({ n: 0 });
   });
 
   test('retries after a Telegram outage without duplicating', async () => {
