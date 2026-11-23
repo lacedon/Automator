@@ -37,6 +37,7 @@ export class TelegramApiError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
   }

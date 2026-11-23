@@ -11,6 +11,9 @@ export function splitMessage(text: string, limit = TELEGRAM_LIMIT): string[] {
     let cut = rest.lastIndexOf('\n', limit);
     if (cut < limit / 2) cut = rest.lastIndexOf(' ', limit);
     if (cut < limit / 2) cut = limit;
+    // Never cut between the two halves of a surrogate pair (an emoji).
+    const before = rest.charCodeAt(cut - 1);
+    if (cut > 1 && before >= 0xd800 && before <= 0xdbff) cut -= 1;
     parts.push(rest.slice(0, cut));
     rest = rest.slice(cut).replace(/^\n/, '');
   }

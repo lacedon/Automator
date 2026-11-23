@@ -1,9 +1,10 @@
 import type { Config } from '../config/schema';
 import type { Database } from '../db/open';
-import { createTelegramApi, type TelegramApi } from './api';
+import { createTelegramApi, TelegramApiError, type TelegramApi } from './api';
 import { TelegramBot, type TelegramServices } from './bot';
 import { TelegramPusher } from './push';
 import { TelegramStore } from './store';
+import { splitMessage } from './format';
 
 export type { TelegramApi, TelegramUpdate } from './api';
 export { TelegramBot } from './bot';
@@ -33,11 +34,16 @@ export interface TelegramRunnerOptions {
 
 const abortableSleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve();
     const timer = setTimeout(resolve, ms);
-    signal.addEventListener('abort', () => {
-      clearTimeout(timer);
-      resolve();
-    });
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
   });
 
 // Long polling: an outbound HTTPS request that Telegram answers when an update arrives. Failures back off and retry.
@@ -54,7 +60,10 @@ export function createTelegramRunner(options: TelegramRunnerOptions): TelegramRu
     access: services.access,
     now: () => services.clock.now(),
     dashboardUrl: options.dashboardUrl,
-    send: (chatId, text, keyboard) => api.sendMessage(chatId, text.slice(0, 4096), keyboard),
+    log,
+    send: async (chatId, text) => {
+      for (const part of splitMessage(text)) await api.sendMessage(chatId, part);
+    },
   });
   const abort = new AbortController();
   let loops: Promise<void>[] = [];
@@ -73,8 +82,18 @@ export function createTelegramRunner(options: TelegramRunnerOptions): TelegramRu
         }
       } catch (e) {
         if (abort.signal.aborted) return;
-        log(`telegram polling failed: ${e instanceof Error ? e.message : String(e)}; retrying in ${backoff / 1000} s`);
-        await sleep(backoff, abort.signal);
+        const status = e instanceof TelegramApiError ? e.status : null;
+        if (status === 401) {
+          // A wrong or revoked bot token never recovers by itself: say so clearly and retry only at the slowest pace.
+          log('telegram bot token was rejected (401 Unauthorized): check the token in .env; retrying every 60 s');
+          backoff = MAX_BACKOFF_MS;
+        } else {
+          log(
+            `telegram polling failed: ${e instanceof Error ? e.message : String(e)}; retrying in ${backoff / 1000} s`,
+          );
+        }
+        const retryAfter = e instanceof TelegramApiError ? (e.retryAfterSeconds ?? 0) * 1000 : 0;
+        await sleep(Math.max(backoff, retryAfter), abort.signal);
         backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
       }
     }

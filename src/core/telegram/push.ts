@@ -1,7 +1,7 @@
 import type { AccessService } from '../access/accessService';
 import type { Database } from '../db/open';
 import type { UserService } from '../users/userService';
-import type { InlineKeyboard } from './api';
+import { TelegramApiError, type InlineKeyboard } from './api';
 import { oneLine, runStatusLabel, truncate } from './format';
 import type { TelegramStore } from './store';
 
@@ -12,6 +12,7 @@ export interface PushDeps {
   access: AccessService;
   now: () => number;
   dashboardUrl: string;
+  log?: (line: string) => void;
   send(chatId: number, text: string, keyboard?: InlineKeyboard): Promise<void>;
 }
 
@@ -131,6 +132,7 @@ export class TelegramPusher {
     const links = store.links();
     if (links.length === 0) return 0;
     let sent = 0;
+    let failure: unknown = null;
     for (const c of this.candidates(from)) {
       for (const link of links) {
         if (c.at < link.linkedAt || !c.allowed(link.userId)) continue;
@@ -142,15 +144,27 @@ export class TelegramPusher {
         try {
           await send(link.chatId, c.text);
           sent += 1;
-          this.backoffMs = 0;
         } catch (e) {
           store.releasePush(c.kind, c.refId, link.chatId);
+          if (isPermanent(e)) {
+            // The user blocked the bot or deleted the chat: retrying never helps, so drop this link only.
+            store.unlink(link.telegramUserId);
+            this.deps.log?.(`telegram link ${link.telegramUserId} removed: ${(e as Error).message}`);
+            continue;
+          }
+          // Transient: other links still get their push; this one is retried after a backoff.
+          failure ??= e;
+          const retryAfter = e instanceof TelegramApiError ? (e.retryAfterSeconds ?? 0) * 1000 : 0;
           this.failedAt = now();
-          this.backoffMs = Math.min(this.backoffMs === 0 ? 5_000 : this.backoffMs * 2, 300_000);
-          throw e;
+          this.backoffMs = Math.min(Math.max(this.backoffMs === 0 ? 5_000 : this.backoffMs * 2, retryAfter), 300_000);
         }
       }
     }
+    if (failure !== null) throw failure;
+    if (sent > 0) this.backoffMs = 0;
     return sent;
   }
 }
+
+const isPermanent = (e: unknown): boolean =>
+  e instanceof TelegramApiError && (e.status === 403 || (e.status === 400 && /chat not found/i.test(e.message)));

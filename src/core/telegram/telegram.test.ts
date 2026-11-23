@@ -17,6 +17,10 @@ class FakeApi implements TelegramApi {
   deleted: number[] = [];
   answered: string[] = [];
   failSends = false;
+  failDelete = false;
+  failFor = new Map<number, TelegramApiError>();
+  gate: Promise<void> | null = null;
+  onSend: (() => void) | null = null;
   polls: (TelegramUpdate[] | Error)[] = [];
   async getUpdates(_o: number, _t: number, signal?: AbortSignal): Promise<TelegramUpdate[]> {
     const next = this.polls.shift();
@@ -26,6 +30,10 @@ class FakeApi implements TelegramApi {
     throw new Error('aborted');
   }
   async sendMessage(chatId: number, text: string, keyboard?: InlineKeyboard) {
+    this.onSend?.();
+    if (this.gate !== null) await this.gate;
+    const failure = this.failFor.get(chatId);
+    if (failure !== undefined) throw failure;
     if (this.failSends) throw new TelegramApiError('sendMessage: down', 502);
     this.sent.push({ chatId, text, ...(keyboard === undefined ? {} : { keyboard }) });
   }
@@ -33,6 +41,7 @@ class FakeApi implements TelegramApi {
     this.answered.push(id);
   }
   async deleteMessage(_c: number, id: number) {
+    if (this.failDelete) throw new TelegramApiError('deleteMessage: nope', 400);
     this.deleted.push(id);
   }
   get last(): Sent {
@@ -115,6 +124,15 @@ describe('authentication', () => {
     expect(api.last.text).toContain('Logged in as admin');
     const stored = JSON.stringify(core.db.prepare('SELECT * FROM telegram_links').all());
     expect(stored).not.toContain(adminToken);
+  });
+
+  test('tells the user when the token message could not be deleted', async () => {
+    api.failDelete = true;
+    await login();
+    expect(store.link(TG)).not.toBeNull();
+    expect(api.texts()).toContain('could not delete your token message');
+    expect(api.texts()).toContain('revoking the token');
+    expect(api.texts()).not.toContain('I deleted your token message');
   });
 
   test('a revoked token unlinks the chat on its next message', async () => {
@@ -259,6 +277,29 @@ describe('chats', () => {
     expect(api.last.text).toContain('Done it');
   });
 
+  test('/chats lists only the chats owned by the linked user', async () => {
+    const bob = core.users.create('bob', 'secret-pass');
+    if (!bob.ok) throw new Error('bob');
+    const adminId = core.users.list().find((u) => u.username === 'admin')!.id;
+    const mine = core.queue.enqueueAdhoc({ repository: 'pages', prompt: 'mine', model: 'm' });
+    const theirs = core.queue.enqueueAdhoc({ repository: 'pages', prompt: 'theirs', model: 'm' });
+    core.access.setOwner('runs', mine.id, adminId);
+    core.access.setOwner('runs', theirs.id, bob.value.id);
+    // More than 10 of bob's chats must not push the admin's chat out of the list.
+    for (let i = 0; i < 12; i++) {
+      const run = core.queue.enqueueAdhoc({ repository: 'pages', prompt: `bob ${i}`, model: 'm' });
+      core.access.setOwner('runs', run.id, bob.value.id);
+    }
+    // Queued Runs are not listed yet.
+    core.db.prepare("UPDATE runs SET status = 'finished', ended_at = ?").run(clock.now());
+    await login();
+    await say('/chats');
+    expect(api.last.text).toContain('Your last 1 chats');
+    expect(api.last.text).toContain('mine');
+    expect(api.last.text).not.toContain('theirs');
+    expect(api.last.text).not.toContain('bob ');
+  });
+
   test('keeps the wizard on a rejected ticket and supports /cancel', async () => {
     await login();
     await say('/chat');
@@ -381,6 +422,60 @@ describe('push messages', () => {
     expect(await p.tick()).toBe(0);
   });
 
+  test('one blocked chat does not stall the pushes of the others', async () => {
+    const p = pusher();
+    await p.tick();
+    await login();
+    const bob = core.users.create('bob', 'secret-pass');
+    if (!bob.ok) throw new Error('bob');
+    core.access.assign(bob.value.id, core.access.listRoles()[0]!.id, null);
+    const bobToken = core.users.createToken(bob.value.id, 't', null);
+    if (!bobToken.ok) throw new Error('token');
+    await say(`/login ${bobToken.value.token}`, 7, 7);
+    clock.advance(1000);
+    const id = insertWatch(core.db, { title: 'MR title', state: 'needs_you' });
+    core.db
+      .prepare(
+        "INSERT INTO needs_you_events (watch_id, reason, created_at, teams_status) VALUES (?, 'r', ?, 'pending')",
+      )
+      .run(id, clock.now());
+    api.sent = [];
+    // The admin's chat blocked the bot: that link is dropped, bob still gets the push.
+    api.failFor.set(CHAT, new TelegramApiError('sendMessage: Forbidden: bot was blocked by the user', 403));
+    expect(await p.tick()).toBe(1);
+    expect(api.sent.map((m) => m.chatId)).toEqual([7]);
+    expect(store.link(TG)).toBeNull();
+    expect(store.link(7)).not.toBeNull();
+  });
+
+  test('a transient failure of one chat is retried later while the others are served', async () => {
+    const p = pusher();
+    await p.tick();
+    await login();
+    const bob = core.users.create('bob', 'secret-pass');
+    if (!bob.ok) throw new Error('bob');
+    core.access.assign(bob.value.id, core.access.listRoles()[0]!.id, null);
+    const bobToken = core.users.createToken(bob.value.id, 't', null);
+    if (!bobToken.ok) throw new Error('token');
+    await say(`/login ${bobToken.value.token}`, 7, 7);
+    clock.advance(1000);
+    const id = insertWatch(core.db, { state: 'needs_you' });
+    core.db
+      .prepare(
+        "INSERT INTO needs_you_events (watch_id, reason, created_at, teams_status) VALUES (?, 'r', ?, 'pending')",
+      )
+      .run(id, clock.now());
+    api.sent = [];
+    api.failFor.set(CHAT, new TelegramApiError('sendMessage: down', 502));
+    await expect(p.tick()).rejects.toThrow('down');
+    expect(api.sent.map((m) => m.chatId)).toEqual([7]);
+    expect(store.link(TG)).not.toBeNull();
+    api.failFor.clear();
+    clock.advance(10_000);
+    expect(await p.tick()).toBe(1);
+    expect(api.sent.map((m) => m.chatId)).toEqual([7, CHAT]);
+  });
+
   test('does not push to a user without access, and unlinks revoked links', async () => {
     const p = pusher();
     await p.tick();
@@ -414,6 +509,66 @@ describe('runner and configuration', () => {
     });
     expect(createTelegramBot({ ...base, config: enabled, env: {} })).toBeNull();
     expect(createTelegramBot({ ...base, config: enabled, env: { AUTOMATOR_TELEGRAM_BOT_TOKEN: 'x' } })).not.toBeNull();
+  });
+
+  test('stop() does not hang when it aborts in the middle of a push tick', async () => {
+    store.setState('push_since', String(clock.now() - 1));
+    store.setLink(
+      TG,
+      CHAT,
+      core.users.list()[0]!.id,
+      core.db.prepare('SELECT token_hash FROM api_tokens').pluck().get() as string,
+    );
+    const id = insertWatch(core.db, { state: 'needs_you' });
+    core.db
+      .prepare(
+        "INSERT INTO needs_you_events (watch_id, reason, created_at, teams_status) VALUES (?, 'r', ?, 'pending')",
+      )
+      .run(id, clock.now());
+    let release = () => {};
+    api.gate = new Promise<void>((resolve) => (release = resolve));
+    const inSend = new Promise<void>((resolve) => (api.onSend = resolve));
+    const runner = createTelegramRunner({
+      db: core.db,
+      services: services(),
+      dashboardUrl: 'http://d',
+      api,
+      log: () => {},
+      pushEveryMs: 10,
+    });
+    runner.start();
+    await inSend;
+    const stopped = runner.stop();
+    release();
+    await expect(
+      Promise.race([stopped.then(() => 'stopped'), new Promise((r) => setTimeout(() => r('hung'), 2000))]),
+    ).resolves.toBe('stopped');
+  });
+
+  test('honours retry_after and reports a rejected bot token clearly', async () => {
+    const logs: string[] = [];
+    const sleeps: number[] = [];
+    api.polls = [
+      new TelegramApiError('getUpdates: Too Many Requests', 429, 7),
+      new TelegramApiError('getUpdates: Unauthorized', 401),
+    ];
+    const runner = createTelegramRunner({
+      db: core.db,
+      services: services(),
+      dashboardUrl: 'http://d',
+      api,
+      log: (l) => logs.push(l),
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        await new Promise((r) => setTimeout(r, 1));
+      },
+      pushEveryMs: 1_000_000,
+    });
+    runner.start();
+    await new Promise((r) => setTimeout(r, 100));
+    await runner.stop();
+    expect(sleeps.filter((ms) => ms < 1_000_000)).toEqual([7000, 60_000]);
+    expect(logs.some((l) => l.includes('401') && l.includes('token'))).toBe(true);
   });
 
   test('retries polling with backoff, then handles updates and persists the offset', async () => {
@@ -452,6 +607,13 @@ describe('runner and configuration', () => {
 });
 
 describe('splitMessage', () => {
+  test('does not split a surrogate pair', () => {
+    const text = `${'a'.repeat(TELEGRAM_LIMIT - 1)}😀${'b'.repeat(10)}`;
+    const parts = splitMessage(text);
+    expect(parts.join('')).toBe(text);
+    for (const part of parts) expect(part).not.toMatch(/[\ud800-\udbff]$|^[\udc00-\udfff]/);
+  });
+
   test('keeps every part within the limit and loses nothing', () => {
     const text = Array.from({ length: 600 }, (_, i) => `line ${i}`).join('\n');
     const parts = splitMessage(text);

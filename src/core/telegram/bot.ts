@@ -158,7 +158,10 @@ export class TelegramBot {
   private async login(message: TelegramMessage, token: string): Promise<void> {
     const chatId = message.chat.id;
     // The token must not stay in the chat history.
-    await this.api.deleteMessage(chatId, message.message_id).catch(() => {});
+    const deleted = await this.api.deleteMessage(chatId, message.message_id).then(
+      () => true,
+      () => false,
+    );
     const auth = token === '' ? null : this.s.users.authenticateToken(token);
     if (auth === null) {
       await this.say(
@@ -169,7 +172,10 @@ export class TelegramBot {
     }
     this.store.setLink(message.from!.id, chatId, auth.user.id, auth.fingerprint);
     this.store.saveChatState(chatId, { projectId: null, currentRunId: null, wizard: null });
-    await this.say(chatId, `Logged in as ${auth.user.username}. I deleted your token message.\n\n${HELP}`);
+    const note = deleted
+      ? 'I deleted your token message.'
+      : '⚠️ I could not delete your token message. Delete it yourself now and consider revoking the token in Automator and creating a new one.';
+    await this.say(chatId, `Logged in as ${auth.user.username}. ${note}\n\n${HELP}`);
   }
 
   private async command(
@@ -409,11 +415,13 @@ export class TelegramBot {
   // --- Chats -----------------------------------------------------------------------------------------------------
 
   private async chatList(chatId: number, userId: number): Promise<void> {
+    // Only the user's own chats (the run owner), like the chat-finished pushes. runList applies its limit before
+    // this filter, so it is read unlimited and cut here.
     const rows = this.s.read
-      .runList({ project: this.scope(chatId, userId), limit: CHAT_LIMIT })
-      .filter((r) => r.watchId === null)
+      .runList({ project: this.scope(chatId, userId) })
+      .filter((r) => this.s.access.ownerOf('runs', r.id) === userId)
       .slice(0, CHAT_LIMIT);
-    if (rows.length === 0) return this.say(chatId, 'No chats yet. Start one with /chat.');
+    if (rows.length === 0) return this.say(chatId, 'You have no chats yet. Start one with /chat.');
     const now = this.s.clock.now();
     const lines = rows.map(
       (r) =>
