@@ -1,6 +1,7 @@
 import {
   acquireWorkerLock,
   bootstrap,
+  createTelegramBot,
   heartbeat,
   isProcessAlive,
   recoverInterruptedRuns,
@@ -39,6 +40,20 @@ function main(): void {
     process.exit(1);
   };
   const loop = new WorkerLoop(core, { onLockLost: lockLost });
+  // Off unless `telegram.enabled` is set; polls Telegram outbound, so nothing needs to be exposed.
+  const telegram = createTelegramBot({
+    config: core.config,
+    db: core.db,
+    services: {
+      clock: core.deps.clock,
+      users: core.users,
+      access: core.access,
+      read: core.read,
+      watches: core.watches,
+      queue: core.queue,
+      projects: core.projects,
+    },
+  });
 
   // Keeps the lock fresh while startup steps (recovery, Jira lookups) may take minutes.
   const startupHeartbeat = setInterval(() => {
@@ -62,6 +77,7 @@ function main(): void {
     }
     if (shuttingDown) return;
     loop.start();
+    telegram?.start();
     console.log(`${ts()} worker started (pid ${pid})`);
   })();
 
@@ -72,6 +88,7 @@ function main(): void {
       console.log(`${ts()} ${signal} received, waiting for the active runs to finish (press Ctrl-C again to force)`);
       void startup
         .catch(() => {})
+        .then(() => telegram?.stop())
         .then(() => loop.stop())
         .catch((e: unknown) => console.error(`${ts()} shutdown failed: ${message(e)}`))
         .finally(() => {
