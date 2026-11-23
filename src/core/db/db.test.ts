@@ -129,7 +129,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(oldRunId))).toMatchObject({
       id: oldRunId,
       provider: 'copilot',
@@ -184,7 +184,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     expect(db.prepare('SELECT chat_session_id FROM runs WHERE id = ?').get(runId)).toEqual({ chat_session_id: null });
     expect(toRun(db.prepare('SELECT * FROM runs WHERE id = ?').get(runId)).chatSessionId).toBeNull();
     expect(db.pragma('foreign_key_check')).toEqual([]);
@@ -209,7 +209,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session) as Record<string, unknown>;
     for (const column of [
       'mcp_nonce',
@@ -262,7 +262,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(session) as Record<string, unknown>;
     for (const column of ['timer_fire_at', 'timer_message', 'timer_created_at']) {
       expect(row).toHaveProperty(column, null);
@@ -312,7 +312,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     expect(db.prepare('SELECT id, owner_user_id, chat_session_id, parent_run_id FROM runs ORDER BY id').all()).toEqual(
       before,
     );
@@ -425,10 +425,10 @@ describe('db', () => {
 
   test('migrate is idempotent and sets user_version 23', () => {
     const db = setup();
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     migrate(db);
     migrate(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     expect(db.pragma('table_info(repositories)')).toEqual([
       expect.objectContaining({ name: 'name' }),
       expect.objectContaining({ name: 'folder' }),
@@ -472,6 +472,10 @@ describe('db', () => {
       'roles',
       'runs',
       'sessions',
+      'telegram_chat_state',
+      'telegram_links',
+      'telegram_push_log',
+      'telegram_state',
       'user_credentials',
       'user_settings',
       'users',
@@ -555,7 +559,7 @@ describe('db', () => {
 
     migrate(db);
 
-    expect(db.pragma('user_version', { simple: true })).toBe(30);
+    expect(db.pragma('user_version', { simple: true })).toBe(31);
     expect(db.pragma('table_info(agents)')).not.toContainEqual(expect.objectContaining({ name: 'workflow_type' }));
     expect(db.prepare('SELECT id, name, instructions, created_at, updated_at FROM agents ORDER BY id').all()).toEqual(
       agentsBefore,

@@ -162,6 +162,12 @@ export class UserService {
 
   // Expired tokens are deleted when met; tokens of disabled users never validate.
   userForToken(token: string | undefined): User | null {
+    return this.authenticateToken(token)?.user ?? null;
+  }
+
+  // Like userForToken, plus an opaque fingerprint (the stored hash) to recheck later whether the same token is still
+  // valid without keeping the token itself.
+  authenticateToken(token: string | undefined): { user: User; fingerprint: string } | null {
     if (token === undefined || !token.startsWith(TOKEN_PREFIX)) return null;
     const row = this.db
       .prepare(
@@ -177,6 +183,17 @@ export class UserService {
     }
     if (row.disabled === 1) return null;
     this.db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?').run(now, row.id);
-    return { id: row.user_id as number, username: row.username as string };
+    return { user: { id: row.user_id as number, username: row.username as string }, fingerprint: hashToken(token) };
+  }
+
+  // False once the token was revoked, regenerated or expired, or its user was disabled. Does not touch last use.
+  isFingerprintValid(userId: number, fingerprint: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT t.expires_at, u.disabled FROM api_tokens t JOIN users u ON u.id = t.user_id
+         WHERE t.user_id = ? AND t.token_hash = ?`,
+      )
+      .get(userId, fingerprint) as { expires_at: number | null; disabled: number } | undefined;
+    return row !== undefined && row.disabled === 0 && (row.expires_at === null || row.expires_at > this.now());
   }
 }

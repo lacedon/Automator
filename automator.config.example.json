@@ -40,5 +40,10 @@
     "chatId": "19:abc@thread.v2",
     "tool": "teams-global(send_chat_message)",
     "dashboardUrl": "http://127.0.0.1:4317"
+  },
+  "telegram": {
+    "enabled": false,
+    "tokenEnv": "AUTOMATOR_TELEGRAM_BOT_TOKEN",
+    "dashboardUrl": "http://127.0.0.1:4317"
   }
 }

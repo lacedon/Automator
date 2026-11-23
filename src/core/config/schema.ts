@@ -138,6 +138,14 @@ export function createConfigSchema(configDir: string) {
           dashboardUrl: nonEmpty.default('http://127.0.0.1:4317'),
         })
         .optional(),
+      // The Telegram bot runs in the worker and is off unless enabled; its token lives in `.env` under `tokenEnv`.
+      telegram: z
+        .object({
+          enabled: z.boolean().default(false),
+          tokenEnv: nonEmpty.default('AUTOMATOR_TELEGRAM_BOT_TOKEN'),
+          dashboardUrl: nonEmpty.default('http://127.0.0.1:4317'),
+        })
+        .optional(),
     })
     .superRefine((config, ctx) => {
       if (config.providers[config.provider].defaultModel.trim() !== '') return;
