@@ -476,6 +476,39 @@ describe('push messages', () => {
     expect(api.sent.map((m) => m.chatId)).toEqual([7, CHAT]);
   });
 
+  test('a failing chat gets one send attempt per tick while the others get every push', async () => {
+    const p = pusher();
+    await p.tick();
+    await login();
+    const bob = core.users.create('bob', 'secret-pass');
+    if (!bob.ok) throw new Error('bob');
+    core.access.assign(bob.value.id, core.access.listRoles()[0]!.id, null);
+    const bobToken = core.users.createToken(bob.value.id, 't', null);
+    if (!bobToken.ok) throw new Error('token');
+    await say(`/login ${bobToken.value.token}`, 7, 7);
+    clock.advance(1000);
+    for (const reason of ['a', 'b', 'c']) {
+      const id = insertWatch(core.db, { state: 'needs_you' });
+      core.db
+        .prepare(
+          "INSERT INTO needs_you_events (watch_id, reason, created_at, teams_status) VALUES (?, ?, ?, 'pending')",
+        )
+        .run(id, reason, clock.now());
+    }
+    api.sent = [];
+    let attempts = 0;
+    api.onSend = () => void attempts++;
+    api.failFor.set(CHAT, new TelegramApiError('sendMessage: down', 502));
+    await expect(p.tick()).rejects.toThrow('down');
+    // One failed attempt for the admin's chat plus three successful sends to bob.
+    expect(attempts).toBe(4);
+    expect(api.sent.map((m) => m.chatId)).toEqual([7, 7, 7]);
+    // The backoff grew once (5 s), so a retry after 6 s is allowed.
+    api.failFor.clear();
+    clock.advance(6000);
+    expect(await p.tick()).toBe(3);
+  });
+
   test('does not push to a user without access, and unlinks revoked links', async () => {
     const p = pusher();
     await p.tick();

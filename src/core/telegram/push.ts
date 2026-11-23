@@ -133,11 +133,15 @@ export class TelegramPusher {
     if (links.length === 0) return 0;
     let sent = 0;
     let failure: unknown = null;
+    // Links that failed or were dropped during this tick are skipped for its remaining candidates.
+    const skipped = new Set<number>();
     for (const c of this.candidates(from)) {
       for (const link of links) {
+        if (skipped.has(link.telegramUserId)) continue;
         if (c.at < link.linkedAt || !c.allowed(link.userId)) continue;
         if (!users.isFingerprintValid(link.userId, link.tokenFingerprint)) {
           store.unlink(link.telegramUserId);
+          skipped.add(link.telegramUserId);
           continue;
         }
         if (!store.reservePush(c.kind, c.refId, link.chatId)) continue;
@@ -146,6 +150,7 @@ export class TelegramPusher {
           sent += 1;
         } catch (e) {
           store.releasePush(c.kind, c.refId, link.chatId);
+          skipped.add(link.telegramUserId);
           if (isPermanent(e)) {
             // The user blocked the bot or deleted the chat: retrying never helps, so drop this link only.
             store.unlink(link.telegramUserId);
