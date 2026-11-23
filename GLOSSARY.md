@@ -81,3 +81,10 @@ An Automation state indicating that follow-up requires a human decision before a
 
 **Closed Automation**:
 An Automation whose follow-up has ended, either because its merge request was merged or closed, or because the user closed the Automation.
+
+**Telegram bot**:
+An optional remote control that runs inside the worker and polls Telegram over outbound HTTPS (no webhook, port or tunnel). A Telegram account is linked to an Automator user with `/login <access token>`; the token is not stored, and the bot acts with that user's permissions. It lists open Automations (every state except Closed), shows Runs and results, pauses, resumes, closes or runs Automations, starts and continues Chats (Follow-up runs), and pushes a message when an Automation needs you, a Chat Run finishes or a Run fails.
+_Avoid_: Notifier (that is the Teams message sent for Needs you)
+
+**Telegram link**:
+The stored tie between one Telegram account (and its private chat) and an Automator user. It ends on `/logout`, or when the access token it was created with is revoked, regenerated or expires, or the user is disabled.

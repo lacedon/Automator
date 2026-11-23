@@ -567,4 +567,34 @@ ALTER TABLE chat_sessions ADD COLUMN timer_created_at INTEGER;
 CREATE INDEX ix_chat_sessions_timer ON chat_sessions(timer_fire_at) WHERE timer_fire_at IS NOT NULL AND closed_at IS NULL;
 `,
   },
+  {
+    version: 31,
+    sql: `CREATE TABLE telegram_links (
+  telegram_user_id INTEGER PRIMARY KEY,
+  chat_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_fingerprint TEXT NOT NULL,
+  linked_at INTEGER NOT NULL
+);
+CREATE INDEX ix_telegram_links_user ON telegram_links(user_id);
+CREATE TABLE telegram_chat_state (
+  chat_id INTEGER PRIMARY KEY,
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  current_run_id INTEGER REFERENCES runs(id) ON DELETE SET NULL,
+  wizard_json TEXT,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE telegram_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE telegram_push_log (
+  kind TEXT NOT NULL CHECK (kind IN ('needs_you', 'chat_finished', 'run_failed')),
+  ref_id INTEGER NOT NULL,
+  chat_id INTEGER NOT NULL,
+  sent_at INTEGER NOT NULL,
+  PRIMARY KEY (kind, ref_id, chat_id)
+);
+`,
+  },
 ];

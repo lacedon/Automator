@@ -119,6 +119,17 @@ export {
   type UpdateWatchInput,
 } from './watches/watchService';
 export { acquireWorkerLock, heartbeat, isProcessAlive, releaseWorkerLock, type WorkerRunning } from './worker/lock';
+export {
+  createTelegramBot,
+  createTelegramRunner,
+  TelegramBot,
+  TelegramPusher,
+  TelegramStore,
+  splitMessage,
+  type TelegramApi,
+  type TelegramRunner,
+  type TelegramUpdate,
+} from './telegram/index';
 export { resolveJiraDoneNames } from './worker/jiraDoneNames';
 
 export interface Deps {
